@@ -1,0 +1,28 @@
+{
+  "name": "qtumscan",
+  "private": true,
+  "version": "0.0.1",
+  "description": "",
+  "scripts": {
+    "lerna": "lerna"
+  },
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qtumproject/qtumscan.git"
+  },
+  "keywords": [
+    "qtum",
+    "qtumscan",
+    "qtum explorer"
+  ],
+  "author": "QTUM <foundation@qtum.org>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/qtumproject/qtumscan/issues"
+  },
+  "homepage": "https://github.com/qtumproject/qtumscan#readme",
+  "devDependencies": {
+    "lerna": "^2.5.1"
+  }
+}
