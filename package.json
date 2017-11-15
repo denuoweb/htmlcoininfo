@@ -4,7 +4,8 @@
   "version": "0.0.1",
   "description": "",
   "scripts": {
-    "lerna": "lerna"
+    "lerna": "lerna",
+    "qtumscan-node": "node packages/qtumscan-node/bin/qtumscan-node"
   },
   "main": "index.js",
   "repository": {
