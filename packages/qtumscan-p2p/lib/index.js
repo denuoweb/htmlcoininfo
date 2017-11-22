@@ -1,0 +1,5 @@
+exports.Inventory = require('./inventory')
+exports.BloomFilter = require('./bloomfilter')
+exports.Messages = require('./messages')
+exports.Peer = require('./peer')
+exports.Pool = require('./pool')
