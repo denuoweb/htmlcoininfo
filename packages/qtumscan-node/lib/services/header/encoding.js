@@ -1,3 +1,5 @@
+const {BufferReader, BufferWriter} = require('qtumscan-lib').encoding
+
 class Encoding {
   constructor(servicePrefix) {
     this._servicePrefix = servicePrefix
@@ -15,52 +17,49 @@ class Encoding {
   }
 
   encodeHeaderHeightKey(height) {
-    var heightBuffer = Buffer.alloc(4)
+    let heightBuffer = Buffer.alloc(4)
     heightBuffer.writeUInt32BE(height)
     return Buffer.concat([this._servicePrefix, this._heightPrefix, heightBuffer])
   }
 
   encodeHeaderValue(header) {
-    let hashBuffer = Buffer.from(header.hash, 'hex')
-    let versionBuffer = Buffer.alloc(4)
-    versionBuffer.writeInt32BE(header.version)
-    let prevHash = Buffer.from(header.prevHash, 'hex')
-    let merkleRoot = Buffer.from(header.merkleRoot, 'hex')
-    let tsBuffer = Buffer.alloc(4)
-    tsBuffer.writeUInt32BE(header.timestamp || header.time)
-    let bitsBuffer = Buffer.alloc(4)
-    bitsBuffer.writeUInt32BE(header.bits)
-    let nonceBuffer = Buffer.alloc(4)
-    nonceBuffer.writeUInt32BE(header.nonce)
-    let heightBuffer = Buffer.alloc(4)
-    heightBuffer.writeUInt32BE(header.height)
-    let chainworkBuffer = Buffer.from(header.chainwork, 'hex')
-    let nextHash = Buffer.from(header.nextHash || '0'.repeat(64), 'hex')
-    return Buffer.concat([
-      hashBuffer,
-      versionBuffer,
-      prevHash,
-      merkleRoot,
-      tsBuffer,
-      bitsBuffer,
-      nonceBuffer,
-      heightBuffer,
-      chainworkBuffer,
-      nextHash
-    ])
+    let writer = new BufferWriter()
+    writer.write(Buffer.from(header.hash, 'hex'))
+    writer.writeInt32BE(header.version)
+    writer.write(Buffer.from(header.prevHash, 'hex'))
+    writer.write(Buffer.from(header.merkleRoot, 'hex'))
+    writer.writeUInt32BE(header.timestamp || header.time)
+    writer.writeUInt32BE(header.bits)
+    writer.writeUInt32BE(header.nonce)
+    writer.write(Buffer.from(header.hashStateRoot, 'hex'))
+    writer.write(Buffer.from(header.hashUTXORoot, 'hex'))
+    writer.write(Buffer.from(header.prevOutStakeHash, 'hex'))
+    writer.writeUInt32BE(header.prevOutStakeN)
+    writer.writeVarintNum(header.vchBlockSig.length)
+    writer.write(Buffer.from(header.vchBlockSig, 'hex'))
+    writer.write(Buffer.from(header.chainwork, 'hex'))
+    writer.write(Buffer.from(header.nextHash || '0'.repeat(64), 'hex'))
+    return writer.toBuffer()
   }
 
   decodeHeaderValue(buffer) {
-    let hash = buffer.slice(0, 32).toString('hex')
-    let version = buffer.readInt32BE(32)
-    let prevHash = buffer.slice(36, 68).toString('hex')
-    let merkleRoot = buffer.slice(68, 100).toString('hex')
-    let timestamp = buffer.readUInt32BE(100)
-    let bits = buffer.readUInt32BE(104)
-    let nonce = buffer.readUInt32BE(108)
-    let height = buffer.readUInt32BE(112)
-    let chainwork = buffer.slice(116, 116 + 32).toString('hex')
-    let nextHash = buffer.slice(116 + 32).toString('hex')
+    let reader = new BufferReader(buffer)
+    let hash = reader.read(32).toString('hex')
+    let version = reader.readInt32BE()
+    let prevHash = reader.read(32).toString('hex')
+    let merkleRoot = reader.read(32).toString('hex')
+    let timestamp = reader.readUInt32BE()
+    let bits = reader.readUInt32BE()
+    let nonce = reader.readUInt32BE()
+    let hashStateRoot = reader.read(32).toString('hex')
+    let hashUTXORoot = reader.read(32).toString('hex')
+    let prevOutStakeHash = reader.read(32).toString('hex')
+    let prevOutStakeN = reader.readUInt32BE()
+    let num = reader.readVarintNum()
+    let vchBlockSig = reader.read(num).toString('hex')
+    let height = reader.readUInt32BE()
+    let chainwork = reader.read(32).toString('hex')
+    let nextHash = reader.read(32).toString('hex')
     return {
       hash,
       version,
@@ -69,6 +68,11 @@ class Encoding {
       timestamp,
       bits,
       nonce,
+      hashStateRoot,
+      hashUTXORoot,
+      prevOutStakeHash,
+      prevOutStakeN,
+      vchBlockSig,
       height,
       chainwork,
       nextHash

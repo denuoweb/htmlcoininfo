@@ -64,7 +64,7 @@ function revHex(data) {
 }
 
 const MAX_CHAINWORK = new BN(1).ushln(256)
-const STARTING_CHAINWORK = '0'.repeat(52) + '0001'.repeat(3)
+const STARTING_CHAINWORK = '0'.repeat(56) + '0001'.repeat(2)
 
 class HeaderService extends BaseService {
   constructor(options) {
@@ -167,7 +167,12 @@ class HeaderService extends BaseService {
       timestamp: 1504695029,
       nonce: 8026361,
       bits: 0x1f00ffff,
-      merkleRoot: 'ed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d'
+      merkleRoot: 'ed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d',
+      hashStateRoot: '56a5d77f0998d3353d7d830adbc9ec72d1af5f8743b30dbffcb4ca7ea8de7b39',
+      hashUTXORoot: '2f68552d0a4ac271250b16b4417bbceb7ac408e3446b57ea0e027dfa23972900',
+      prevOutStakeHash: '0'.repeat(64),
+      prevOutStakeN: 0,
+      vchBlockSig: ''
     }
     this._lastHeader = genesisHeader
     return this._db.batch([
@@ -222,8 +227,8 @@ class HeaderService extends BaseService {
         this._handleError(err)
       } else {
         this.node.log.debug(
-          'Header Service: completed processing block:', block.hash,
-          'prev hash:', revHex(block.prevBlock)
+          `Header Service: completed processing block: ${block.hash},`,
+          'prev hash:', revHex(block.header.toObject().prevHash)
         )
       }
     })
@@ -256,11 +261,7 @@ class HeaderService extends BaseService {
   }
 
   _formatHeader(block) {
-    let header = block.header.toJSON()
-    console.log(header);
-    header.timestamp = header.ts
-    header.prevHash = header.prevBlock
-    return header
+    return block.header.toJSON()
   }
 
   _syncBlock(block) {
@@ -433,7 +434,7 @@ class HeaderService extends BaseService {
   }
 
   _detectReorg(block) {
-    return revHex(block.prevBlock !== this._lastHeader.hash)
+    return revHex(block.prevHash !== this._lastHeader.hash)
   }
 
   _handleReorg(block) {

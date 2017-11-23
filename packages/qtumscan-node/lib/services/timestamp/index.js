@@ -44,8 +44,8 @@ class TimestampService extends BaseService {
   }
 
   onBlock(block) {
-    let hash = block.rhash()
-    let ts = Math.max(this._lastBlockTimestamp + 1, block.ts)
+    let hash = block.hash
+    let ts = Math.max(this._lastBlockTimestamp + 1, block.header.timestamp)
     this._cache.set(hash, ts)
     this._lastBlockTimestamp = ts
 
@@ -67,8 +67,8 @@ class TimestampService extends BaseService {
     let removalOperations = []
     for (let block of oldBlockList) {
       removalOperations.push(
-        {type: 'del', key: this._encoding.encodeTimestampBlockKey(block.__ts)},
-        {type: 'del', key: this._encoding.encodeBlockTimestampKey(block.rhash())}
+        {type: 'del', key: this._encoding.encodeTimestampBlockKey(block.header.timestamp)},
+        {type: 'del', key: this._encoding.encodeBlockTimestampKey(block.hash)}
       )
     }
     this._lastBlockTimestamp = await this.getTimestamp(commonAncestorHash)
