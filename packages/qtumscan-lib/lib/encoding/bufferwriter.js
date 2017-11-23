@@ -29,6 +29,11 @@ class BufferWriter {
     return this
   }
 
+  writeHexString(string) {
+    this.bufs.push(Buffer.from(string, 'hex'))
+    return this
+  }
+
   writeReverse(buf) {
     assert(Buffer.isBuffer(buf))
     this.bufs.push(BufferUtil.reverse(buf))
@@ -63,16 +68,23 @@ class BufferWriter {
     return this
   }
 
-  writeInt32LE(n) {
+  writeUInt32LE(n) {
     let buf = Buffer.alloc(4)
-    buf.writeInt32LE(n, 0)
+    buf.writeUInt32LE(n, 0)
     this.write(buf)
     return this
   }
 
-  writeUInt32LE(n) {
+  writeInt32BE(n) {
     let buf = Buffer.alloc(4)
-    buf.writeUInt32LE(n, 0)
+    buf.writeInt32BE(n, 0)
+    this.write(buf)
+    return this
+  }
+
+  writeInt32LE(n) {
+    let buf = Buffer.alloc(4)
+    buf.writeInt32LE(n, 0)
     this.write(buf)
     return this
   }

@@ -39,6 +39,12 @@ class BufferReader {
     return buf
   }
 
+  readHexString(length) {
+    let buffer = this.buf.slice(this.pos, this.pos + length)
+    this.pos += length
+    return buffer.toString('hex')
+  }
+
   readAll() {
     let buf = this.buf.slice(this.pos)
     this.pos = this.buf.length
@@ -69,6 +75,12 @@ class BufferReader {
 
   readUInt32LE() {
     let value = this.buf.readUInt32LE(this.pos)
+    this.pos += 4
+    return value
+  }
+
+  readInt32BE() {
+    let value = this.buf.readInt32BE(this.pos)
     this.pos += 4
     return value
   }
