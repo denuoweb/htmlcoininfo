@@ -346,7 +346,7 @@ class BlockService extends BaseService {
           try {
             await this._checkTip()
             this._reorging = false
-            this._startSync()
+            await this._startSync()
             resolve()
           } catch (err) {
             reject(err)
@@ -589,7 +589,7 @@ class BlockService extends BaseService {
     this._mempool.enable()
   }
 
-  _startSync() {
+  async _startSync() {
     let numNeeded = Math.max(this._header.getLastHeader().height - this._tip.height, 0)
     this.node.log.info('Block Service: Gathering:', numNeeded, 'block(s) from the peer-to-peer network.')
     if (numNeeded > 0) {
@@ -598,10 +598,11 @@ class BlockService extends BaseService {
       clearInterval(this._reportInterval)
       if (this._tip.height === 0) {
         let genesisBlock = new Block(Buffer.from(this.GENESIS_BLOCK_HEX, 'hex'))
-        this._saveBlock(genesisBlock)
+        genesisBlock.height = 0
+        await this._saveBlock(genesisBlock)
       }
       this._reportInterval = setInterval(this._logProgress.bind(this), 5000)
-      this._sync()
+      await this._sync()
     } else {
       this._onSynced()
     }

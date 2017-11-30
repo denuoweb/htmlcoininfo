@@ -75,7 +75,7 @@ class TimestampService extends BaseService {
     return removalOperations
   }
 
-  getTimestampSync() {
+  getTimestampSync(hash) {
     return this._cache.get(hash)
   }
 

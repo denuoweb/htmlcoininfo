@@ -122,7 +122,7 @@ class MempoolService extends BaseService {
   }
 
   enable() {
-    this.node.log.info('Mempool service: Mempook enabled.')
+    this.node.log.info('Mempool service: Mempool enabled.')
     this._startSubscriptions()
     this._enabled = true
   }
@@ -180,7 +180,7 @@ class MempoolService extends BaseService {
     try {
       await this._db.batch(operations)
       for (let transaction of this._subscriptions.transaction) {
-        transaction.emit('mempool/transaction)')
+        transaction.emit('mempool/transaction')
       }
     } catch (err) {
       this.node.log.error(err)
