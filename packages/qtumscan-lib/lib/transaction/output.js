@@ -132,7 +132,7 @@ class Output {
     return new Output(obj)
   }
 
-  static toBufferWriter(writer = new BufferWriter()) {
+  toBufferWriter(writer = new BufferWriter()) {
     writer.writeUInt64LEBN(this._satoshisBN)
     let script = this._scriptBuffer
     writer.writeVarintNum(script.length)

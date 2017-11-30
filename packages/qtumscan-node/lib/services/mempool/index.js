@@ -1,4 +1,5 @@
 const BaseService = require('../../service')
+const {getAddress} = require('../../utils')
 const Encoding = require('./encoding')
 
 class MempoolService extends BaseService {
@@ -87,7 +88,7 @@ class MempoolService extends BaseService {
     return new Promise(resolve => {
       steam.on('end', () => {
         clearInterval(timer)
-        log.info('Mempool service: complete flushing:', totalCount, 'tx mempool records.')
+        this.node.log.info('Mempool service: complete flushing:', totalCount, 'tx mempool records.')
         resolve()
       })
     })
@@ -96,10 +97,10 @@ class MempoolService extends BaseService {
   onReorg([_, oldBlockList]) {
     let removalOperations = []
     for (let block of oldBlockList) {
-      for (let tx of block.txs) {
-        let key = this._encoding.encodeMempoolTransactionKey(tx.txid())
+      for (let tx of block.transactions) {
+        let key = this._encoding.encodeMempoolTransactionKey(tx.hash)
         let value = this._encoding.encodeMempoolTransactionValue(tx)
-        removalOperations.push({type: 'put', key, value}, ...this.getAddressOperations(tx, true))
+        removalOperations.push({type: 'put', key, value}, ...this._getAddressOperations(tx, true))
       }
     }
 
@@ -121,17 +122,17 @@ class MempoolService extends BaseService {
   }
 
   enable() {
-    log.info('Mempool service: Mempook enabled.')
+    this.node.log.info('Mempool service: Mempook enabled.')
     this._startSubscriptions()
     this._enabled = true
   }
 
   onBlock(block) {
     let operations = []
-    for (let tx of block.txs) {
+    for (let tx of block.transactions) {
       operations.push(
-        {type: 'del', key: this._encoding.encodeMempoolTransactionKey(tx.txid())},
-        ...this.getAddressOperations(tx)
+        {type: 'del', key: this._encoding.encodeMempoolTransactionKey(tx.hash)},
+        ...this._getAddressOperations(tx)
       )
     }
     return operations
@@ -141,22 +142,24 @@ class MempoolService extends BaseService {
     let operations = []
     let action = reverse ? 'put' : 'del'
 
-    for (let output of tx.outputs) {
-      let address = utils.getAddress(output, this._network)
+    for (let i = 0; i < tx.outputs.length; ++i) {
+      let output = tx.outputs[i]
+      let address = getAddress(output, this._network)
       if (address) {
         operations.push({
           type: action,
-          key: this._encoding.encodeMempoolAddressKey(address, tx.txid(), i, 0)
+          key: this._encoding.encodeMempoolAddressKey(address, tx.hash, i, 0)
         })
       }
     }
 
-    for (let input of tx.inputs) {
-      let address = utils.getAddress(input, this._network)
+    for (let i = 0; i < tx.inputs.length; ++i) {
+      let input = tx.inputs[i]
+      let address = getAddress(input, this._network)
       if (address) {
         operations.push({
           type: action,
-          key: this._encoding.encodeMempoolAddressKey(address, tx.txid(), i, 1)
+          key: this._encoding.encodeMempoolAddressKey(address, tx.hash, i, 1)
         })
       }
     }
@@ -168,7 +171,7 @@ class MempoolService extends BaseService {
     let ops = [
       {
         type: 'put',
-        key: this._encoding.encodeMempoolTransactionKey(tx.txid()),
+        key: this._encoding.encodeMempoolTransactionKey(tx.hash),
         value: this._encoding.encodeMempoolTransactionValue(tx)
       },
       ...this._getAddressOperations(tx, true)
@@ -180,7 +183,7 @@ class MempoolService extends BaseService {
         transaction.emit('mempool/transaction)')
       }
     } catch (err) {
-      log.error(err)
+      this.node.log.error(err)
       this.node.stop()
     }
   }

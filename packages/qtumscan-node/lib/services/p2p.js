@@ -66,8 +66,16 @@ class P2P extends BaseService {
     let blockFilter = this._setResourceFilter(filter, 'blocks')
     this._peer.sendMessage(this.messages.GetBlocks(blockFilter))
 
-    return promisify(callback => {
-      setTimeout(() => this.removeListener(blockHash, callback), 5000)
+    return new Promise((resolve, reject) => {
+      let timeout
+      let callback = block => {
+        clearTimeout(timeout)
+        resolve(block)
+      }
+      timeout = setTimeout(() => {
+        this.removeListener(blockHash, callback)
+        reject()
+      }, 5000)
       this.once(blockHash, callback)
     })
   }
@@ -158,7 +166,7 @@ class P2P extends BaseService {
   }
 
   _getBestHeight() {
-    if (this._peers === 0) {
+    if (this._peers.length === 0) {
       return 0
     }
 

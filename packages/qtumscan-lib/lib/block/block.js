@@ -79,7 +79,7 @@ class Block {
   }
 
   toJSON() {
-    return this.toObject
+    return this.toObject()
   }
 
   toBuffer() {
@@ -88,6 +88,10 @@ class Block {
 
   toString() {
     return this.toBuffer().toString('hex')
+  }
+
+  get prevBlock() {
+    return this.header.prevHash.toString('hex')
   }
 
   toBufferWriter(bw = new BufferWriter()) {

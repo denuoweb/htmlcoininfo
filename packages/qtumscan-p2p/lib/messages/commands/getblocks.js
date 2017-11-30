@@ -36,6 +36,7 @@ class GetblocksMessage extends Message {
       throw new Error('Invalid hash length: ' + this.stop.length)
     }
     bw.write(this.stop)
+    return bw.concat()
   }
 }
 

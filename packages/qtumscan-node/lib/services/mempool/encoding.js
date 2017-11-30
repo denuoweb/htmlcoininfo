@@ -16,7 +16,7 @@ class Encoding {
   }
 
   encodeMempoolTransactionValue(transaction) {
-    return trnsaction.toBuffer()
+    return transaction.toBuffer()
   }
 
   decodeMempoolTransactionValue(buffer) {

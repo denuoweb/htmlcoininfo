@@ -508,7 +508,7 @@ class Transaction {
 
   feePerKb(amount) {
     assert(Number.isInteger(amount))
-    this._fee = amount
+    this._feePerKb = amount
     this._updateChangeOutput()
     return this
   }
@@ -625,7 +625,7 @@ class Transaction {
 
   _estimateFee() {
     return Transaction._estimateFee(
-      this._estimatesize(),
+      this._estimateSize(),
       this._getUnspentValue(),
       this._feePerKb
     )
@@ -649,10 +649,10 @@ class Transaction {
     return Math.ceil(size / 1000) * feePerKb
   }
 
-  _estimatesize() {
+  _estimateSize() {
     let result = MAXIMUM_EXTRA_SIZE
     for (let input of this.inputs) {
-      result += input._estimatesize()
+      result += input._estimateSize()
     }
     for (let output of this.outputs) {
       result += output.script.toBuffer().length + 9

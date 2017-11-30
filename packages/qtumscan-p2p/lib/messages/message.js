@@ -1,7 +1,7 @@
 const assert = require('assert')
 const qtumscan = require('qtumscan-lib')
 const {BufferWriter} = qtumscan.encoding
-const Hash = qtumscan.crypto.Hash
+const {sha256sha256} = qtumscan.crypto.Hash
 
 class Message {
   constructor(command, options) {
@@ -16,11 +16,11 @@ class Message {
   }
 
   toBuffer() {
-    assert(this.network, 'Need to hava a defined network to serialize message')
+    assert(this.network, 'Need to have a defined network to serialize message')
     let commandBuffer = Buffer.alloc(12)
     commandBuffer.write(this.command, 'ascii')
     let payload = this.getPayload()
-    let checksum = Hash.sha256sha256(payload).slice(0, 4)
+    let checksum = sha256sha256(payload).slice(0, 4)
     let bw = new BufferWriter()
     bw.write(this.network.networkMagic)
     bw.write(commandBuffer)

@@ -47,9 +47,9 @@ class Base58Check extends Base58 {
       throw new Error('Input must be a buffer')
     }
     let checkedBuf = Buffer.alloc(buf.length + 4)
-    let hash = Block58Check.checksum
-    but.copy(chaekedBuf)
-    hash.copy(checkedBuf, length)
+    let hash = Base58Check.checksum(buf)
+    buf.copy(checkedBuf)
+    hash.copy(checkedBuf, buf.length)
     return Base58.encode(checkedBuf)
   }
 }

@@ -134,7 +134,7 @@ class Signature {
     return this.toDER().toString('hex')
   }
 
-  toTxDer(buf) {
+  static isTxDER(buf) {
     if (buf.length < 9 || buf.length > 73) {
       return false
     } else if (buf[0] !== 0x30 || buf[1] !== buf.length - 3) {

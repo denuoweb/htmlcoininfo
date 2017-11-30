@@ -2,66 +2,8 @@ const assert = require('assert')
 const BN = require('bn.js')
 const BaseService = require('../../service')
 const {QTUM_GENESIS_HASH} = require('../../constants')
-const {encodeTip, AsyncQueue} = require('../../utils')
+const {encodeTip, fromCompact, getTarget, double256, getDifficulty, revHex, AsyncQueue} = require('../../utils')
 const Encoding = require('./encoding')
-
-function fromCompact(compact) {
-  if (compact === 0) {
-    return new BN(0)
-  }
-  let exponent = compact >>> 24
-  let negative = (compact >>> 23) & 1
-  let mantissa = compact & 0x7fffff
-  let num
-  if (exponent <= 3) {
-    mantissa >>>= 8 * (3 - exponent)
-    num = new BN(mantissa)
-  } else {
-    num = new BN(mantissa)
-    num.iushln(8 * (exponent - 3))
-  }
-  if (negative) {
-    num.ineg()
-  }
-  return num
-}
-
-function getTarget(bits) {
-  let target = fromCompact(bits)
-  assert(!target.isNeg(), 'Target is negative.')
-  assert(!target.isZero(), 'Target is zero.')
-  return target.toArrayLike(Buffer, 'le', 32);
-}
-
-function double256(target) {
-  assert(target.length === 32)
-  let hi = target.readUInt32LE(28, true)
-  let lo = target.readUInt32LE(24, true)
-  let n = (hi * 2 ** 32 + lo) * 2 ** 192
-  hi = target.readUInt32LE(20, true)
-  lo = target.readUInt32LE(16, true)
-  n += (hi * 2 ** 32 + lo) * 2 ** 128
-  hi = target.readUInt32LE(12, true)
-  lo = target.readUInt32LE(8, true)
-  n += (hi * 2 ** 32 + lo) * 2 ** 64
-  hi = target.readUInt32LE(4, true)
-  lo = target.readUInt32LE(0, true)
-  return n + hi * 2 ** 32 + lo
-}
-
-function getDifficulty(target) {
-  let d = 2 ** 224 - 2 ** 208
-  let n = common.double256(target)
-  return n === 0 ? d : Math.floor(d / n)
-}
-
-function revHex(data) {
-  let buffer = []
-  for (let i = 0; i < data.length; i += 2) {
-    buffer.push(data.slice(i, i + 2))
-  }
-  return buffer.reverse().join('')
-}
 
 const MAX_CHAINWORK = new BN(1).ushln(256)
 const STARTING_CHAINWORK = '0'.repeat(56) + '0001'.repeat(2)
@@ -171,7 +113,7 @@ class HeaderService extends BaseService {
       hashStateRoot: '56a5d77f0998d3353d7d830adbc9ec72d1af5f8743b30dbffcb4ca7ea8de7b39',
       hashUTXORoot: '2f68552d0a4ac271250b16b4417bbceb7ac408e3446b57ea0e027dfa23972900',
       prevOutStakeHash: '0'.repeat(64),
-      prevOutStakeN: 0,
+      prevOutStakeN: 0xffffffff,
       vchBlockSig: ''
     }
     this._lastHeader = genesisHeader
@@ -228,7 +170,7 @@ class HeaderService extends BaseService {
       } else {
         this.node.log.debug(
           `Header Service: completed processing block: ${block.hash},`,
-          'prev hash:', revHex(block.header.toObject().prevHash)
+          'prev hash:', revHex(block.header.prevHash.toString('hex'))
         )
       }
     })
@@ -255,7 +197,7 @@ class HeaderService extends BaseService {
       return this._syncBlock(block)
     }
     this._reorging = true
-    this._emit('reorg')
+    this.emit('reorg')
     await this._handleReorg(block)
     this._startSync()
   }
@@ -379,7 +321,7 @@ class HeaderService extends BaseService {
     }
     this.node.log.info('Header Service: sync complete.')
     this._initialSync = false
-    for (let service of this.node.services) {
+    for (let service of this.node.services.values()) {
       if (service.onHeaders) {
         await service.onHeaders()
       }
@@ -434,7 +376,7 @@ class HeaderService extends BaseService {
   }
 
   _detectReorg(block) {
-    return revHex(block.prevHash !== this._lastHeader.hash)
+    return revHex(block.prevBlock) !== this._lastHeader.hash
   }
 
   _handleReorg(block) {
@@ -471,7 +413,7 @@ class HeaderService extends BaseService {
           this.node.log.info('Header Service: Gathering:', numNeeded, 'header(s) from the peer-to-peer network.')
           this._sync()
         } else if (numNeeded === 0) {
-          this.node.log.info('Header Service: wee seem to be already synced with the peer.')
+          this.node.log.info('Header Service: we seem to be already synced with the peer.')
           this._onHeadersSave().catch(err => this._handleError(err))
         } else {
           this._handleLowTipHeight()
@@ -601,7 +543,7 @@ class HeaderService extends BaseService {
       stream.on('end', () => {
         assert(results.length === numResultsNeeded, 'getEndHash returned incorrect number of results.')
         let index = numResultsNeeded - 1
-        let endHash = index <= 0 || !results[index] ? results[index] : 0
+        let endHash = index <= 0 || !results[index] ? 0 : results[index]
         if (this._slowMode) {
           setTimeout(() => resolve({targetHash: results[0], endHash}), this._slowMode)
         } else {
@@ -611,7 +553,7 @@ class HeaderService extends BaseService {
     })
   }
 
-  getLastheader() {
+  getLastHeader() {
     assert(this._lastHeader, 'Last header should be populated.')
     return this._lastHeader
   }
