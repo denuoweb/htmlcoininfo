@@ -152,7 +152,7 @@ class Transaction {
     }
 
     if (!disableSmallFees) {
-      let minimumFee = Math.ceiol(this._estimateFee() / FEE_SECURITY_MARGIN)
+      let minimumFee = Math.ceil(this._estimateFee() / FEE_SECURITY_MARGIN)
       if (unspent < minimumFee) {
         errors.Transaction.FeeError.TooSmall(
           `expected more than ${minimumFee} but got ${unspent}`
