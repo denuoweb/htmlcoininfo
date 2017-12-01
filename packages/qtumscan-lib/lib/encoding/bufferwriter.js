@@ -101,6 +101,13 @@ class BufferWriter {
     return this
   }
 
+  writeDoubleBE(n) {
+    let buf = Buffer.alloc(8)
+    buf.writeDoubleBE(n, 0)
+    this.write(buf)
+    return this
+  }
+
   writeVarintNum(n) {
     let buf = BufferWriter.varintBufNum(n)
     this.write(buf)

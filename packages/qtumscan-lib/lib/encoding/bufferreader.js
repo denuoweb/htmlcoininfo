@@ -111,6 +111,12 @@ class BufferReader {
     }
   }
 
+  readDoubleBE() {
+    let value = this.buf.readDoubleBE(this.pos)
+    this.pos += 8
+    return value
+  }
+
   readVarintNum() {
     let first = this.readUInt8()
     switch (first) {
