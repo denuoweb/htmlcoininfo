@@ -354,6 +354,8 @@ class Script {
       return this.chunks[1] ? Buffer.from(this.chunks[1].buf) : Buffer.alloc(0)
     } else if (this.isPublicKeyHashOut()) {
       return Buffer.from(this.chunks[2].buf)
+    } else if (this.isPublicKeyOut()) {
+      return Buffer.from(this.chunks[0].buf)
     } else {
       throw new Error('Unrecognized script type to get data from')
     }
@@ -426,7 +428,7 @@ class Script {
     return this
   }
 
-  _addByType(obj, prpend) {
+  _addByType(obj, prepend) {
     if (typeof obj === 'string' || typeof obj === 'number' || obj instanceof Opcode) {
       this._addOpcode(obj, prepend)
     } else if (Buffer.isBuffer(obj)) {
@@ -660,6 +662,11 @@ class Script {
     } else if (this.isPublicKeyHashOut()) {
       return {
         hashBuffer: this.getData(),
+        type: Address.PayToPublicKeyHash
+      }
+    } else if (this.isPublicKeyOut()) {
+      return {
+        hashBuffer: sha256ripemd160(this.getData()),
         type: Address.PayToPublicKeyHash
       }
     } else {
