@@ -14,9 +14,9 @@ class TransactionService extends BaseService {
     this._timestamp = this.node.services.get('timestamp')
     this._network = this.node.network
     if (this._network === 'livenet') {
-      this._network = 'main'
+      this._network = 'mainnet'
     } else if (this._network === 'regtest') {
-      this._neetwork = 'testnet'
+      this._network = 'testnet'
     }
     this._cacheTx = LRU(1000)
   }
@@ -134,8 +134,7 @@ class TransactionService extends BaseService {
     if (transaction.isCoinbase()) {
       return [0]
     }
-    let inputValues = []
-    for (let input of transaction.inputs) {
+    return Promise.all(transaction.inputs.map(async input => {
       let outputIndex = input.outputIndex
       let txid = input.prevTxId.toString('hex')
       let tx = await this._getTransaction(txid, options)
@@ -153,9 +152,8 @@ class TransactionService extends BaseService {
       }
       let output = tx.outputs[outputIndex]
       assert(output, `Expected an output, but did not get one for tx: ${tx.hash} outputIndex: ${outputIndex}`)
-      inputValues.push(output.satoshis)
-    }
-    return inputValues
+      return output.satoshis
+    }))
   }
 
   async start() {
@@ -201,25 +199,22 @@ class TransactionService extends BaseService {
   }
 
   async _getSpentTxOperations(tx) {
-    let ops = []
-    for (let i = 0; i < tx.inputs.length; ++i) {
-      let input = tx.inputs[i]
+    return Promise.all(tx.inputs.map(async(input, index) => {
       let info = await this._getSpentInfo(input)
       if (info) {
-        ops.push({
+        return {
           type: 'put',
           key: this._encoding.encodeDoubleSpentKey(input.prevTxId, input.outputIndex),
-          value: this._encoding.encodeDoubleSpentValue(tx.hash, i, tx.__height, tx.__blockhash)
-        })
+          value: this._encoding.encodeDoubleSpentValue(tx.hash, index, tx.__height, tx.__blockhash)
+        }
       } else {
-        ops.push({
+        return {
           type: 'put',
           key: this._encoding.encodeSpentKey(input.prevTxId, input.outputIndex),
-          value: this._encoding.encodeSpentValue(tx.hash, i, tx.__height, tx.__blockhash)
-        })
+          value: this._encoding.encodeSpentValue(tx.hash, index, tx.__height, tx.__blockhash)
+        }
       }
-    }
-    return ops
+    }))
   }
 
   async _processTransaction(tx, options) {

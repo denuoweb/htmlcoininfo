@@ -20,19 +20,15 @@ class TimestampService extends BaseService {
     ]
   }
 
-  getBlockHashesByTimestamp(high, low) {
+  getBlockHashesByTimestamp(high, low, limit) {
     let result = []
     let start = this._encoding.encodeTimestampBlockKey(low)
     let end = this._encoding.encodeTimestampBlockKey(high)
-    let criteria = {gte: start, lte: end}
-
-    let tsStream = this._db.createReadStream(criteria)
-    tsStream.on('data', data => {
-      let value = this._encoding.decodeTimestampBlockValue(data.value)
-      result.push(value)
-    })
+    let criteria = {gte: start, lte: end, reverse: true, limit}
 
     return new Promise((resolve, reject) => {
+      let tsStream = this._db.createReadStream(criteria)
+      tsStream.on('data', data => result.push(this._encoding.decodeTimestampBlockValue(data.value)))
       tsStream.on('end', () => resolve(result))
       tsStream.on('error', reject)
     })
