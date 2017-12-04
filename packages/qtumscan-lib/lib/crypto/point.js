@@ -1,5 +1,6 @@
 const BN = require('./bn')
-const ec = require('elliptic').curves.secp256k1
+const EC = require('elliptic').ec
+const ec = new EC('secp256k1')
 const ecPoint = ec.curve.point.bind(ec.curve)
 const ecPointFromX = ec.curve.pointFromX.bind(ec.curve)
 
@@ -12,7 +13,12 @@ function Point(x, y, isRed) {
 Point.prototype = Object.getPrototypeOf(ec.curve.point())
 
 Point.fromX = function(odd, x) {
-  let point = ecPointFromX(odd, x)
+  let point
+  try {
+    point = ecPointFromX(x, odd)
+  } catch (err) {
+    throw new Error('Invalid X')
+  }
   point.validate()
   return point
 }
@@ -42,26 +48,22 @@ Point.prototype.validate = function() {
     throw new Error('Point cannot be equal to Infinity')
   }
 
-  if (this.getX().cmp(BN.Zero) === 0 || this.getY().cmp(BN.Zero) === 0) {
-    throw new Error('Invalid x,y value for curve, cannot equal 0.')
+  let p2
+  try {
+    p2 = ecPointFromX(this.getX(), this.getY().isOdd())
+  } catch (err) {
+    throw new Error('Point does not lie on the curve')
   }
 
-  let p2 = ecPointFromX(this.getY().isOdd(), this.getX())
   if (p2.y.cmp(this.y) !== 0) {
     throw new Error('Invalid y value for curve.')
-  }
-
-  let xValidRange = (this.getX().gt(BN.Minus1) && this.getX().lt(Point.getN()))
-  let yValidRange = (this.getY().gt(BN.Minus1) && this.getY().lt(Point.getN()))
-  if (!xValidRange || !yValidRange) {
-    throw new Error('Point does not lie on the curve')
   }
 
   if (!(this.mul(Point.getN()).isInfinity())) {
     throw new Error('Point times N must be infinity')
   }
 
-  return this
+  return this;
 }
 
 Point.pointToCompressed = function(point) {

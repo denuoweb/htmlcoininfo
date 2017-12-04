@@ -44,9 +44,9 @@ class Script {
     if (Buffer.isBuffer(from)) {
       this._fromBuffer(from)
     } else if (from instanceof Address) {
-      return Script.fromAddress(from)
+      this._fromBuffer(Script.fromAddress(from).toBuffer())
     } else if (from instanceof Script) {
-      return Script.fromBuffer(from.toBuffer())
+      this._fromBuffer(from.toBuffer())
     } else if (typeof from === 'string') {
       this._fromString(from)
     } else if (from !== undefined) {
@@ -246,7 +246,7 @@ class Script {
       let signatureBuf = this.chunks[0].buf
       let pubkeyBuf = this.chunks[1].buf
       if (
-        signatureBuf && signatureBuf.length && signatureBuf[0] === 0x38
+        signatureBuf && signatureBuf.length && signatureBuf[0] === 0x30
         && pubkeyBuf && pubkeyBuf.length
       ) {
         let version = pubkeyBuf[0]
@@ -669,8 +669,6 @@ class Script {
         hashBuffer: sha256ripemd160(this.getData()),
         type: Address.PayToPublicKeyHash
       }
-    } else {
-      return false
     }
   }
 
@@ -680,20 +678,23 @@ class Script {
         hashBuffer: sha256ripemd160(this.chunks[1].buf),
         type: Address.PayToPublicKeyHash
       }
+    } else if (this.isPublicKeyIn()) {
+      return {
+        hashBuffer: sha256ripemd160(this.chunks[0].buf),
+        type: Address.PayToPublicKeyHash
+      }
     } else if (this.isScriptHashIn()) {
       return {
         hashBuffer: sha256ripemd160(this.chunks[this.chunks.length - 1].buf),
         type: Address.PayToScriptHash
       }
-    } else {
-      return false
     }
   }
 
   toAddress(network) {
     let info = this.getAddressInfo()
     if (!info) {
-      return false
+      return
     }
     info.network = Networks.get(network) || this._network || Networks.defaultNetwork
     return new Address(info)

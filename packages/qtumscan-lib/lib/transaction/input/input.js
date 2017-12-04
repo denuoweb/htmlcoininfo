@@ -21,9 +21,6 @@ class Input {
   }
 
   get script() {
-    if (this.isNull()) {
-      return null
-    }
     if (!this._script) {
       this._script = new Script(this._scriptBuffer)
       this._script._isInput = true

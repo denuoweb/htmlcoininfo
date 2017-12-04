@@ -22,13 +22,10 @@ exports.encodeTip = function(tip, name) {
 }
 
 exports.getAddress = function(item, network) {
-  let script = item.script
-  if (script) {
-    let address = script.toAddress(network)
-    if (address) {
-      address.network = network
-      return address.toString()
-    }
+  let address = item.script.toAddress(network)
+  if (address) {
+    address.network = network
+    return address.toString()
   }
 }
 

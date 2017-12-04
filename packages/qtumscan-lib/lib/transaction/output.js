@@ -27,6 +27,7 @@ class Output {
   get script() {
     if (!this._script) {
       this.setScriptFromBuffer(this._scriptBuffer)
+      this._script._isOutput = true
     }
     return this._script
   }

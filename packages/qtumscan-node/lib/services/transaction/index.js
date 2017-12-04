@@ -53,11 +53,11 @@ class TransactionService extends BaseService {
         }
       })(),
       (async () => {
-        for (let i = 0; i < tx.inputs.length; ++i) {
+        for (let input of tx.inputs) {
           let value = await this._db.get(this._encoding.encodeDoubleSpentKey(input.prevTxId))
           if (value) {
             let doubleSpentInfo = this._encoding.decodeDoubleSpentValue(value)
-            tx.inputs[index].doubleSpentTxID = doubleSpentInfo.txid
+            input.doubleSpentTxID = doubleSpentInfo.txid
           }
         }
       })()
