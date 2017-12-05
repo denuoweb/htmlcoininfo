@@ -195,7 +195,6 @@ class Script {
 
   _chunkToString(chunk) {
     let opcodenum = chunk.opcodenum
-    console.log(chunk);
     if (chunk.buf) {
       if ([Opcode.OP_PUSHDATA1, Opcode.OP_PUSHDATA2, Opcode.OP_PUSHDATA4].includes(opcodenum)) {
         return new Opcode(opcodenum).toString()
