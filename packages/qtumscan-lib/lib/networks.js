@@ -8,7 +8,7 @@ class Network {
   constructor(options) {
     this.name = options.name
     this.alias = options.alias
-    this.pubkeyhash = options.pubkeyhash
+    this.pubkey = this.pubkeyhash = options.pubkeyhash
     this.privatekey = options.privatekey
     this.scripthash = options.scripthash
     this.xpubkey = options.xpubkey

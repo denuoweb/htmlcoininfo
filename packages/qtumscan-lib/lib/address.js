@@ -113,6 +113,8 @@ Address.prototype._classifyArguments = function(data, network, type) {
 };
 
 /** @static */
+Address.PayToPublicKey = 'pubkey';
+/** @static */
 Address.PayToPublicKeyHash = 'pubkeyhash';
 /** @static */
 Address.PayToScriptHash = 'scripthash';
@@ -225,7 +227,7 @@ Address._transformPublicKey = function(pubkey) {
     throw new TypeError('Address must be an instance of PublicKey.');
   }
   info.hashBuffer = Hash.sha256ripemd160(pubkey.toBuffer());
-  info.type = Address.PayToPublicKeyHash;
+  info.type = Address.PayToPublicKey;
   return info;
 };
 

@@ -651,7 +651,7 @@ class Script {
     } else if (this.isPublicKeyOut()) {
       return {
         hashBuffer: sha256ripemd160(this.getData()),
-        type: Address.PayToPublicKeyHash
+        type: Address.PayToPublicKey
       }
     }
   }
