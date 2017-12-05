@@ -5,7 +5,7 @@ function getAddress(item, network) {
   let address = item.script.toAddress(network)
   if (address) {
     address.network = network
-    return address.toString()
+    return address
   }
 }
 
@@ -88,11 +88,10 @@ class TransactionController {
 
   transformInput({noscriptSig, noAsm, inputValues}, input, index) {
     let transformed = {
-      txid: input.prevTxId,
+      txid: input.prevTxId.toString('hex'),
       vout: input.outputIndex,
       sequence: input.sequence,
       n: index,
-      valueSat: inputValues[index],
       value: inputValues[index],
       doubleSpentTxId: null,
       isConfirmed: null,
@@ -107,7 +106,10 @@ class TransactionController {
       }
     }
 
-    transformed.address = getAddress(input, this._network)
+    let address = getAddress(input, this._network)
+    if (address) {
+      transformed.address = address.toString()
+    }
     return transformed
   }
 
