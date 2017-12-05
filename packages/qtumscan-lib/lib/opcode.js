@@ -3,15 +3,13 @@ const opcodes = require('qtum-opcodes')
 
 class Opcode {
   constructor(num) {
-    let value
     if (typeof num === 'number') {
-      value = num
+      this.num = num
     } else if (typeof num === 'string') {
-      value = Opcode.map[num]
+      this.num = Opcode.map[num]
     } else {
       throw new TypeError(`Unrecognized num type: "${typeof num}" for Opcode`)
     }
-    this.num = value
   }
 
   static fromBuffer(buffer) {

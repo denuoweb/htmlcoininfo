@@ -193,35 +193,20 @@ class Script {
     return script
   }
 
-  _chunkToString(chunk, type) {
+  _chunkToString(chunk) {
     let opcodenum = chunk.opcodenum
-    let asm = type === 'asm'
+    console.log(chunk);
     if (chunk.buf) {
       if ([Opcode.OP_PUSHDATA1, Opcode.OP_PUSHDATA2, Opcode.OP_PUSHDATA4].includes(opcodenum)) {
-        return new Opcode(codenum).toString()
-      }
-      if (chunk.len > 0) {
-        if (asm) {
-          return chunk.buf.toString('hex')
-        } else {
-          return chunk.len + ' 0x' + chunk.buf.toString('hex')
-        }
-      }
-    } else {
-      if (opcodenum in Opcode.reverseMap) {
-        let numstr = opcodenum.toString(16)
-        if (numstr.length % 2 !== 0) {
-          numstr = '0' + numstr
-        }
-        return asm ? numstr : '0x' + numstr
-      } else {
         return new Opcode(opcodenum).toString()
+      } else {
+        return chunk.buf.toString('hex')
       }
+    } else if (opcodenum in Opcode.reverseMap) {
+      return new Opcode(opcodenum).toString()
+    } else {
+      return opcodenum
     }
-  }
-
-  toASM() {
-    return this.chunks.map(chunk => this._chunkToString(chunk, 'asm')).join(' ')
   }
 
   toString() {
