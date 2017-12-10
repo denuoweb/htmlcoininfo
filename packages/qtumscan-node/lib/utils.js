@@ -21,12 +21,15 @@ exports.encodeTip = function(tip, name) {
   return {key, value}
 }
 
-exports.getAddress = function(item, network) {
-  let address = item.script.toAddress(network)
-  if (address) {
-    address.network = network
-    return address.toString()
+exports.getAddress = async function getAddress(item, transactionService, network) {
+  let address
+  if (item.script.isPublicKeyIn()) {
+    let prevTransaction = await transactionService.getTransaction(item.prevTxId)
+    address = await getAddress(prevTransaction.outputs[item.outputIndex], transactionService, network)
+  } else {
+    address = item.script.toAddress(network)
   }
+  return address && address.toString()
 }
 
 exports.fromCompact = function(compact) {

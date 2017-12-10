@@ -76,16 +76,17 @@ class MempoolService extends BaseService {
     }, 5000)
     timer.unref()
 
-    let stream = this._db.createReadStream(criteria)
-
-    stream.on('data', data => {
-      let operations = this._getAddressOperations(this._encoding.decodeMempoolTransactionValue(data.value))
-      operations.push({type: 'del', key: data.key})
-      totalCount += operations.length
-      this._db.batch(operations)
-    })
-
     return new Promise(resolve => {
+      let stream = this._db.createReadStream(criteria)
+      stream.on('data', async data => {
+        let operations = await this._getAddressOperations(
+          this._encoding.decodeMempoolTransactionValue(data.value),
+          'del'
+        )
+        operations.push({type: 'del', key: data.key})
+        totalCount += operations.length
+        await this._db.batch(operations)
+      })
       steam.on('end', () => {
         clearInterval(timer)
         this.node.log.info('Mempool service: complete flushing:', totalCount, 'tx mempool records.')
@@ -94,16 +95,20 @@ class MempoolService extends BaseService {
     })
   }
 
-  onReorg([_, oldBlockList]) {
+  async onReorg([_, oldBlockList]) {
     let removalOperations = []
     for (let block of oldBlockList) {
       for (let tx of block.transactions) {
-        let key = this._encoding.encodeMempoolTransactionKey(tx.hash)
-        let value = this._encoding.encodeMempoolTransactionValue(tx)
-        removalOperations.push({type: 'put', key, value}, ...this._getAddressOperations(tx, true))
+        removalOperations.push(
+          {
+            type: 'put',
+            key: this._encoding.encodeMempoolTransactionKey(tx.hash),
+            value: this._encoding.encodeMempoolTransactionValue(tx)
+          },
+          ...(await this._getAddressOperations(tx, 'put'))
+        )
       }
     }
-
     return removalOperations
   }
 
@@ -116,7 +121,6 @@ class MempoolService extends BaseService {
     if (!this._bus) {
       this._bus = this.node.openBus({remoteAddress: 'localhost-mempool'})
     }
-
     this._bus.on('p2p/transaction', this._onTransaction.bind(this))
     this._bus.subscribe('p2p/transaction')
   }
@@ -127,24 +131,23 @@ class MempoolService extends BaseService {
     this._enabled = true
   }
 
-  onBlock(block) {
+  async onBlock(block) {
     let operations = []
     for (let tx of block.transactions) {
       operations.push(
         {type: 'del', key: this._encoding.encodeMempoolTransactionKey(tx.hash)},
-        ...this._getAddressOperations(tx)
+        ...(await this._getAddressOperations(tx, 'del'))
       )
     }
     return operations
   }
 
-  _getAddressOperations(tx, reverse) {
+  async _getAddressOperations(tx, action) {
+    let transactionService = this.node.services.get('transaction')
     let operations = []
-    let action = reverse ? 'put' : 'del'
-
     for (let i = 0; i < tx.outputs.length; ++i) {
       let output = tx.outputs[i]
-      let address = getAddress(output, this._network)
+      let address = await getAddress(output, transactionService, this._network)
       if (address) {
         operations.push({
           type: action,
@@ -152,10 +155,9 @@ class MempoolService extends BaseService {
         })
       }
     }
-
     for (let i = 0; i < tx.inputs.length; ++i) {
       let input = tx.inputs[i]
-      let address = getAddress(input, this._network)
+      let address = await getAddress(input, transactionService, this._network)
       if (address) {
         operations.push({
           type: action,
@@ -163,7 +165,6 @@ class MempoolService extends BaseService {
         })
       }
     }
-
     return operations
   }
 
@@ -174,7 +175,7 @@ class MempoolService extends BaseService {
         key: this._encoding.encodeMempoolTransactionKey(tx.hash),
         value: this._encoding.encodeMempoolTransactionValue(tx)
       },
-      ...this._getAddressOperations(tx, true)
+      ...(await this._getAddressOperations(tx, 'put'))
     ]
 
     try {
@@ -199,22 +200,20 @@ class MempoolService extends BaseService {
     let results = []
     let start = this._encoding.encodeMempoolAddressKey(address)
     let end = Buffer.concat([start.slice(0, -37), Buffer.from('f'.repeat(74), 'hex')])
-    let criteria = {gte: start,lte: end}
-
-    let stream = this._db.createKeyStream(criteria)
-    stream.on('data', key => {
-      let addressInfo = this._encoding.decodeMempoolAddressKey(key)
-      if (type === 'input') {
-        type = 1
-      } else if (type === 'output') {
-        type = 0
-      }
-      if (type === 'both' || type === addressInfo.input) {
-        results.push({txid: addressInfo.txid, height: 0xffffffff})
-      }
-    })
 
     return new Promise((resolve, reject) => {
+      let stream = this._db.createKeyStream({gte: start, lte: end})
+      stream.on('data', key => {
+        let addressInfo = this._encoding.decodeMempoolAddressKey(key)
+        if (type === 'input') {
+          type = 1
+        } else if (type === 'output') {
+          type = 0
+        }
+        if (type === 'both' || type === addressInfo.input) {
+          results.push({txid: addressInfo.txid, height: 0xffffffff})
+        }
+      })
       stream.on('end', () => resolve(results))
       stream.on('error', reject)
     })

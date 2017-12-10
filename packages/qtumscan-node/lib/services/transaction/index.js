@@ -199,7 +199,7 @@ class TransactionService extends BaseService {
   }
 
   async _getSpentTxOperations(tx) {
-    return Promise.all(tx.inputs.map(async(input, index) => {
+    return Promise.all(tx.inputs.map(async (input, index) => {
       let info = await this._getSpentInfo(input)
       if (info) {
         return {

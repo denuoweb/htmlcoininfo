@@ -1,4 +1,6 @@
-const {Transaction} = require('qtumscan-lib')
+const qtumscan = require('qtumscan-lib')
+const Transaction = qtumscan.Transaction
+const {BufferReader, BufferWriter} = qtumscan.encoding
 
 class Encoding {
   constructor(servicePrefix) {
@@ -20,36 +22,29 @@ class Encoding {
   }
 
   decodeMempoolTransactionValue(buffer) {
-    return Transaction.fromBuffer(buffer)
+    return new Transaction().fromBuffer(buffer)
   }
 
   encodeMempoolAddressKey(address, txid, index, input) {
-    let addressSizeBuffer = Buffer.alloc(1)
-    addressSizeBuffer.writeUInt8(address.length)
-
-    let indexBuffer = Buffer.alloc(4)
-    indexBuffer.writeUInt32BE(index || 0)
-
-    let inputBuffer = Buffer.alloc(1)
-    inputBuffer.writeUInt8(input || 0)
-
-    return Buffer.concat([
-      this.servicePrefix,
-      this.addressPrefix,
-      addressSizeBuffer,
-      Buffer.from(address),
-      indexBuffer,
-      inputBuffer
-    ])
+    let writer = new BufferWriter()
+    writer.write(this.servicePrefix)
+    writer.write(this.addressPrefix)
+    writer.writeUInt8(address.length)
+    writer.write(Buffer.from(address))
+    writer.writeHexString(txid || '0'.repeat(64))
+    writer.writeUInt32BE(index || 0)
+    writer.writeUInt8(input || 0)
+    return writer.toBuffer()
   }
 
   decodeMempoolAddressKey(buffer) {
-    let addressSize = buffer.readUInt8(3)
-    let address = buffer.slice(4, address + 4).toString()
-    let txid = buffer.slice(addressSize + 4, addressSize + 36).toString('hex')
-    let index = buffer.readUInt32BE(addressSize + 36)
-    let input = buffer.readUInt8(addressSize + 40)
-
+    let reader = new BufferReader(buffer)
+    reader.set({pos: 3})
+    let addressSize = reader.readUInt8()
+    let address = reader.read(addressSize).toString()
+    let txid = reader.readHexString(32)
+    let index = reader.readUInt32BE()
+    let input = buffer.readUInt8()
     return {address, txid, index, input}
   }
 }
