@@ -4,6 +4,7 @@ const morgan = require('koa-morgan')
 const compress = require('koa-compress')
 const bodyparser = require('koa-bodyparser')
 const BaseService = require('qtumscan-node/lib/service')
+const AddressController = require('./controllers/addresses')
 const BlockController = require('./controllers/blocks')
 const TransactionController = require('./controllers/transactions')
 const RateLimiter = require('./components/rate-limiter')
@@ -37,8 +38,8 @@ class QtumscanAPI extends BaseService {
       transactionService: this.transactionService
     }
     this.blockController = new BlockController(blockOptions)
-
     this.transactionController = new TransactionController(this.node)
+    this.addressController = new AddressController(this.node)
   }
 
   cache(maxAge) {
@@ -170,6 +171,56 @@ class QtumscanAPI extends BaseService {
       this.cacheLong(),
       transactions.rawTransaction.bind(transactions),
       transactions.showRaw.bind(transactions)
+    )
+
+    let addresses = this.addressController
+    router.get(
+      '/address/:address',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.show.bind(addresses)
+    )
+    router.get(
+      '/address/:address/utxo',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.utxo.bind(addresses)
+    )
+    router.get(
+      '/addresses/:addresses/utxo',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.multiutxo.bind(addresses)
+    )
+    router.get(
+      '/addresses/:addresses/txs',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.multitxs.bind(addresses)
+    )
+    router.get(
+      '/address/:address/balance',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.balance.bind(addresses)
+    )
+    router.get(
+      '/address/:address/total-received',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.totalReceived.bind(addresses)
+    )
+    router.get(
+      '/address/:address/total-sent',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.totalSent.bind(addresses)
+    )
+    router.get(
+      '/address/:address/unconfirmed-balance',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.unconfirmedBalance.bind(addresses)
     )
 
     app.use(router.routes()).use(router.allowedMethods())

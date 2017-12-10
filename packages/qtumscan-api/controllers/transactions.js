@@ -1,14 +1,6 @@
 const qtumcore = require('qtumscan-lib')
 const {ErrorResponse} = require('../components/utils')
 
-function getAddress(item, network) {
-  let address = item.script.toAddress(network)
-  if (address) {
-    address.network = network
-    return address
-  }
-}
-
 class TransactionController {
   constructor(node) {
     this.node = node
@@ -39,14 +31,14 @@ class TransactionController {
       if (!transaction) {
         ctx.throw(404)
       }
-      ctx.transaction = this.transformTransaction(transaction)
+      ctx.transaction = await this.transformTransaction(transaction)
       await next()
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
   }
 
-  transformTransaction(transaction, options = {}) {
+  async transformTransaction(transaction, options = {}) {
     let confirmations = 0
     if (transaction.__height >= 0) {
       confirmations = this._block.getTip().height - transaction.__height + 1
@@ -73,11 +65,11 @@ class TransactionController {
       }]
     } else {
       options.inputValues = transaction.__inputValues
-      transformed.vin = transaction.inputs.map(this.transformInput.bind(this, options))
+      transformed.vin = await Promise.all(transaction.inputs.map(this.transformInput.bind(this, options)))
       transformed.valueIn = transaction.inputSatoshis
       transformed.fees = transaction.feeSatoshis
     }
-    transformed.vout = transaction.outputs.map(this.transformOutput.bind(this, options))
+    transformed.vout = await Promise.all(transaction.outputs.map(this.transformOutput.bind(this, options)))
 
     if (transformed.confirmations) {
       transformed.blockTime = transformed.time
@@ -86,7 +78,15 @@ class TransactionController {
     return transformed
   }
 
-  transformInput({noscriptSig, noAsm, inputValues}, input, index) {
+  async _getAddress(item, network) {
+    if (item.script.isPublicKeyIn()) {
+      let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
+      return prevTransaction.outputs[item.outputIndex].script.toAddress()
+    }
+    return item.script.toAddress(network)
+  }
+
+  async transformInput({noscriptSig, noAsm, inputValues}, input, index) {
     let transformed = {
       txid: input.prevTxId.toString('hex'),
       vout: input.outputIndex,
@@ -106,14 +106,14 @@ class TransactionController {
       }
     }
 
-    let address = getAddress(input, this._network)
+    let address = await this._getAddress(input, this._network)
     if (address) {
       transformed.address = address.toString()
     }
     return transformed
   }
 
-  transformOutput({noAsm, noSpent}, output, index) {
+  async transformOutput({noAsm, noSpent}, output, index) {
     let transformed = {
       value: output.satoshis,
       n: index,
@@ -130,7 +130,7 @@ class TransactionController {
       transformed.spentHeight = output.spentHeight || null
     }
 
-    let address = getAddress(output, this._network)
+    let address = await this._getAddress(output, this._network)
     if (address) {
       transformed.scriptPubKey.addresses = [address.toString()]
       transformed.scriptPubKey.type = address.type
@@ -211,7 +211,7 @@ class TransactionController {
         let txs = []
         for (let txid of txids) {
           let transaction = await this.transactionService.getDetailedTransaction(txid)
-          txs.push(this.transformTransaction(transaction))
+          txs.push(await this.transformTransaction(transaction))
         }
 
         ctx.body = {pagesTotal, txs}
@@ -226,7 +226,7 @@ class TransactionController {
 
       try {
         let result = await this._address.getAddressHistory(address, options)
-        let txs = result.items.map(tx => this.transformTransaction(tx))
+        let txs = await result.items.map(tx => this.transformTransaction(tx))
         ctx.body = {
           pageTotal: Math.ceil(result.totalCount / pageLength),
           txs
