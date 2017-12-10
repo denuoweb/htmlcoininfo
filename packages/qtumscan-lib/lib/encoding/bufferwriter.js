@@ -1,4 +1,5 @@
 const assert = require('assert')
+const BN = require('bn.js')
 const BufferUtil = require('../util/buffer')
 
 class BufferWriter {
@@ -91,6 +92,7 @@ class BufferWriter {
 
   writeUInt64BEBN(bn) {
     let buf = bn.toBuffer({size: 8})
+    this.write(Buffer.alloc(8 - buf.length))
     this.write(buf)
     return this
   }
@@ -98,6 +100,7 @@ class BufferWriter {
   writeUInt64LEBN(bn) {
     let buf = bn.toBuffer({size: 8})
     this.writeReverse(buf)
+    this.write(Buffer.alloc(8 - buf.length))
     return this
   }
 
@@ -116,7 +119,7 @@ class BufferWriter {
 
   writeVarintBN(bn) {
     let buf = BufferWriter.varintBufBN(bn)
-    thiw.write(buf)
+    this.write(buf)
     return this
   }
 
@@ -145,20 +148,20 @@ class BufferWriter {
   }
 
   static varintBufBN(bn) {
-    let n = bn.toNumber()
-    if (n < 253) {
+    // let n = bn.toNumber()
+    if (bn.lt(new BN(0xfd))) {
       let buf = Buffer.alloc(1)
-      buf.writeUInt8(n, 0)
+      buf.writeUInt8(bn.toNumber(), 0)
       return buf
-    } else if (n < 0x10000) {
+    } else if (bn.lt(new BN(0x10000))) {
       let buf = Buffer.alloc(1 + 2)
       buf.writeUInt8(253, 0)
-      buf.writeUInt16LE(n, 1)
+      buf.writeUInt16LE(bn.toNumber(), 1)
       return buf
-    } else if (n < 0x100000000) {
+    } else if (bn.lt(new BN(0x100000000))) {
       let buf = Buffer.alloc(1 + 4)
       buf.writeUInt8(254, 0)
-      buf.writeUInt32LE(n, 1)
+      buf.writeUInt32LE(bn.toNumber(), 1)
       return buf
     } else {
       let bw = new BufferWriter()

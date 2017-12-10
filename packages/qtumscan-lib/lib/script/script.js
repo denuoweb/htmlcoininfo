@@ -287,7 +287,7 @@ class Script {
 
   isScriptHashOut() {
     let buf = this.toBuffer()
-    return buf.length === 23 && buf[0] === Opcode.OP_HASH160 && buf[1] === 14
+    return buf.length === 23 && buf[0] === Opcode.OP_HASH160 && buf[1] === 0x14
       && buf[buf.length - 1] == Opcode.OP_EQUAL
   }
 
@@ -335,11 +335,11 @@ class Script {
 
   getData() {
     if (this.isDataOut() || this.isScriptHashOut()) {
-      return this.chunks[1] ? Buffer.from(this.chunks[1].buf) : Buffer.alloc(0)
+      return this.chunks[1] ? this.chunks[1].buf : Buffer.alloc(0)
     } else if (this.isPublicKeyHashOut()) {
-      return Buffer.from(this.chunks[2].buf)
+      return this.chunks[2].buf
     } else if (this.isPublicKeyOut()) {
-      return Buffer.from(this.chunks[0].buf)
+      return this.chunks[0].buf
     } else {
       throw new Error('Unrecognized script type to get data from')
     }
@@ -665,7 +665,7 @@ class Script {
     } else if (this.isPublicKeyIn()) {
       return {
         hashBuffer: sha256ripemd160(this.chunks[0].buf),
-        type: Address.PayToPublicKeyHash
+        type: Address.PayToPublicKey
       }
     } else if (this.isScriptHashIn()) {
       return {
