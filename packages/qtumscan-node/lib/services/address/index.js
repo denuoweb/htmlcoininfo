@@ -1,5 +1,6 @@
 const assert = require('assert')
 const {Transform} = require('stream')
+const BN = require('bn.js')
 const BaseService = require('../../service')
 const Encoding = require('./encoding')
 const {getAddress} = require('../../utils')
@@ -28,23 +29,23 @@ class AddressService extends BaseService {
   async getAddressHistory(addresses, options = {}) {
     options.from = options.from || 0
     options.to = options.to || 0xffffffff
-    options.txIdList = []
     if (!'queryMempool' in options) {
       options.queryMempool = true
     }
     if (typeof addresses === 'string') {
       addresses = [addresses]
     }
-    await Promise.all(addresses.map(address => this._getAddressTxidHistory(address, options)))
-    let unique = {}
-    for (let txId of options.txIdList) {
-      unique[txId.txid + txId.height] = txId
-    }
-    options.txIdList = Object.values(unique).sort((a, b) => b.height - a.height)
-    let txList = await this._getAddressTxHistory(options)
+    let unique = new Map()
+    await Promise.all(addresses.map(async address => {
+      let list = await this._getAddressTxidHistory(address, options)
+      for (let txId of list) {
+        unique.set(txId.txid, txId)
+      }
+    }))
+    let txIdList = [...unique.values()].sort((a, b) => b.height - a.height)
     return {
-      totalCount: options.txIdList.length,
-      items: txList
+      totalCount: txIdList.length,
+      txs: txIdList.slice(options.from, options.to)
     }
   }
 
@@ -54,60 +55,31 @@ class AddressService extends BaseService {
     if (!'queryMempool' in options) {
       options.queryMempool = true
     }
-    let result = {
-      addrStr: address,
-      balance: 0,
-      totalReceived: 0,
-      totalSent: 0,
-      unconfirmedBalance: 0,
-      unconfirmedTxApperances: 0,
-      txApperances: 0
-    }
     let results = await this.getAddressHistory(address, options)
-    this._getAddressSummaryResult(result.items, address, result, options)
-    return result
+    return Object.assign({address}, await this._getAddressSummaryResult(results, address, options))
   }
 
-  _setOutputResults(tx, address, result) {
-    for (let output of tx.outputs) {
-      if (getAddress(output, this._network) !== address) {
-        continue
-      }
-      ++result.txApperances
-      result.totalReceived += output.satoshis
-      result.balance += output.satoshis
-      if (tx.confirmations === 0) {
-        ++result.unconfirmedTxApperances
-        result.unconfirmedBalance += output.satoshis
-      }
+  async _getAddressSummaryResult({txs, totalCount}, address, {noTxList}) {
+    let result = {totalCount}
+    let balanceBuffer = await this._db.get(this._encoding.encodeAddressBalanceKey(address))
+    if (balanceBuffer) {
+      let balance = this._encoding.decodeAddressBalanceValue(balanceBuffer)
+      result.balance = balance.balance.toString()
+      result.totalReceived = balance.totalReceived.toString()
+      result.totalSent = balance.totalSent.toString()
+      result.unconfirmedBalance = balance.unconfirmedBalance.toString()
+      result.txAppearances = balance.txAppearances
+      result.unconfirmedTxAppearances = balance.unconfirmedTxAppearances
+    } else {
+      result.balance = '0'
+      result.totalReceived = '0'
+      result.totalSent = '0'
+      result.unconfirmedBalance = '0'
+      result.txAppearances = 0
+      result.unconfirmedTxAppearances = 0
     }
-    return result
-  }
-
-  _setInputResults(tx, address, result) {
-    for (let i = 0; i < tx.inputs.length; ++i) {
-      let input = tx.inputs[i]
-      if (getAddress(input, this._network) !== address) {
-        continue
-      }
-      result.totalSent += tx.__inputValues[i]
-      result.balance -= tx.__inputValues[i]
-      if (tx.confirmations === 0) {
-        result.unconfirmedBalance -= tx.__inputValues[i]
-      }
-    }
-  }
-
-  _getAddressSummaryResult(txs, address, result, {noTxList}) {
-    for (let tx of txs) {
-      this._setOutputResults(tx, address, result)
-      this._setInputResults(tx, address, result)
-      if (!noTxList) {
-        if (!result.transactions) {
-          result.transactions = []
-        }
-        result.transactions.push(tx.hash)
-      }
+    if (!noTxList) {
+      result.transactions = txs.map(tx => tx.txid)
     }
     return result
   }
@@ -128,7 +100,7 @@ class AddressService extends BaseService {
       if (!tx) {
         throw new Error('Address Service: missing tx: ' + id.txid)
       }
-      results.push(...this._getMempoolUtxos(tx, address))
+      results.push(...(await this._getMempoolUtxos(tx, address)))
     }))
 
     return new Promise((resolve, reject) => {
@@ -143,7 +115,7 @@ class AddressService extends BaseService {
           txid: key.txid,
           vout: key.outputIndex,
           ts: value.timestamp,
-          scriptPubKey: value.script.toString('hex'),
+          scriptPubKey: value.scriptBuffer.toString('hex'),
           height: value.height,
           satoshis: value.satoshis,
           confirmations: this._block.getTip().height - value.height + 1
@@ -152,11 +124,11 @@ class AddressService extends BaseService {
     })
   }
 
-  _getMempoolUtxos(tx, address) {
+  async _getMempoolUtxos(tx, address) {
     let results = []
     for (let i = 0; i < tx.outputs.length; ++i) {
       let output = tx.outputs[i]
-      if (getAddress(output, this._network) !== address) {
+      if (await getAddress(output, this._transaction, this._network) !== address) {
         continue
       }
       results.push({
@@ -197,22 +169,7 @@ class AddressService extends BaseService {
     return txidStream
   }
 
-  _getAddressTxHistory(options) {
-    let ids = options.txIdList.slice(options.from, options.to)
-    return Promise.all(ids.map(async id => {
-      if (id.height === 0xffffffff) {
-        let tx = await this._mempool.getMempoolTransaction(id.txid)
-        if (!tx) {
-          throw new Error('Address Service: could not find tx: ', id.txid)
-        }
-        return this._transaction.setTxMetaInfo(tx, options)
-      } else {
-        return this._transaction.getDetailedTransaction(id.txid, options)
-      }
-    }))
-  }
-
-  async _getAddressTxHistory(address, options = {}) {
+  async _getAddressTxidHistory(address, options = {}) {
     options.start = options.start || 0
     options.end = options.end || 0xffffffff
     options.endHeightBuf = Buffer.alloc(4)
@@ -231,10 +188,7 @@ class AddressService extends BaseService {
         this.node.log.error('Address Service: txstream err: ' + err)
         txIdTransformStream.unpipe()
       })
-      txIdTransformStream.on('end', () => {
-        options.txIdList.push(...results)
-        resolve()
-      })
+      txIdTransformStream.on('end', () => resolve(results))
       txIdTransformStream._transform = (chunk, encoding, callback) => {
         let txInfo = this._encoding.decodeAddressIndexKey(chunk)
         results.push({txid: txInfo.txid, height: txInfo.height})
@@ -263,7 +217,7 @@ class AddressService extends BaseService {
       },
       async () => {
         for (let i = 0; i < tx.outputs.length; ++i) {
-          operations.push(...this._removeOutput(tx.outputs[i], tx, block, i))
+          operations.push(...(await this._removeOutput(tx.outputs[i], tx, block, i)))
         }
       }
     ])
@@ -271,7 +225,7 @@ class AddressService extends BaseService {
   }
 
   async _removeInput(input, tx, block, index) {
-    let address = getAddress(input, this._network)
+    let address = await getAddress(input, this._transaction, this._network)
     if (!address) {
       return
     }
@@ -297,8 +251,8 @@ class AddressService extends BaseService {
     ]
   }
 
-  _removeOutput(output, tx, block, index) {
-    let address = getAddress(output, this._network)
+  async _removeOutput(output, tx, block, index) {
+    let address = await getAddress(output, this._transaction, this._network)
     if (!address) {
       return
     }
@@ -315,38 +269,111 @@ class AddressService extends BaseService {
     ]
   }
 
-  async onReorg(args) {
-    let oldBlockList = args[1]
+  async onReorg([_, oldBlockList]) {
+    let differences = new Map()
     let operations = []
-    for (let block of args[1]) {
+    for (let block of oldBlockList) {
       operations.push(...(await this._removeBlock(block)))
+      for (let tx of block.transactions) {
+        await this._transaction.setTxMetaInfo(tx)
+        for (let i = 0; i < tx.outputs.length; ++i) {
+          await this._processOutput(tx, tx.outputs[i], i, block, differences)
+        }
+        for (let i = 0; i < tx.inputs.length; ++i) {
+          await this._processInput(tx, tx.inputs[i], i, block, differences)
+        }
+      }
+    }
+    for (let [address, diff] of differences.entries()) {
+      let addressKey = this._encoding.encodeAddressBalanceKey(address)
+      let balanceValue = await this._db.get(addressKey)
+      let balance
+      if (balanceValue) {
+        balance = this._encoding.decodeAddressBalanceValue(balanceValue)
+        balance.balance.isub(diff.balance)
+        balance.totalReceived.isub(diff.totalReceived)
+        balance.totalSent.isub(diff.totalSent)
+        balance.txAppearances -= diff.txAppearances
+      } else {
+        balance = diff
+      }
+      operations.push({
+        type: 'put',
+        key: addressKey,
+        value: this._encoding.encodeAddressBalanceValue(balance)
+      })
     }
     return operations
   }
 
-  onBlock(block) {
+  async onBlock(block) {
     if (this.node.stopping) {
       return
     }
+    let differences = new Map()
     let operations = []
     for (let tx of block.transactions) {
-      operations.push(...this._processTransaction(tx, {block}))
+      await this._transaction.setTxMetaInfo(tx)
+      for (let i = 0; i < tx.outputs.length; ++i) {
+        operations.push(...(await this._processOutput(tx, tx.outputs[i], i, block, differences)))
+      }
+      for (let i = 0; i < tx.inputs.length; ++i) {
+        operations.push(...(await this._processInput(tx, tx.inputs[i], i, block, differences)))
+      }
+    }
+    for (let [address, diff] of differences.entries()) {
+      let addressKey = this._encoding.encodeAddressBalanceKey(address)
+      let balanceValue = await this._db.get(addressKey)
+      let balance
+      if (balanceValue) {
+        balance = this._encoding.decodeAddressBalanceValue(balanceValue)
+        balance.balance.iadd(diff.balance)
+        balance.totalReceived.iadd(diff.totalReceived)
+        balance.totalSent.iadd(diff.totalSent)
+        balance.unconfirmedBalance = diff.unconfirmedBalance
+        balance.txAppearances += diff.txAppearances
+        balance.unconfirmedTxAppearances = diff.unconfirmedTxAppearances
+      } else {
+        balance = diff
+      }
+      operations.push({
+        type: 'put',
+        key: addressKey,
+        value: this._encoding.encodeAddressBalanceValue(balance)
+      })
     }
     return operations
   }
 
-  _processInput(tx, input, index, {block}) {
-    let address = getAddress(input, this._network)
+  async _processInput(tx, input, index, block, differences) {
+    let address = await getAddress(input, this._transaction, this._network)
     if (!address) {
       return []
     }
-    let txid = tx.hash
+    let diff = differences.get(address)
+    if (!diff) {
+      diff = {
+        balance: new BN(0),
+        totalReceived: new BN(0),
+        totalSent: new BN(0),
+        unconfirmedBalance: new BN(0),
+        txAppearances: 0,
+        unconfirmedTxAppearances: 0
+      }
+      differences.set(address, diff)
+    }
+    let value = tx.__inputValues[index]
+    diff.balance.isub(new BN(value))
+    diff.totalSent.iadd(new BN(value))
+    diff.unconfirmedBalance.iadd(new BN(value))
+    ++diff.txAppearances
+    ++diff.unconfirmedTxAppearances
     let timestamp = this._timestamp.getTimestampSync(block.hash)
     assert(timestamp, 'Must have a timestamp in order to process input.')
     return [
       {
         type: 'put',
-        key: this._encoding.encodeAddressIndexKey(address, block.height, txid, index, 1, timestamp)
+        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 1, timestamp)
       },
       {
         type: 'del',
@@ -355,38 +382,43 @@ class AddressService extends BaseService {
     ]
   }
 
-  _processOutput(tx, output, index, {block}) {
-    let address = getAddress(output, this._network)
+  async _processOutput(tx, output, index, block, differences) {
+    let address = await getAddress(output, this._transaction, this._network)
     if (!address) {
       return []
     }
-    let txid = tx.hash
+    let diff = differences.get(address)
+    if (!diff) {
+      diff = {
+        balance: new BN(0),
+        totalReceived: new BN(0),
+        totalSent: new BN(0),
+        unconfirmedBalance: new BN(0),
+        txAppearances: 0,
+        unconfirmedTxAppearances: 0
+      }
+      differences.set(address, diff)
+    }
+    diff.balance.iadd(new BN(output.satoshis))
+    diff.totalReceived.iadd(new BN(output.satoshis))
+    diff.unconfirmedBalance.iadd(new BN(output.satoshis))
+    ++diff.txAppearances
+    ++diff.unconfirmedTxAppearances
     let timestamp = this._timestamp.getTimestampSync(block.hash)
     assert(timestamp, 'Must have a timestamp in order to process output.')
     return [
       {
         type: 'put',
-        key: this._encoding.encodeAddressIndexKey(address, block.height, txid, index, 0, timestamp)
+        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 0, timestamp)
       },
       {
         type: 'put',
-        key: this._encoding.encodeUtxoIndexKey(address, txid, index),
+        key: this._encoding.encodeUtxoIndexKey(address, tx.hash, index),
         value: this._encoding.encodeUtxoIndexValue(
           block.height, output.satoshis, timestamp, output.script.toBuffer()
         )
       }
     ]
-  }
-
-  _processTransaction(tx, {block}) {
-    let operations = []
-    for (let i = 0; i < tx.outputs.length; ++i) {
-      operations.push(...this._processOutput(tx, tx.outputs[i], i, {block}))
-    }
-    for (let i = 0; i < tx.inputs.length; ++i) {
-      operations.push(...this._processInput(tx, tx.inputs[i], i, {block}))
-    }
-    return operations
   }
 }
 
