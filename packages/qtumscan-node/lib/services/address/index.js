@@ -230,7 +230,7 @@ class AddressService extends BaseService {
     let input = tx.inputs[index]
     let address = await getAddress(input, this._transaction, this._network)
     if (!address) {
-      return
+      return []
     }
     let _tx = await this._transaction.getTransaction(input.prevTxId)
     assert(_tx, 'Missing prev tx to insert back into the utxo set when reorging address index.')
@@ -257,7 +257,7 @@ class AddressService extends BaseService {
     let output = tx.outputs[index]
     let address = await getAddress(output, this._transaction, this._network)
     if (!address) {
-      return
+      return []
     }
     return [
       {
