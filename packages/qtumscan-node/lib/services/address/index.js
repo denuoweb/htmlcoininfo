@@ -62,8 +62,6 @@ class AddressService extends BaseService {
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
     let unconfirmedBalance = new BN(0)
-    let txAppearances = 0
-    let unconfirmedTxAppearances = 0
     let txidSet = new Set()
     for (let utxo of utxos) {
       let value = new BN(utxo.satoshis)
@@ -78,10 +76,6 @@ class AddressService extends BaseService {
       }
       if (!txidSet.has(utxo.txid)) {
         txidSet.add(utxo.txid)
-        ++txAppearances
-        if (utxo.confirmations === 0) {
-          ++unconfirmedTxAppearances
-        }
       }
     }
     return {
@@ -91,9 +85,7 @@ class AddressService extends BaseService {
       balance: balance.toString(),
       totalReceived: totalReceived.toString(),
       totalSent: totalSent.toString(),
-      unconfirmedBalance: unconfirmedBalance.toString(),
-      txAppearances,
-      unconfirmedTxAppearances
+      unconfirmedBalance: unconfirmedBalance.toString()
     }
   }
 
@@ -255,7 +247,7 @@ class AddressService extends BaseService {
           _tx.__height,
           _tx.__inputValues[input.outputIndex],
           _tx.__timestamp,
-          _tx.outputs[index.outputIndex].script.toBuffer()
+          _tx.outputs[input.outputIndex].script.toBuffer()
         )
       }
     ]
@@ -333,9 +325,7 @@ class AddressService extends BaseService {
         utxoKeyHexString,
         {
           key: utxoKey,
-          value: {
-            height, satoshis, timestamp, scriptBuffer, used: true
-          }
+          value: {height, satoshis, timestamp, scriptBuffer, used: true}
         }
       )
     }
