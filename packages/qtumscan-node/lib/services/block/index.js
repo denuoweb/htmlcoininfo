@@ -602,6 +602,7 @@ class BlockService extends BaseService {
         await this._saveBlock(genesisBlock)
       }
       this._reportInterval = setInterval(this._logProgress.bind(this), 5000)
+      this._reportInterval.unref()
       await this._sync()
     } else {
       this._onSynced()
