@@ -45,7 +45,7 @@ class AddressService extends BaseService {
     let txIdList = [...unique.values()].sort((a, b) => b.height - a.height)
     return {
       totalCount: txIdList.length,
-      transactions: txIdList.slice(options.from, options.to)
+      transactions: txIdList.slice(options.from, options.to).map(tx => tx.txid)
     }
   }
 
