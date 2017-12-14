@@ -48,7 +48,8 @@ function builder(options = {}) {
       mempool: 'MemPool',
       getaddr: 'GetAddr',
       sendheaders: 'SendHeaders',
-      sendcmpct: 'SendCmpct'
+      sendcmpct: 'SendCmpct',
+      feefilter: 'FeeFilter'
     },
     commands: {}
   }
