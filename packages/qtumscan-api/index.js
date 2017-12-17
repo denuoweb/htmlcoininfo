@@ -6,6 +6,7 @@ const bodyparser = require('koa-bodyparser')
 const BaseService = require('qtumscan-node/lib/service')
 const AddressController = require('./controllers/addresses')
 const BlockController = require('./controllers/blocks')
+const SearchController = require('./controllers/search')
 const TransactionController = require('./controllers/transactions')
 const RateLimiter = require('./components/rate-limiter')
 
@@ -37,9 +38,10 @@ class QtumscanAPI extends BaseService {
       blockCacheSize: this.blockCacheSize,
       transactionService: this.transactionService
     }
+    this.addressController = new AddressController(this.node)
     this.blockController = new BlockController(blockOptions)
     this.transactionController = new TransactionController(this.node)
-    this.addressController = new AddressController(this.node)
+    this.searchController = new SearchController(this.node)
   }
 
   cache(maxAge) {
@@ -222,6 +224,9 @@ class QtumscanAPI extends BaseService {
       addresses.checkAddresses.bind(addresses),
       addresses.unconfirmedBalance.bind(addresses)
     )
+
+    let search = this.searchController
+    router.get('/search/:id', this.cacheShort(), search.classify.bind(search))
 
     app.use(router.routes()).use(router.allowedMethods())
   }

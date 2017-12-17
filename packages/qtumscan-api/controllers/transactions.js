@@ -1,4 +1,3 @@
-const qtumcore = require('qtumscan-lib')
 const {ErrorResponse} = require('../components/utils')
 
 class TransactionController {

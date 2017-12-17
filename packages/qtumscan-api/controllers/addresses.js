@@ -1,4 +1,3 @@
-const qtumscan = require('qtumscan-lib')
 const TxController = require('./transactions')
 const {ErrorResponse} = require('../components/utils')
 
