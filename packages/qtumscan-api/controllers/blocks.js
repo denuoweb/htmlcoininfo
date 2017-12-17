@@ -50,7 +50,7 @@ class BlocksController {
       try {
         let block = await this._block.getBlock(hash)
         if (!block) {
-          throw new Error('block not in index')
+          ctx.throw(404)
         }
 
         let info = await this._header.getBlockHeader(hash)

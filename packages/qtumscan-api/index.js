@@ -131,7 +131,6 @@ class QtumscanAPI extends BaseService {
         await next()
       } catch (err) {
         ctx.status = err.status || 500
-        ctx.body = err.message
         app.emit('error', err, ctx)
       }
     })
@@ -226,7 +225,7 @@ class QtumscanAPI extends BaseService {
     )
 
     let search = this.searchController
-    router.get('/search/:id', this.cacheShort(), search.classify.bind(search))
+    router.get('/search/:id', search.classify.bind(search))
 
     app.use(router.routes()).use(router.allowedMethods())
   }

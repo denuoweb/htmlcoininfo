@@ -9,10 +9,10 @@ class ErrorResponse {
 
   handleErrors(ctx, err) {
     if (err.code) {
-      ctx.throw(400, err.message + '. Code: ' + err.code)
+      ctx.throw(500, err.message + '. Code: ' + err.code)
     } else {
       this.log.error(err.stack)
-      ctx.throw(400, err.message)
+      ctx.throw(500, err.message)
     }
   }
 }
