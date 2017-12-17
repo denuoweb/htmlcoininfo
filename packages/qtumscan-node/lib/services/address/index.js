@@ -311,8 +311,6 @@ class AddressService extends BaseService {
     if (!address) {
       return []
     }
-    let blockTimestamp = this._timestamp.getTimestampSync(block.hash)
-    assert(blockTimestamp, 'Must have a timestamp in order to process output.')
     let utxoKey = this._encoding.encodeUtxoIndexKey(address, input.prevTxId, input.outputIndex)
     let utxoKeyHexString = utxoKey.toString('hex')
     if (utxoOperations.has(utxoKeyHexString)) {
@@ -331,7 +329,7 @@ class AddressService extends BaseService {
     }
     return [{
       type: 'put',
-      key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 1, blockTimestamp)
+      key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 1, block.header.time)
     }]
   }
 
@@ -341,8 +339,6 @@ class AddressService extends BaseService {
     if (!address) {
       return []
     }
-    let timestamp = this._timestamp.getTimestampSync(block.hash)
-    assert(timestamp, 'Must have a timestamp in order to process output.')
     let utxoKey = this._encoding.encodeUtxoIndexKey(address, tx.hash, index)
     utxoOperations.set(
       utxoKey.toString('hex'),
@@ -351,14 +347,14 @@ class AddressService extends BaseService {
         value: {
           height: block.height,
           satoshis: output.satoshis,
-          timestamp,
+          timestamp: block.header.time,
           scriptBuffer: output.script.toBuffer()
         }
       }
     )
     return [{
       type: 'put',
-      key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 0, timestamp)
+      key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 0, block.header.time)
     }]
   }
 }
