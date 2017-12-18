@@ -8,6 +8,9 @@ class ErrorResponse {
   }
 
   handleErrors(ctx, err) {
+    if (err.status) {
+      throw err
+    }
     if (err.code) {
       ctx.throw(500, err.message + '. Code: ' + err.code)
     } else {

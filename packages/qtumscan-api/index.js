@@ -1,6 +1,7 @@
 const {Writable} = require('stream')
 const Router = require('koa-router')
 const morgan = require('koa-morgan')
+const cors = require('koa-cors')
 const compress = require('koa-compress')
 const bodyparser = require('koa-bodyparser')
 const BaseService = require('qtumscan-node/lib/service')
@@ -117,16 +118,11 @@ class QtumscanAPI extends BaseService {
     let logStream = this.createLogInfoStream()
     app.use(morgan(logFormat, {stream: logStream}))
 
+    app.use(cors())
+    app.use(compress())
+    app.use(bodyparser())
+
     app.use(async (ctx, next) => {
-      ctx.set('Access-Control-Allow-Origin', '*')
-      ctx.set('Access-Control-Allow-Methods', 'GET, HEAD, PUT, POST, OPTIONS')
-      ctx.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Content-Length, Cache-Control, cf-connecting-ip')
-
-      if (ctx.method.toUpperCase() === 'OPTIONS') {
-        ctx.body = null
-        return
-      }
-
       try {
         await next()
       } catch (err) {
@@ -134,9 +130,6 @@ class QtumscanAPI extends BaseService {
         app.emit('error', err, ctx)
       }
     })
-
-    app.use(compress())
-    app.use(bodyparser())
 
     let router = new Router()
 
