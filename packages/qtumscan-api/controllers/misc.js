@@ -9,6 +9,12 @@ class SearchController {
     this._transaction = this.node.services.get('transaction')
   }
 
+  async info(ctx) {
+    ctx.body = {
+      'height': this._header.getBestHeight()
+    }
+  }
+
   async classify(ctx) {
     let id = ctx.params.id
     if (/^(0|[1-9]\d{0,9})$/.test(id)) {
