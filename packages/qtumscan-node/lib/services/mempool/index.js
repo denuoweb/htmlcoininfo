@@ -97,7 +97,8 @@ class MempoolService extends BaseService {
 
   async onReorg(_, block) {
     let removalOperations = []
-    for (let tx of block.transactions) {
+    for (let i = 2; i < block.transactions.length; ++i) {
+      let tx = block.transactions[i]
       removalOperations.push(
         {
           type: 'put',
