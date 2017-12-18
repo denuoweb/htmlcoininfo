@@ -271,12 +271,8 @@ class AddressService extends BaseService {
     ]
   }
 
-  async onReorg([_, oldBlockList]) {
-    let operations = []
-    for (let block of oldBlockList) {
-      operations.push(...(await this._removeBlock(block)))
-    }
-    return operations
+  onReorg(_, block) {
+    return this._removeBlock(block)
   }
 
   async onBlock(block) {

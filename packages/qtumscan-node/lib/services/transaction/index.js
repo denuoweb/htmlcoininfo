@@ -178,15 +178,12 @@ class TransactionService extends BaseService {
     return operations
   }
 
-  onReorg(args) {
-    let oldBlockList = args[1]
+  onReorg(_, block) {
     let removalOps = []
-    for (let block of oldBlockList) {
-      for (let tx of block.transactions) {
-        removalOps.push({type: 'del', key: this._encoding.encodeTransactionKey(tx.hash)})
-        for (let input of tx.inputs) {
-          removalOps.push({type: 'del', key: this._encoding.encodeSpentKey(input.prevTxId, input.outputIndex)})
-        }
+    for (let tx of block.transactions) {
+      removalOps.push({type: 'del', key: this._encoding.encodeTransactionKey(tx.hash)})
+      for (let input of tx.inputs) {
+        removalOps.push({type: 'del', key: this._encoding.encodeSpentKey(input.prevTxId, input.outputIndex)})
       }
     }
     return removalOps

@@ -6,7 +6,6 @@ class TimestampService extends BaseService {
   constructor(options) {
     super(options)
     this._db = this.node.services.get('db')
-    this._lastBlockTimestamp = 0
     this._cache = LRU(10)
   }
 
@@ -41,34 +40,28 @@ class TimestampService extends BaseService {
 
   onBlock(block) {
     let hash = block.hash
-    let ts = Math.max(this._lastBlockTimestamp + 1, block.header.timestamp)
-    this._cache.set(hash, ts)
-    this._lastBlockTimestamp = ts
+    let timestamp = block.header.timestamp
+    this._cache.set(hash, timestamp)
 
     return [
       {
         type: 'put',
-        key: this._encoding.encodeTimestampBlockKey(ts),
+        key: this._encoding.encodeTimestampBlockKey(timestamp),
         value: this._encoding.encodeTimestampBlockValue(hash)
       },
       {
         type: 'put',
         key: this._encoding.encodeBlockTimestampKey(hash),
-        value: this._encoding.encodeBlockTimestampValue(ts)
+        value: this._encoding.encodeBlockTimestampValue(timestamp)
       }
     ]
   }
 
-  async onReorg([commonAncestorHash, oldBlockList]) {
-    let removalOperations = []
-    for (let block of oldBlockList) {
-      removalOperations.push(
-        {type: 'del', key: this._encoding.encodeTimestampBlockKey(block.header.timestamp)},
-        {type: 'del', key: this._encoding.encodeBlockTimestampKey(block.hash)}
-      )
-    }
-    this._lastBlockTimestamp = await this.getTimestamp(commonAncestorHash)
-    return removalOperations
+  async onReorg(_, block) {
+    return [
+      {type: 'del', key: this._encoding.encodeTimestampBlockKey(block.header.timestamp)},
+      {type: 'del', key: this._encoding.encodeBlockTimestampKey(block.hash)}
+    ]
   }
 
   getTimestampSync(hash) {

@@ -289,8 +289,7 @@ class BlockService extends BaseService {
     }
   }
 
-  onReorg(args) {
-    let block = args[1][0]
+  onReorg(_, block) {
     return [
       {type: 'del', key: this._encoding.encodeBlockKey(block.hash)}
     ]
@@ -301,7 +300,7 @@ class BlockService extends BaseService {
     for (let service of this.node.services.values()) {
       if (service.onReorg) {
         this.node.log.info('Block Service: Reorging', service.name, 'service.')
-        operations.push(...(await service.onReorg([commonAncestorHash, [block]])))
+        operations.push(...(await service.onReorg(commonAncestorHash, block)))
       }
     }
     return operations
@@ -410,13 +409,9 @@ class BlockService extends BaseService {
     let blocks = []
     for (let i = 0; i < this._recentBlockHashes.length && hash !== commonHeader.hash; ++i) {
       let block = await this._getBlock(hash)
-      if (!block) {
-        throw new Error('Block Service: block not found in index.')
-      }
+      assert(block, 'Block Service: block not found in index.')
       let timestamp = await this._timestamp.getTimestamp(block.hash)
-      if (!timestamp) {
-        throw new Error('timestamp missing from reorg.')
-      }
+      assert(timestamp, 'timestamp missing from reorg.')
       block.height = height
       block.header.time = block.header.timestamp = timestamp
       blocks.push(block)

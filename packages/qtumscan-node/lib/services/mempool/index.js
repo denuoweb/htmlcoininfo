@@ -95,19 +95,17 @@ class MempoolService extends BaseService {
     })
   }
 
-  async onReorg([_, oldBlockList]) {
+  async onReorg(_, block) {
     let removalOperations = []
-    for (let block of oldBlockList) {
-      for (let tx of block.transactions) {
-        removalOperations.push(
-          {
-            type: 'put',
-            key: this._encoding.encodeMempoolTransactionKey(tx.hash),
-            value: this._encoding.encodeMempoolTransactionValue(tx)
-          },
-          ...(await this._getAddressOperations(tx, 'put'))
-        )
-      }
+    for (let tx of block.transactions) {
+      removalOperations.push(
+        {
+          type: 'put',
+          key: this._encoding.encodeMempoolTransactionKey(tx.hash),
+          value: this._encoding.encodeMempoolTransactionValue(tx)
+        },
+        ...(await this._getAddressOperations(tx, 'put'))
+      )
     }
     return removalOperations
   }
