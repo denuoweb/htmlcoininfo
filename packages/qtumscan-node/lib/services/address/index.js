@@ -62,7 +62,6 @@ class AddressService extends BaseService {
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
     let unconfirmedBalance = new BN(0)
-    let txidSet = new Set()
     for (let utxo of utxos) {
       let value = new BN(utxo.satoshis)
       totalReceived.iadd(value)
@@ -73,9 +72,6 @@ class AddressService extends BaseService {
       }
       if (utxo.confirmations === 0 && !utxo.used) {
         unconfirmedBalance.iadd(value)
-      }
-      if (!txidSet.has(utxo.txid)) {
-        txidSet.add(utxo.txid)
       }
     }
     return {
