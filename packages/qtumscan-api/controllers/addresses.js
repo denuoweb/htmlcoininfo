@@ -1,4 +1,3 @@
-const TxController = require('./transactions')
 const {ErrorResponse} = require('../components/utils')
 
 class AddressController {
@@ -7,7 +6,6 @@ class AddressController {
     this.errorResponse = new ErrorResponse({log: this.node.log})
     this._address = this.node.services.get('address')
     this._block = this.node.services.get('block')
-    this.txController = new TxController(node)
   }
 
   async show(ctx) {
@@ -107,14 +105,6 @@ class AddressController {
     return utxo
   }
 
-  _getTransformOptions(ctx) {
-    return {
-      noAsm: !!Number.parseInt(ctx.query.noAsm),
-      noScriptSig: !!Number.parseInt(ctx.query.noScriptSig),
-      noSpent: !!Number.parseInt(ctx.query.noSpent)
-    }
-  }
-
   async multiutxo(ctx) {
     let addresses = []
     for (let address of ctx.addresses) {
@@ -139,21 +129,15 @@ class AddressController {
     let to = Number.parseInt(ctx.query.to) || from + 10
     try {
       let result = await this._address.getAddressHistory(ctx.addresses, {from, to})
-      let transformOptions = this._getTransformOptions(ctx)
-      let items = await this.transformAddressHistoryForMultiTxs(result.items, transformOptions)
       ctx.body = {
-        totalItems: result.totalCount,
+        totalCount: result.totalCount,
         from,
         to: Math.min(to, result.totalCount),
-        items
+        transactions: result.transactions
       }
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
-  }
-
-  transformAddressHistoryForMultiTxs(txs, options) {
-    return Promise.all(txs.map(tx => this.txController.transformTransaction(tx, options)))
   }
 }
 
