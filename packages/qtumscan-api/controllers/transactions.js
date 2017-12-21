@@ -194,7 +194,7 @@ class TransactionController {
     let blockHash = ctx.query.block
     let address = ctx.query.address
     let page = Number.parseInt(ctx.query.pageNum) || 0
-    let pageLength = 10
+    let pageLength = Number.parseInt(ctx.query.pageLength) || 10
 
     if (blockHash) {
       try {
@@ -207,13 +207,13 @@ class TransactionController {
         let txids = block.txids.slice(start, start + pageLength)
         let pagesTotal = Math.ceil(totalTxs / pageLength)
 
-        let txs = []
+        let transactions = []
         for (let txid of txids) {
           let transaction = await this.transactionService.getDetailedTransaction(txid)
-          txs.push(await this.transformTransaction(transaction))
+          transactions.push(await this.transformTransaction(transaction))
         }
 
-        ctx.body = {pagesTotal, txs}
+        ctx.body = {pagesTotal, transactions}
       } catch (err) {
         this.errorResponse.handleErrors(ctx, err)
       }
@@ -225,10 +225,10 @@ class TransactionController {
 
       try {
         let result = await this._address.getAddressHistory(address, options)
-        let txs = await result.items.map(tx => this.transformTransaction(tx))
+        let transactions = await result.items.map(tx => this.transformTransaction(tx))
         ctx.body = {
           pageTotal: Math.ceil(result.totalCount / pageLength),
-          txs
+          transactions
         }
       } catch (err) {
         this.errorResponse.handleErrors(ctx, err)

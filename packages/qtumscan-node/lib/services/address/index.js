@@ -96,13 +96,15 @@ class AddressService extends BaseService {
     let final = Buffer.from('f'.repeat(72), 'hex')
     let end = Buffer.concat([start.slice(0, -36), final])
     let mempoolTxids = options.queryMempool ? await this._mempool.getTxidsByAddress(address, 'output') : []
+    let mempoolInputPrevTxidSet = new Set()
     await Promise.all(mempoolTxids.map(async id => {
       let tx = await this._mempool.getMempoolTransaction(id.txid)
-      if (!tx) {
-        throw new Error('Address Service: missing tx: ' + id.txid)
-      }
-      results.push(...(await this._getMempoolUtxos(tx, address)))
+      assert(tx, 'Address Service: missing tx: ' + id.txid)
+      results.push(...(await this._getMempoolUtxos(tx, address, mempoolInputPrevTxidSet)))
     }))
+    for (let utxo of results) {
+      utxo.used = mempoolInputPrevTxidSet.has(utxo.txid)
+    }
 
     return new Promise((resolve, reject) => {
       let utxoStream = this._db.createReadStream({gte: start, lt: end})
@@ -121,14 +123,14 @@ class AddressService extends BaseService {
             height: value.height,
             satoshis: value.satoshis,
             confirmations: this._block.getTip().height - value.height + 1,
-            used: value.used || undefined
+            used: value.used || mempoolInputPrevTxidSet.has(key.txid)
           })
         }
       })
     })
   }
 
-  async _getMempoolUtxos(tx, address) {
+  async _getMempoolUtxos(tx, address, mempoolInputPrevTxidSet) {
     let results = []
     for (let i = 0; i < tx.outputs.length; ++i) {
       let output = tx.outputs[i]
@@ -144,6 +146,9 @@ class AddressService extends BaseService {
         satoshis: output.satoshis,
         confirmations: 0
       })
+    }
+    for (let input of tx.inputs) {
+      mempoolInputPrevTxidSet.add(input.prevTxId.toString('hex'))
     }
     return results
   }

@@ -1,6 +1,6 @@
 const {ErrorResponse} = require('../components/utils')
 
-class SearchController {
+class MiscController {
   constructor(node) {
     this.node = node
     this.errorResponse = new ErrorResponse({log: this.node.log})
@@ -44,4 +44,4 @@ class SearchController {
   }
 }
 
-module.exports = SearchController
+module.exports = MiscController
