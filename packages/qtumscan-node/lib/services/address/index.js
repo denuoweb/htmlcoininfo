@@ -29,7 +29,7 @@ class AddressService extends BaseService {
   async getAddressHistory(addresses, options = {}) {
     options.from = options.from || 0
     options.to = options.to || 0xffffffff
-    if (!'queryMempool' in options) {
+    if (!('queryMempool' in options)) {
       options.queryMempool = true
     }
     if (typeof addresses === 'string') {
@@ -52,7 +52,7 @@ class AddressService extends BaseService {
   async getAddressSummary(address, options = {}) {
     options.from = options.from || 0
     options.to = options.to || 0xffffffff
-    if (!'queryMempool' in options) {
+    if (!('queryMempool' in options)) {
       options.queryMempool = true
     }
     options.listUsed = true
@@ -88,7 +88,7 @@ class AddressService extends BaseService {
   async getAddressUnspentOutputs(address, options = {}) {
     options.from = options.from || 0
     options.to = options.to || 0xffffffff
-    if (!'queryMempool' in options) {
+    if (!('queryMempool' in options)) {
       options.queryMempool = true
     }
     let results = []

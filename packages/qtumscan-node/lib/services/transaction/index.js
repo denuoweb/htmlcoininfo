@@ -71,11 +71,12 @@ class TransactionService extends BaseService {
       return cacheTx
     }
     let tx = await this._getTransaction(txid, options)
-    tx = await this._getMempoolTransaction(txid, tx, options)
-    await this.setTxMetaInfo(tx, options)
     if (tx) {
       this._cacheTx.set(txid, tx)
+    } else {
+      tx = await this._getMempoolTransaction(txid, options)
     }
+    await this.setTxMetaInfo(tx, options)
     return tx
   }
 
@@ -107,12 +108,11 @@ class TransactionService extends BaseService {
     return tx
   }
 
-  _getMempoolTransaction(txid, tx, options = {}) {
-    let queryMempool = 'queryMempool' in options ? true : options.queryMempool
-    if (tx || !queryMempool) {
-      return tx
+  _getMempoolTransaction(txid, options = {}) {
+    let queryMempool = 'queryMempool' in options ? options.queryMempool : true
+    if (queryMempool) {
+      return this._mempool.getMempoolTransaction(txid)
     }
-    return this._mempool.getMempoolTransaction(txid)
   }
 
   async _getTransaction(txid, options) {

@@ -10,7 +10,7 @@ class MempoolService extends BaseService {
     this._db = this.node.services.get('db')
     this._p2p = this.node.services.get('p2p')
     this._network = this.node.network
-    this.flush = options.flush
+    this._flush = options.flush
     this._enabled = false
 
     if (this._network === 'livenet') {
@@ -112,7 +112,7 @@ class MempoolService extends BaseService {
   }
 
   _startSubscriptions() {
-    if (!this._subscribed) {
+    if (this._subscribed) {
       return
     }
     this._subscribed = true
@@ -178,7 +178,7 @@ class MempoolService extends BaseService {
     ]
 
     try {
-      await this._db.batch(operations)
+      await this._db.batch(ops)
       for (let transaction of this._subscriptions.transaction) {
         transaction.emit('mempool/transaction')
       }
