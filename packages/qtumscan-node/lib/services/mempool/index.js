@@ -196,7 +196,7 @@ class MempoolService extends BaseService {
   }
 
   getTxidsByAddress(address, type) {
-    let results = []
+    let txids = new Set()
     let start = this._encoding.encodeMempoolAddressKey(address)
     let end = Buffer.concat([start.slice(0, -37), Buffer.from('f'.repeat(74), 'hex')])
 
@@ -210,10 +210,10 @@ class MempoolService extends BaseService {
           type = 0
         }
         if (type === 'both' || type === addressInfo.input) {
-          results.push({txid: addressInfo.txid, height: 0xffffffff})
+          txids.add(addressInfo.txid)
         }
       })
-      stream.on('end', () => resolve(results))
+      stream.on('end', () => resolve([...txids].map(txid => ({txid, height: 0xffffffff}))))
       stream.on('error', reject)
     })
   }

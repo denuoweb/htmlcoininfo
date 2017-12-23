@@ -69,9 +69,9 @@ class AddressService extends BaseService {
         totalSent.iadd(value)
       } else {
         balance.iadd(value)
-      }
-      if (utxo.confirmations === 0 && !utxo.used) {
-        unconfirmedBalance.iadd(value)
+        if (utxo.confirmations === 0) {
+          unconfirmedBalance.iadd(value)
+        }
       }
     }
     return {
@@ -148,7 +148,9 @@ class AddressService extends BaseService {
       })
     }
     for (let input of tx.inputs) {
-      mempoolInputPrevTxidSet.add(input.prevTxId.toString('hex'))
+      if (await getAddress(input, this._transaction, this._network) === address) {
+        mempoolInputPrevTxidSet.add(input.prevTxId.toString('hex'))
+      }
     }
     return results
   }
