@@ -152,7 +152,7 @@ class Script {
 
   _fromString(string) {
     if (/^[0-9A-Za-z]*$/.test(string)) {
-      this._fromBuffer(Buffer.from(string,'hex'))
+      this._fromBuffer(Buffer.from(string, 'hex'))
       return
     }
     let tokens = string.split(' ')
@@ -246,7 +246,7 @@ class Script {
 
   getPublicKey() {
     assert(this.isPublicKeyOut(), 'Can\'t retrieve PublicKey from a non-PK output')
-    return ths.chunks[0].buf
+    return this.chunks[0].buf
   }
 
   getPublickKeyHash() {

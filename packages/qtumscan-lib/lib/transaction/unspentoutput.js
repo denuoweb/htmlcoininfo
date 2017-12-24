@@ -6,16 +6,12 @@ const Unit = require('../unit')
 
 class UnspentOutput {
   constructor(data) {
-    assert(isObject(data), 'Must provide an object fro where to extract data')
+    assert(isObject(data), 'Must provide an object from where to extract data')
     let address = data.address && new Address(data.address)
     let txId = data.txid || data.txId
-    if (!/^[0-9A-Fa-f]{64}$/.test(txId)) {
-      throw new Error('Invalid TXID in object ' + JSON.stringify(data))
-    }
+    assert(/^[0-9A-Fa-f]{64}$/.test(txId), 'Invalid TXID in object ' + JSON.stringify(data))
     let outputIndex = 'vout' in data ? data.vout : data.outputIndex
-    if (!Number.isInteger(outputIndex)) {
-      throw new Error('Invalid outputIndex, received ' + outputIndex)
-    }
+    assert(Number.isInteger(outputIndex), 'Invalid outputIndex, received ' + outputIndex)
     assert('scriptPubKey' in data || 'script' in data, 'Must provide the scriptPubKey for that output')
     let script = new Script(data.scriptPubKey || data.script)
     assert('amount' in data || 'satoshis' in data, 'Must provide an amount for the output')
@@ -42,7 +38,8 @@ class UnspentOutput {
       txid: this.txId,
       vout: this.outputIndex,
       scriptPubKey: this.script.toBuffer().toString('hex'),
-      amount: Unit.fromSatoshis(this.satoshis).toBTC()
+      amount: Unit.fromSatoshis(this.satoshis).toBTC(),
+      satoshis: this.satoshis
     }
   }
 

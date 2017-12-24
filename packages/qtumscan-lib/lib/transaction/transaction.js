@@ -200,7 +200,7 @@ class Transaction {
       writer.writeUInt8(0)
     }
     if (this.flags !== undefined) {
-      writer.writeUInt8(this.flags ? 1 : 0)
+      writer.writeUInt8(+this.flags)
     }
     writer.writeVarintNum(this.inputs.length)
     for (let input of this.inputs) {
