@@ -26,18 +26,13 @@ class AddressService extends BaseService {
     return ['block', 'db', 'header', 'mempool', 'timestamp', 'transaction']
   }
 
-  async getAddressHistory(addresses, options = {}) {
-    options.from = options.from || 0
-    options.to = options.to || 0xffffffff
-    if (!('queryMempool' in options)) {
-      options.queryMempool = true
-    }
+  async getAddressHistory(addresses, {from = 0, to = 0xffffffff, queryMempool = true} = {}) {
     if (typeof addresses === 'string') {
       addresses = [addresses]
     }
     let unique = new Map()
     await Promise.all(addresses.map(async address => {
-      let list = await this._getAddressTxidHistory(address, options)
+      let list = await this._getAddressTxidHistory(address, {queryMempool})
       for (let txId of list) {
         unique.set(txId.txid, txId)
       }
@@ -45,13 +40,11 @@ class AddressService extends BaseService {
     let txIdList = [...unique.values()].sort((a, b) => b.height - a.height)
     return {
       totalCount: txIdList.length,
-      transactions: txIdList.slice(options.from, options.to).map(tx => tx.txid)
+      transactions: txIdList.slice(from, to).map(tx => tx.txid)
     }
   }
 
   async getAddressSummary(address, options = {}) {
-    options.from = options.from || 0
-    options.to = options.to || 0xffffffff
     if (!('queryMempool' in options)) {
       options.queryMempool = true
     }
@@ -62,16 +55,38 @@ class AddressService extends BaseService {
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
     let unconfirmedBalance = new BN(0)
+    let txidMap = new Map()
     for (let utxo of utxos) {
       let value = new BN(utxo.satoshis)
-      totalReceived.iadd(value)
-      if (utxo.used) {
-        totalSent.iadd(value)
+      let inputItem
+      if (txidMap.has(utxo.txid)) {
+        inputItem = txidMap.get(utxo.txid)
+        inputItem.received += utxo.satoshis
+      } else {
+        inputItem = {received: utxo.satoshis, sent: 0}
+        txidMap.set(utxo.txid, inputItem)
+      }
+      if (utxo.outputTxid) {
+        let outputItem
+        if (txidMap.has(utxo.outputTxid)) {
+          outputItem = txidMap.get(utxo.outputTxid)
+          outputItem.sent += utxo.satoshis
+        } else {
+          outputItem = {received: 0, sent: utxo.satoshis}
+          txidMap.set(utxo.outputTxid, outputItem)
+        }
       } else {
         balance.iadd(value)
         if (utxo.confirmations === 0) {
-          unconfirmedBalance.iadd(value)
+          unconfirmedBalance.iadd(new BN(value))
         }
+      }
+    }
+    for (let {received, sent} of txidMap.values()) {
+      if (received > sent) {
+        totalReceived.iadd(new BN(received - sent))
+      } else {
+        totalSent.iadd(new BN(sent - received))
       }
     }
     return {
@@ -85,52 +100,77 @@ class AddressService extends BaseService {
     }
   }
 
-  async getAddressUnspentOutputs(address, options = {}) {
-    options.from = options.from || 0
-    options.to = options.to || 0xffffffff
-    if (!('queryMempool' in options)) {
-      options.queryMempool = true
-    }
+  async getAddressUnspentOutputs(address, {queryMempool = true, listUsed = false} = {}) {
     let results = []
-    let start = this._encoding.encodeUtxoIndexKey(address)
-    let final = Buffer.from('f'.repeat(72), 'hex')
-    let end = Buffer.concat([start.slice(0, -36), final])
-    let mempoolTxids = options.queryMempool ? await this._mempool.getTxidsByAddress(address, 'output') : []
-    let mempoolInputPrevTxidSet = new Set()
+    let mempoolTxids = queryMempool ? await this._mempool.getTxidsByAddress(address, 'output') : []
+    let mempoolOutputTxidMap = new Map()
     await Promise.all(mempoolTxids.map(async id => {
       let tx = await this._mempool.getMempoolTransaction(id.txid)
       assert(tx, 'Address Service: missing tx: ' + id.txid)
-      results.push(...(await this._getMempoolUtxos(tx, address, mempoolInputPrevTxidSet)))
+      results.push(...(await this._getMempoolUtxos(tx, address, mempoolOutputTxidMap)))
     }))
     for (let utxo of results) {
-      utxo.used = mempoolInputPrevTxidSet.has(utxo.txid)
+      utxo.outputTxid = utxo.outputTxid || mempoolOutputTxidMap.get(utxo.txid)
     }
 
-    return new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
+      let start = this._encoding.encodeUtxoIndexKey(address)
+      let final = Buffer.from('f'.repeat(72), 'hex')
+      let end = Buffer.concat([start.slice(0, -36), final])
       let utxoStream = this._db.createReadStream({gte: start, lt: end})
-      utxoStream.on('end', () => resolve(results.sort((x, y) => x.confirmations - y.confirmations)))
+      utxoStream.on('end', resolve)
       utxoStream.on('error', reject)
       utxoStream.on('data', data => {
         let key = this._encoding.decodeUtxoIndexKey(data.key)
         let value = this._encoding.decodeUtxoIndexValue(data.value)
-        if (options.listUsed || !value.used) {
+        let outputTxid = mempoolOutputTxidMap.get(key.txid)
+        if (!listUsed && outputTxid) {
+          return
+        }
+        results.push({
+          address,
+          txid: key.txid,
+          vout: key.outputIndex,
+          timestamp: value.timestamp,
+          outputTxid,
+          scriptPubKey: value.scriptBuffer.toString('hex'),
+          height: value.height,
+          satoshis: value.satoshis,
+          confirmations: this._block.getTip().height - value.height + 1,
+        })
+      })
+    })
+
+    if (listUsed) {
+      await new Promise((resolve, reject) => {
+        let start = this._encoding.encodeUsedUtxoIndexKey(address)
+        let final = Buffer.from('f'.repeat(72), 'hex')
+        let end = Buffer.concat([start.slice(0, -36), final])
+        let utxoStream = this._db.createReadStream({gte: start, lt: end})
+        utxoStream.on('end', resolve)
+        utxoStream.on('error', reject)
+        utxoStream.on('data', data => {
+          let key = this._encoding.decodeUsedUtxoIndexKey(data.key)
+          let value = this._encoding.decodeUsedUtxoIndexValue(data.value)
           results.push({
             address,
             txid: key.txid,
             vout: key.outputIndex,
             timestamp: value.timestamp,
+            outputTxid: value.outputTxid,
             scriptPubKey: value.scriptBuffer.toString('hex'),
             height: value.height,
             satoshis: value.satoshis,
             confirmations: this._block.getTip().height - value.height + 1,
-            used: value.used || mempoolInputPrevTxidSet.has(key.txid)
           })
-        }
+        })
       })
-    })
+    }
+
+    return results.sort((x, y) => x.confirmations - y.confirmations)
   }
 
-  async _getMempoolUtxos(tx, address, mempoolInputPrevTxidSet) {
+  async _getMempoolUtxos(tx, address, mempoolOutputTxidMap) {
     let results = []
     for (let i = 0; i < tx.outputs.length; ++i) {
       let output = tx.outputs[i]
@@ -149,7 +189,7 @@ class AddressService extends BaseService {
     }
     for (let input of tx.inputs) {
       if (await getAddress(input, this._transaction, this._network) === address) {
-        mempoolInputPrevTxidSet.add(input.prevTxId.toString('hex'))
+        mempoolOutputTxidMap.set(input.prevTxId.toString('hex'), tx.hash)
       }
     }
     return results
@@ -168,11 +208,13 @@ class AddressService extends BaseService {
     this._encoding = new Encoding(prefix)
   }
 
-  _getTxidStream(address, options) {
+  _getTxidStream(address, {endHeight}) {
+    let endHeightBuf = Buffer.alloc(4)
+    endHeightBuf.writeUInt32BE(endHeight)
     let start = this._encoding.encodeAddressIndexKey(address)
     let end = Buffer.concat([
       start.slice(0, address.length + 4),
-      options.endHeightBuf,
+      endHeightBuf,
       Buffer.from('f'.repeat(82), 'hex')
     ])
     let txidStream = this._db.createKeyStream({gte: start, lte: end, reverse: true})
@@ -180,15 +222,8 @@ class AddressService extends BaseService {
     return txidStream
   }
 
-  async _getAddressTxidHistory(address, options = {}) {
-    options.start = options.start || 0
-    options.end = options.end || 0xffffffff
-    options.endHeightBuf = Buffer.alloc(4)
-    options.endHeightBuf.writeUInt32BE(options.end)
-    if (!('queryMempool' in options)) {
-      options.queryMempool = true
-    }
-    let results = options.queryMempool ? await this._mempool.getTxidsByAddress(address, 'both') : []
+  async _getAddressTxidHistory(address, {end = 0xffffffff, queryMempool = true} = {}) {
+    let results = queryMempool ? await this._mempool.getTxidsByAddress(address, 'both') : []
     return new Promise((resolve, reject) => {
       let txIdTransformStream = new Transform({objectMode: true})
       txIdTransformStream._flush = callback => {
@@ -205,7 +240,7 @@ class AddressService extends BaseService {
         results.push({txid: txInfo.txid, height: txInfo.height})
         callback()
       }
-      let txidStream = this._getTxidStream(address, options)
+      let txidStream = this._getTxidStream(address, {endHeight: end})
       txidStream.pipe(txIdTransformStream)
     })
   }
@@ -252,6 +287,10 @@ class AddressService extends BaseService {
           _tx.__timestamp,
           _tx.outputs[input.outputIndex].script.toBuffer()
         )
+      },
+      {
+        type: 'del',
+        key: this._encoding.encodeUsedUtxoIndexKey(address, tx.hash, index)
       }
     ]
   }
@@ -283,28 +322,19 @@ class AddressService extends BaseService {
       return
     }
     let operations = []
-    let utxoOperations = new Map()
+    let utxoMap = new Map()
     for (let tx of block.transactions) {
       for (let i = 0; i < tx.outputs.length; ++i) {
-        operations.push(...(await this._processOutput(tx, i, block, utxoOperations)))
+        operations.push(...(await this._processOutput(tx, i, block, utxoMap)))
       }
       for (let i = 0; i < tx.inputs.length; ++i) {
-        operations.push(...(await this._processInput(tx, i, block, utxoOperations)))
+        operations.push(...(await this._processInput(tx, i, block, utxoMap)))
       }
-    }
-    for (let {key, value} of utxoOperations.values()) {
-      operations.push({
-        type: 'put',
-        key,
-        value: this._encoding.encodeUtxoIndexValue(
-          value.height, value.satoshis, value.timestamp, value.scriptBuffer, value.used
-        )
-      })
     }
     return operations
   }
 
-  async _processInput(tx, index, block, utxoOperations) {
+  async _processInput(tx, index, block, utxoMap) {
     let input = tx.inputs[index]
     let address = await getAddress(input, this._transaction, this._network)
     if (!address) {
@@ -312,49 +342,56 @@ class AddressService extends BaseService {
     }
     let utxoKey = this._encoding.encodeUtxoIndexKey(address, input.prevTxId, input.outputIndex)
     let utxoKeyHexString = utxoKey.toString('hex')
-    if (utxoOperations.has(utxoKeyHexString)) {
-      let item = utxoOperations.get(utxoKeyHexString)
-      item.value.used = true
+    let utxoValue
+    if (utxoMap.has(utxoKeyHexString)) {
+      utxoValue = utxoMap.get(utxoKeyHexString)
+      utxoMap.delete(utxoKeyHexString)
     } else {
-      let utxoValue = await this._db.get(utxoKey)
-      let {height, satoshis, timestamp, scriptBuffer} = this._encoding.decodeUtxoIndexValue(utxoValue)
-      utxoOperations.set(
-        utxoKeyHexString,
-        {
-          key: utxoKey,
-          value: {height, satoshis, timestamp, scriptBuffer, used: true}
-        }
-      )
+      utxoValue = this._encoding.decodeUtxoIndexValue(await this._db.get(utxoKey))
     }
-    return [{
-      type: 'put',
-      key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 1, block.header.time)
-    }]
+    return [
+      {
+        type: 'put',
+        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 1, block.header.time)
+      },
+      {type: 'del', key: utxoKey},
+      {
+        type: 'put',
+        key: this._encoding.encodeUsedUtxoIndexKey(address, input.prevTxId, input.outputIndex),
+        value: this._encoding.encodeUsedUtxoIndexValue(
+          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, tx.hash, utxoValue.scriptBuffer
+        )
+      }
+    ]
   }
 
-  async _processOutput(tx, index, block, utxoOperations) {
+  async _processOutput(tx, index, block, utxoMap) {
     let output = tx.outputs[index]
     let address = await getAddress(output, this._transaction, this._network)
     if (!address) {
       return []
     }
     let utxoKey = this._encoding.encodeUtxoIndexKey(address, tx.hash, index)
-    utxoOperations.set(
-      utxoKey.toString('hex'),
+    let utxoValue = {
+      height: block.height,
+      satoshis: output.satoshis,
+      timestamp: block.header.time,
+      scriptBuffer: output.script.toBuffer()
+    }
+    utxoMap.set(utxoKey.toString('hex'), utxoValue)
+    return [
       {
+        type: 'put',
+        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 0, block.header.time)
+      },
+      {
+        type: 'put',
         key: utxoKey,
-        value: {
-          height: block.height,
-          satoshis: output.satoshis,
-          timestamp: block.header.time,
-          scriptBuffer: output.script.toBuffer()
-        }
+        value: this._encoding.encodeUtxoIndexValue(
+          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, utxoValue.scriptBuffer
+        )
       }
-    )
-    return [{
-      type: 'put',
-      key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 0, block.header.time)
-    }]
+    ]
   }
 }
 

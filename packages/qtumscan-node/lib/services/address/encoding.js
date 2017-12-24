@@ -5,7 +5,7 @@ class Encoding {
     this._servicePrefix = servicePrefix
     this._addressPrefix = Buffer.from('00', 'hex')
     this._utxoPrefix = Buffer.from('01', 'hex')
-    this._balancePrefix = Buffer.from('02', 'hex')
+    this._usedUtxoPrefix = Buffer.from('02', 'hex')
   }
 
   encodeAddressIndexKey(address, height, txid, index, input, timestamp) {
@@ -60,12 +60,11 @@ class Encoding {
     return {address, txid, outputIndex}
   }
 
-  encodeUtxoIndexValue(height, satoshis, timestamp, scriptBuffer, used = false) {
+  encodeUtxoIndexValue(height, satoshis, timestamp, scriptBuffer) {
     let writer = new BufferWriter()
     writer.writeUInt32BE(height)
     writer.writeDoubleBE(satoshis)
     writer.writeUInt32BE(timestamp)
-    writer.writeUInt8(+used)
     writer.write(scriptBuffer)
     return writer.toBuffer()
   }
@@ -75,9 +74,53 @@ class Encoding {
     let height = reader.readUInt32BE()
     let satoshis = reader.readDoubleBE()
     let timestamp = reader.readUInt32BE()
-    let used = !!reader.readUInt8()
     let scriptBuffer = reader.readAll()
-    return {height, satoshis, timestamp, scriptBuffer, used}
+    return {height, satoshis, timestamp, scriptBuffer}
+  }
+
+  encodeUsedUtxoIndexKey(address, txid = '0'.repeat(64), outputIndex = 0) {
+    let writer = new BufferWriter()
+    writer.write(this._servicePrefix)
+    writer.write(this._usedUtxoPrefix)
+    writer.writeUInt8(address.length)
+    writer.write(Buffer.from(address))
+    if (Buffer.isBuffer(txid)) {
+      writer.write(txid)
+    } else {
+      writer.writeHexString(txid)
+    }
+    writer.writeUInt32BE(outputIndex)
+    return writer.toBuffer()
+  }
+
+  decodeUsedUtxoIndexKey(buffer) {
+    let reader = new BufferReader(buffer)
+    reader.set({pos: 3})
+    let addressSize = reader.readUInt8()
+    let address = reader.read(addressSize).toString()
+    let txid = reader.readHexString(32)
+    let outputIndex = reader.readUInt32BE()
+    return {address, txid, outputIndex}
+  }
+
+  encodeUsedUtxoIndexValue(height, satoshis, timestamp, outputTxid, scriptBuffer) {
+    let writer = new BufferWriter()
+    writer.writeUInt32BE(height)
+    writer.writeDoubleBE(satoshis)
+    writer.writeUInt32BE(timestamp)
+    writer.writeHexString(outputTxid)
+    writer.write(scriptBuffer)
+    return writer.toBuffer()
+  }
+
+  decodeUsedUtxoIndexValue(buffer) {
+    let reader = new BufferReader(buffer)
+    let height = reader.readUInt32BE()
+    let satoshis = reader.readDoubleBE()
+    let timestamp = reader.readUInt32BE()
+    let outputTxid = reader.readHexString(32)
+    let scriptBuffer = reader.readAll()
+    return {height, satoshis, timestamp, outputTxid, scriptBuffer}
   }
 }
 
