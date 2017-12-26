@@ -86,6 +86,10 @@ class Block {
     return this.toBufferWriter().concat()
   }
 
+  toHashBuffer() {
+    return this.toHashBufferWriter().concat()
+  }
+
   toString() {
     return this.toBuffer().toString('hex')
   }
@@ -103,6 +107,15 @@ class Block {
     return bw
   }
 
+  toHashBufferWriter(bw = new BufferWriter()) {
+    bw.write(this.header.toBuffer())
+    bw.writeVarintNum(this.transactions.length)
+    for (let transaction of this.transactions) {
+      transaction.toHashBufferWriter(bw)
+    }
+    return bw
+  }
+
   getTransactionHashes() {
     if (this.transactions.length === 0) {
       return [NULL_HASH]
@@ -114,7 +127,7 @@ class Block {
   getMerkleTree() {
     let tree = this.getTransactionHashes()
     let offset = 0
-    for (size = this.transactions.length; size > 1; size = (size + 1) >>> 1) {
+    for (let size = this.transactions.length; size > 1; size = (size + 1) >>> 1) {
       for (let i = 0; i < size; ++i) {
         let i2 = Math.min(i + 1, size - 1)
         let buffer = Buffer.concat([tree[offset + i], tree[offset + i2]])

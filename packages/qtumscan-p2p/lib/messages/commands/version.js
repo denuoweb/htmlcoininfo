@@ -11,7 +11,7 @@ class VersionMessage extends Message {
     arg = arg || {}
     this.version = arg.version || options.protocolVersion
     this.nonce = arg.nonce || getNonce()
-    this.services = arg.services || new BN(1, 10)
+    this.services = arg.services || new BN(13)
     this.timestamp = arg.timestamp || new Date()
     this.subversion = arg.subversion || `/qtumscan:${packageInfo.version}/`
     this.startHeight = arg.startHeight || 0
@@ -45,7 +45,7 @@ class VersionMessage extends Message {
     bw.writeUInt32LE(this.version)
     bw.writeUInt64LEBN(this.services)
 
-    let timestampBuffer = new Buffer(Array(8))
+    let timestampBuffer = Buffer.alloc(8)
     timestampBuffer.writeUInt32LE(Math.round(this.timestamp.getTime() / 1000), 0)
     bw.write(timestampBuffer)
 

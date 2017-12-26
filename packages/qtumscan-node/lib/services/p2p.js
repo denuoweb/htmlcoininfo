@@ -257,6 +257,9 @@ class P2P extends BaseService {
     for (let inv of message.inventory) {
       if (!this._inv.get(inv.hash)) {
         this._inv.set(inv.hash, true)
+        if ([Inventory.TYPE.TX, Inventory.TYPE.BLOCK, Inventory.TYPE.FILTERED_BLOCK].includes(inv.type)) {
+          inv.type |= 0x40000000
+        }
         newDataNeeded.push(inv)
       }
     }

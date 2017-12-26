@@ -90,9 +90,12 @@ class BlocksController {
   async transformBlock(block, info) {
     let blockObj = block.toObject()
     let {reward, minedBy, duration} = await this.getBlockReward(block)
+    let blockBuffer = block.toBuffer()
+    let blockHashBuffer = block.toHashBuffer()
     return {
       hash: block.hash,
-      size: block.toBuffer().length,
+      size: blockBuffer.length,
+      weight: blockBuffer.length + blockHashBuffer.length * 3,
       height: info.height,
       version: blockObj.header.version,
       merkleRoot: blockObj.header.merkleRoot,

@@ -6,9 +6,10 @@ const TYPE = {
   ERROR: 0,
   TX: 1,
   BLOCK: 2,
-  FILTERED_BLOCK: 3
+  FILTERED_BLOCK: 3,
+  CMPCT_BLOCK: 4
 }
-const TYPE_NAME = ['ERROR', 'TX', 'BLOCK', 'FILTERED_BLOCK']
+const TYPE_NAME = ['ERROR', 'TX', 'BLOCK', 'FILTERED_BLOCK', 'CMPCT_BLOCK']
 
 class Inventory {
   constructor(obj) {
@@ -67,4 +68,5 @@ class Inventory {
   }
 }
 
-module.exports = Inventory
+exports = module.exports = Inventory
+exports.TYPE = TYPE
