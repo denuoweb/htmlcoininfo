@@ -1,4 +1,5 @@
 const {ErrorResponse} = require('../components/utils')
+const qtumscan = require('qtumscan-lib')
 
 class TransactionController {
   constructor(node) {
@@ -64,11 +65,15 @@ class TransactionController {
       }]
     } else {
       options.inputValues = transaction.__inputValues
-      transformed.vin = await Promise.all(transaction.inputs.map(this.transformInput.bind(this, options)))
+      transformed.vin = await Promise.all(transaction.inputs.map(
+        this.transformInput.bind(this, options)
+      ))
       transformed.valueIn = transaction.inputSatoshis
       transformed.fees = transaction.feeSatoshis
     }
-    transformed.vout = await Promise.all(transaction.outputs.map(this.transformOutput.bind(this, options)))
+    transformed.vout = await Promise.all(transaction.outputs.map(
+      this.transformOutput.bind(this, transaction, options)
+    ))
 
     if (transformed.confirmations) {
       transformed.blockTime = transformed.time
@@ -81,8 +86,9 @@ class TransactionController {
     if (item.script.isPublicKeyIn()) {
       let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
       return prevTransaction.outputs[item.outputIndex].script.toAddress()
+    } else {
+      return item.script.toAddress(network)
     }
-    return item.script.toAddress(network)
   }
 
   async transformInput({noscriptSig, noAsm, inputValues}, input, index) {
@@ -112,7 +118,7 @@ class TransactionController {
     return transformed
   }
 
-  async transformOutput({noAsm, noSpent}, output, index) {
+  async transformOutput(transaction, {noAsm, noSpent}, output, index) {
     let transformed = {
       value: output.satoshis,
       n: index,
@@ -131,8 +137,19 @@ class TransactionController {
 
     let address = await this._getAddress(output, this._network)
     if (address) {
-      transformed.scriptPubKey.addresses = [address.toString()]
+      transformed.address = address.toString()
       transformed.scriptPubKey.type = address.type
+    } else if (output.script.isContractCreate()) {
+      let indexBuffer = Buffer.alloc(4)
+      indexBuffer.writeUInt32LE(index)
+      transformed.address = qtumscan.crypto.Hash.sha256ripemd160(Buffer.concat([
+        qtumscan.util.buffer.reverse(Buffer.from(transaction.hash, 'hex')),
+        indexBuffer
+      ])).toString('hex')
+      transformed.scriptPubKey.type = 'create'
+    } else if (output.script.isContractCall()) {
+      transformed.address = output.script.chunks[4].buf.toString('hex')
+      transformed.scriptPubKey.type = 'call'
     }
 
     return transformed

@@ -21,14 +21,18 @@ const types = {
   SCRIPTHASH_IN: 'Spend from script hash',
   MULTISIG_OUT: 'Pay to multisig',
   MULTISIG_IN: 'Spend from multisig',
-  DATA_OUT: 'Data push'
+  DATA_OUT: 'Data push',
+  CONTRACT_CREATE: 'Contract create',
+  CONTRACT_CALL: 'Contract call'
 }
 const outputIdentifiers = {
   PUBKEY_OUT: 'isPublicKeyOut',
   PUBKEYHASH_OUT: 'isPublicKeyHashOut',
   MULTISIG_OUT: 'isMultisigOut',
   SCRIPTHASH_OUT: 'isScriptHashOut',
-  DATA_OUT: 'isDataOut'
+  DATA_OUT: 'isDataOut',
+  CONTRACT_CREATE: 'isContractCreate',
+  CONTRACT_CALL: 'isContractCall'
 }
 const inputIdentifiers = {
   PUBKEY_IN: 'isPublicKeyIn',
@@ -196,11 +200,7 @@ class Script {
   _chunkToString(chunk) {
     let opcodenum = chunk.opcodenum
     if (chunk.buf) {
-      if ([Opcode.OP_PUSHDATA1, Opcode.OP_PUSHDATA2, Opcode.OP_PUSHDATA4].includes(opcodenum)) {
-        return new Opcode(opcodenum).toString()
-      } else {
         return chunk.buf.toString('hex')
-      }
     } else if (opcodenum in Opcode.reverseMap) {
       return new Opcode(opcodenum).toString()
     } else {
@@ -209,7 +209,17 @@ class Script {
   }
 
   toString() {
-    return this.chunks.map(chunk => this._chunkToString(chunk)).join(' ')
+    let chunks = this.chunks.map(chunk => this._chunkToString(chunk))
+    if (['OP_CREATE', 'OP_CALL'].includes(chunks[chunks.length - 1])) {
+      for (let i = 0; i < 3; ++i) {
+        let list = []
+        for (let j = 0; j < chunks[i].length; j += 2) {
+          list.push(chunks[i].slice(j, j + 2))
+        }
+        chunks[i] = Number.parseInt(list.reverse().join(''), 16)
+      }
+    }
+    return chunks.join(' ')
   }
 
   inspect() {
@@ -333,6 +343,14 @@ class Script {
       ))
   }
 
+  isContractCreate() {
+    return this.chunks.length === 5 && this.chunks[4].opcodenum === Opcode.OP_CREATE
+  }
+
+  isContractCall() {
+    return this.chunks.length === 6 && this.chunks[5].opcodenum === Opcode.OP_CALL
+  }
+
   getData() {
     if (this.isDataOut() || this.isScriptHashOut()) {
       return this.chunks[1] ? this.chunks[1].buf : Buffer.alloc(0)
@@ -340,6 +358,8 @@ class Script {
       return this.chunks[2].buf
     } else if (this.isPublicKeyOut()) {
       return this.chunks[0].buf
+    } else if (this.isContractCreate() || this.isContractCall()) {
+      return this.chunks[3].buf
     } else {
       throw new Error('Unrecognized script type to get data from')
     }

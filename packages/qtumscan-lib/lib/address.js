@@ -118,6 +118,10 @@ Address.PayToPublicKey = 'pubkey';
 Address.PayToPublicKeyHash = 'pubkeyhash';
 /** @static */
 Address.PayToScriptHash = 'scripthash';
+/** @static */
+Address.ContractCreate = 'create';
+/** @static */
+Address.ContractCall = 'call';
 
 /**
  * @param {Buffer} hash - An instance of a hash Buffer
