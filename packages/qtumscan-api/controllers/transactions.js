@@ -139,6 +139,8 @@ class TransactionController {
     if (address) {
       transformed.address = address.toString()
       transformed.scriptPubKey.type = address.type
+    } else if (output.script.isDataOut()) {
+      transformed.scriptPubKey.type = 'nulldata'
     } else if (output.script.isContractCreate()) {
       let indexBuffer = Buffer.alloc(4)
       indexBuffer.writeUInt32LE(index)
@@ -150,6 +152,8 @@ class TransactionController {
     } else if (output.script.isContractCall()) {
       transformed.address = output.script.chunks[4].buf.toString('hex')
       transformed.scriptPubKey.type = 'call'
+    } else if (output.script.chunks.length === 0) {
+      transformed.scriptPubKey.type = 'nonstandard'
     }
 
     return transformed

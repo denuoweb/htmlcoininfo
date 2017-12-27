@@ -339,7 +339,7 @@ class Script {
       && (this.chunks.length === 1 || (
         this.chunks.length === 2
         && this.chunks[1].buf && this.chunks[1].buf.length <= OP_RETURN_STANDARD_SIZE
-        && this.chunks[1].len === this.chunks.length
+        && this.chunks[1].len === this.chunks[1].buf.length
       ))
   }
 
