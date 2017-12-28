@@ -50,6 +50,7 @@ exports.Script = require('./lib/script')
 exports.Transaction = require('./lib/transaction')
 exports.URI = require('./lib/uri')
 exports.Unit = require('./lib/unit')
+exports.contract = require('./lib/contract')
 
 exports.deps = {
   bnjs: require('bn.js'),

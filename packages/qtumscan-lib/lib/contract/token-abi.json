@@ -1,0 +1,107 @@
+[
+  {
+    "type": "function",
+    "name": "name",
+    "inputs": [],
+    "outputs": [
+      {"name": "name", "type": "string"}
+    ]
+  },
+  {
+    "type": "function",
+    "name": "symbol",
+    "inputs": [],
+    "outputs": [
+      {"name": "", "type": "string"}
+    ]
+  },
+  {
+    "type": "function",
+    "name": "decimals",
+    "inputs": [],
+    "outputs": [
+      {"name": "", "type": "uint8"}
+    ]
+  },
+  {
+    "type": "function",
+    "name": "totalSupply",
+    "inputs": [],
+    "outputs": [
+      {"name": "totalSupply", "type": "uint256"}
+    ]
+  },
+  {
+    "type": "function",
+    "name": "balanceOf",
+    "inputs": [
+      {"name": "_owner", "type": "address"}
+    ],
+    "outputs": [
+      {"name": "balance", "type": "uint256"}
+    ]
+  },
+  {
+    "type": "function",
+    "name": "transfer",
+    "inputs": [
+      {"name": "_to", "type": "address"},
+      {"name": "_value", "type": "uint256"}
+    ],
+    "outputs": [
+      {"name": "success", "type": "bool"}
+    ]
+  },
+  {
+    "type": "function",
+    "name": "transferFrom",
+    "inputs": [
+      {"name": "_from", "type": "address"},
+      {"name": "_to", "type": "address"},
+      {"name": "_value", "type": "uint256"}
+    ],
+    "outputs": [
+      {"name": "success", "type": "bool"}
+    ]
+  },
+  {
+    "type": "function",
+    "name": "approve",
+    "inputs": [
+      {"name": "_spender", "type": "address"},
+      {"name": "_value", "type": "uint256"}
+    ],
+    "outputs": [
+      {"name": "success", "type": "bool"}
+    ]
+  },
+  {
+    "type": "function",
+    "name": "allowance",
+    "inputs": [
+      {"name": "_owner", "type": "address"},
+      {"name": "_spender", "type": "address"}
+    ],
+    "outputs": [
+      {"name": "remaining", "type": "uint256"}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Transfer",
+    "inputs": [
+      {"name": "_from", "type": "address", "indexed": true},
+      {"name": "_to", "type": "address", "indexed": true},
+      {"name": "_value", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Approval",
+    "inputs": [
+      {"name": "_owner", "type": "address", "indexed": true},
+      {"name": "_spender", "type": "address", "indexed": true},
+      {"name": "_value", "type": "uint256", "indexed": false}
+    ]
+  }
+]
