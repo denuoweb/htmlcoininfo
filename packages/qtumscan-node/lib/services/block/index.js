@@ -164,7 +164,7 @@ class BlockService extends BaseService {
     }
     this._tipResetNeeded = false
     let bar = new IndeterminateProgressBar()
-    thisnode.log.warn('Block Service: resetting tip due to a non-existent tip block...')
+    this.node.log.warn('Block Service: resetting tip due to a non-existent tip block...')
     let header = this._header.getLastHeader()
     let height = header.height
     let headers = await this._header.getAllHeaders()

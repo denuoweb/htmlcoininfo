@@ -1,5 +1,5 @@
+const BufferUtil = require('qtumscan-lib').util.buffer
 const {ErrorResponse} = require('../components/utils')
-const qtumscan = require('qtumscan-lib')
 
 class TransactionController {
   constructor(node) {
@@ -145,7 +145,7 @@ class TransactionController {
       let indexBuffer = Buffer.alloc(4)
       indexBuffer.writeUInt32LE(index)
       transformed.address = qtumscan.crypto.Hash.sha256ripemd160(Buffer.concat([
-        qtumscan.util.buffer.reverse(Buffer.from(transaction.hash, 'hex')),
+        BufferUtil.reverse(Buffer.from(transaction.hash, 'hex')),
         indexBuffer
       ])).toString('hex')
       transformed.scriptPubKey.type = 'create'
