@@ -123,7 +123,7 @@ class BlockService extends BaseService {
     let header = await this._header.getBlockHeader(hash)
     let target = getTarget(header.bits)
     let difficulty = getDifficulty(target)
-    let txids = block.transactions.map(tx => tx.hash)
+    let txids = block.transactions.map(tx => tx.id)
     return {
       hash: block.hash,
       version: block.version,

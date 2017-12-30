@@ -99,7 +99,7 @@ class BlocksController {
       height: info.height,
       version: blockObj.header.version,
       merkleRoot: blockObj.header.merkleRoot,
-      tx: block.transactions.map(tx => tx.hash),
+      tx: block.transactions.map(tx => tx.id),
       time: blockObj.header.time,
       nonce: blockObj.header.nonce,
       bits: blockObj.header.bits.toString(16),

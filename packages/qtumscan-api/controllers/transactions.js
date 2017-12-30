@@ -1,5 +1,7 @@
-const BufferUtil = require('qtumscan-lib').util.buffer
+const qtumscan = require('qtumscan-lib')
 const {ErrorResponse} = require('../components/utils')
+const BufferUtil = qtumscan.util.buffer
+const {sha256ripemd160} = qtumscan.crypto.Hash
 
 class TransactionController {
   constructor(node) {
@@ -45,7 +47,8 @@ class TransactionController {
     }
 
     let transformed = {
-      txid: transaction.hash,
+      txid: transaction.id,
+      hash: transaction.hash,
       version: transaction.version,
       lockTime: transaction.locktime,
       blockHash: transaction.blockHash,
@@ -144,7 +147,7 @@ class TransactionController {
     } else if (output.script.isContractCreate()) {
       let indexBuffer = Buffer.alloc(4)
       indexBuffer.writeUInt32LE(index)
-      transformed.address = qtumscan.crypto.Hash.sha256ripemd160(Buffer.concat([
+      transformed.address = sha256ripemd160(Buffer.concat([
         BufferUtil.reverse(Buffer.from(transaction.hash, 'hex')),
         indexBuffer
       ])).toString('hex')
@@ -182,7 +185,7 @@ class TransactionController {
     }
 
     return {
-      txid: transaction.hash,
+      txid: transaction.id,
       valueOut,
       vout,
       isRBF,

@@ -102,7 +102,7 @@ class MempoolService extends BaseService {
       removalOperations.push(
         {
           type: 'put',
-          key: this._encoding.encodeMempoolTransactionKey(tx.hash),
+          key: this._encoding.encodeMempoolTransactionKey(tx.id),
           value: this._encoding.encodeMempoolTransactionValue(tx)
         },
         ...(await this._getAddressOperations(tx, 'put'))
@@ -134,7 +134,7 @@ class MempoolService extends BaseService {
     let operations = []
     for (let tx of block.transactions) {
       operations.push(
-        {type: 'del', key: this._encoding.encodeMempoolTransactionKey(tx.hash)},
+        {type: 'del', key: this._encoding.encodeMempoolTransactionKey(tx.id)},
         ...(await this._getAddressOperations(tx, 'del'))
       )
     }
@@ -150,7 +150,7 @@ class MempoolService extends BaseService {
       if (address) {
         operations.push({
           type: action,
-          key: this._encoding.encodeMempoolAddressKey(address, tx.hash, i, 0)
+          key: this._encoding.encodeMempoolAddressKey(address, tx.id, i, 0)
         })
       }
     }
@@ -160,7 +160,7 @@ class MempoolService extends BaseService {
       if (address) {
         operations.push({
           type: action,
-          key: this._encoding.encodeMempoolAddressKey(address, tx.hash, i, 1)
+          key: this._encoding.encodeMempoolAddressKey(address, tx.id, i, 1)
         })
       }
     }
@@ -171,7 +171,7 @@ class MempoolService extends BaseService {
     let ops = [
       {
         type: 'put',
-        key: this._encoding.encodeMempoolTransactionKey(tx.hash),
+        key: this._encoding.encodeMempoolTransactionKey(tx.id),
         value: this._encoding.encodeMempoolTransactionValue(tx)
       },
       ...(await this._getAddressOperations(tx, 'put'))

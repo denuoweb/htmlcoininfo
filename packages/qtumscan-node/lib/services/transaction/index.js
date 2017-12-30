@@ -143,7 +143,7 @@ class TransactionService extends BaseService {
         if (!tx) {
           throw new Error([
             'Transaction Service:',
-            `prev transaction: (${txid}) for tx: ${transaction.hash} at input index ${outputIndex}`,
+            `prev transaction: (${txid}) for tx: ${transaction.id} at input index ${outputIndex}`,
             'is missing from the index or not in the memory pool.',
             'It could be that the parent tx has not yet been relayed to us,',
             'but will be relayed in the near future.'
@@ -151,7 +151,7 @@ class TransactionService extends BaseService {
         }
       }
       let output = tx.outputs[outputIndex]
-      assert(output, `Expected an output, but did not get one for tx: ${tx.hash} outputIndex: ${outputIndex}`)
+      assert(output, `Expected an output, but did not get one for tx: ${tx.id} outputIndex: ${outputIndex}`)
       return output.satoshis
     }))
   }
@@ -172,7 +172,7 @@ class TransactionService extends BaseService {
     let processedTxs = {}
     let operations = []
     for (let tx of block.transactions) {
-      processedTxs[tx.hash] = tx
+      processedTxs[tx.id] = tx
       operations.push(...(await this._processTransaction(tx, {block, processedTxs})))
     }
     return operations
@@ -181,7 +181,7 @@ class TransactionService extends BaseService {
   onReorg(_, block) {
     let removalOps = []
     for (let tx of block.transactions) {
-      removalOps.push({type: 'del', key: this._encoding.encodeTransactionKey(tx.hash)})
+      removalOps.push({type: 'del', key: this._encoding.encodeTransactionKey(tx.id)})
       for (let input of tx.inputs) {
         removalOps.push({type: 'del', key: this._encoding.encodeSpentKey(input.prevTxId, input.outputIndex)})
       }
@@ -202,13 +202,13 @@ class TransactionService extends BaseService {
         return {
           type: 'put',
           key: this._encoding.encodeDoubleSpentKey(input.prevTxId, input.outputIndex),
-          value: this._encoding.encodeDoubleSpentValue(tx.hash, index, tx.__height, tx.__blockhash)
+          value: this._encoding.encodeDoubleSpentValue(tx.id, index, tx.__height, tx.__blockhash)
         }
       } else {
         return {
           type: 'put',
           key: this._encoding.encodeSpentKey(input.prevTxId, input.outputIndex),
-          value: this._encoding.encodeSpentValue(tx.hash, index, tx.__height, tx.__blockhash)
+          value: this._encoding.encodeSpentValue(tx.id, index, tx.__height, tx.__blockhash)
         }
       }
     }))
@@ -224,7 +224,7 @@ class TransactionService extends BaseService {
     return [
       {
         type: 'put',
-        key: this._encoding.encodeTransactionKey(tx.hash),
+        key: this._encoding.encodeTransactionKey(tx.id),
         value: this._encoding.encodeTransactionValue(tx)
       },
       ...(await this._getSpentTxOperations(tx))

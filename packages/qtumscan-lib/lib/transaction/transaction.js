@@ -61,11 +61,17 @@ class Transaction {
   }
 
   get hash() {
-    return new BufferReader(this._getHash()).readReverse().toString('hex')
+    if (!this._hash) {
+      this._hash = new BufferReader(this._getHash()).readReverse().toString('hex')
+    }
+    return this._hash
   }
 
   get id() {
-    return this.hash
+    if (!this._id) {
+      this._id = new BufferReader(this._getId()).readReverse().toString('hex')
+    }
+    return this._id
   }
 
   get inputAmount() {
@@ -77,6 +83,10 @@ class Transaction {
   }
 
   _getHash() {
+    return sha256sha256(this.toBuffer())
+  }
+
+  _getId() {
     return sha256sha256(this.toHashBuffer())
   }
 

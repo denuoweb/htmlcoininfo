@@ -31,7 +31,7 @@ class Base58Check extends Base58 {
     let hash = sha256sha256(data)
     let hash4 = hash.slice(0, 4)
 
-    if (csum.toString('hex') !== hash4.toString('raw')) {
+    if (csum.toString('hex') !== hash4.toString('hex')) {
       throw new Error('Checksum mismatch')
     }
 

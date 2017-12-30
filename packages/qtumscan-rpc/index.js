@@ -28,7 +28,7 @@ class RpcClient {
   rpc(request) {
     request = JSON.stringify(request)
     let auth = Buffer.from(this.user + ':' + this.pass).toString('base64')
-    let option = {
+    let options = {
       host: this.host,
       port: this.port,
       method: 'POST',
@@ -142,13 +142,16 @@ const callspec = {
   verifyMessage: '',
   verifyTxOutProof: '',
   waitForLogs: ''
-};
+}
 
-function generateRPCMethods(rpc) {
+function getRandomId() {
+  return Math.floor(Math.random() * 100000)
+}
+
+function generateRPCMethods() {
   function createRPCMethod(methodName, argMap) {
     return function(...args) {
-      let limit = this.batchedCalls ? args.length : args.length - 1
-      for (let i = 0; i < limit; i++) {
+      for (let i = 0; i < args.length; i++) {
         if (argMap[i]) {
           args[i] = argMap[i](args[i])
         }
@@ -158,14 +161,14 @@ function generateRPCMethods(rpc) {
           jsonrpc: '2.0',
           method: methodName,
           params: args,
-          id: Number.parseInt(Math.random() * 100000)
+          id: getRandomId()
         });
       } else {
-        this.rpc({
+        return this.rpc({
           method: methodName,
-          params: args.slice(0, args.length - 1),
+          params: args,
           id: getRandomId()
-        }, args[args.length - 1])
+        })
       }
     }
   }
@@ -192,6 +195,6 @@ function generateRPCMethods(rpc) {
   }
 }
 
-generateRPCMethods(rpc)
+generateRPCMethods()
 
 module.exports = RpcClient

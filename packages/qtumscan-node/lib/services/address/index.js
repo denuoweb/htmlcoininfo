@@ -179,7 +179,7 @@ class AddressService extends BaseService {
       }
       results.push({
         address,
-        txid: tx.hash,
+        txid: tx.id,
         vout: i,
         scriptPubKey: output.script.toBuffer().toString('hex'),
         height: null,
@@ -189,7 +189,7 @@ class AddressService extends BaseService {
     }
     for (let input of tx.inputs) {
       if (await getAddress(input, this._transaction, this._network) === address) {
-        mempoolOutputTxidMap.set(input.prevTxId.toString('hex'), tx.hash)
+        mempoolOutputTxidMap.set(input.prevTxId.toString('hex'), tx.id)
       }
     }
     return results
@@ -276,11 +276,11 @@ class AddressService extends BaseService {
     return [
       {
         type: 'del',
-        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 1, block.header.time)
+        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.id, index, 1, block.header.time)
       },
       {
         type: 'put',
-        key: this._encoding.encodeUtxoIndexKey(address, _tx.hash, input.outputIndex),
+        key: this._encoding.encodeUtxoIndexKey(address, _tx.id, input.outputIndex),
         value: this._encoding.encodeUtxoIndexValue(
           _tx.__height,
           _tx.__inputValues[input.outputIndex],
@@ -290,7 +290,7 @@ class AddressService extends BaseService {
       },
       {
         type: 'del',
-        key: this._encoding.encodeUsedUtxoIndexKey(address, tx.hash, index)
+        key: this._encoding.encodeUsedUtxoIndexKey(address, tx.id, index)
       }
     ]
   }
@@ -304,11 +304,11 @@ class AddressService extends BaseService {
     return [
       {
         type: 'del',
-        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 0, block.header.time)
+        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.id, index, 0, block.header.time)
       },
       {
         type: 'del',
-        key: this._encoding.encodeUtxoIndexKey(address, tx.hash, index)
+        key: this._encoding.encodeUtxoIndexKey(address, tx.id, index)
       }
     ]
   }
@@ -352,14 +352,14 @@ class AddressService extends BaseService {
     return [
       {
         type: 'put',
-        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 1, block.header.time)
+        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.id, index, 1, block.header.time)
       },
       {type: 'del', key: utxoKey},
       {
         type: 'put',
         key: this._encoding.encodeUsedUtxoIndexKey(address, input.prevTxId, input.outputIndex),
         value: this._encoding.encodeUsedUtxoIndexValue(
-          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, tx.hash, utxoValue.scriptBuffer
+          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, tx.id, utxoValue.scriptBuffer
         )
       }
     ]
@@ -371,7 +371,7 @@ class AddressService extends BaseService {
     if (!address) {
       return []
     }
-    let utxoKey = this._encoding.encodeUtxoIndexKey(address, tx.hash, index)
+    let utxoKey = this._encoding.encodeUtxoIndexKey(address, tx.id, index)
     let utxoValue = {
       height: block.height,
       satoshis: output.satoshis,
@@ -382,7 +382,7 @@ class AddressService extends BaseService {
     return [
       {
         type: 'put',
-        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.hash, index, 0, block.header.time)
+        key: this._encoding.encodeAddressIndexKey(address, block.height, tx.id, index, 0, block.header.time)
       },
       {
         type: 'put',
