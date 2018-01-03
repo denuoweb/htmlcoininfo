@@ -199,7 +199,8 @@ class AddressService extends BaseService {
     return [
       ['getAddressHistory', this.getAddressHistory.bind(this), 2],
       ['getAddressSummary', this.getAddressSummary.bind(this), 1],
-      ['getAddressUnspentOutputs', this.getAddressUnspentOutputs.bind(this), 1]
+      ['getAddressUnspentOutputs', this.getAddressUnspentOutputs.bind(this), 1],
+      ['snapshot', this.snapshot.bind(this), 2]
     ]
   }
 
@@ -359,7 +360,7 @@ class AddressService extends BaseService {
         type: 'put',
         key: this._encoding.encodeUsedUtxoIndexKey(address, input.prevTxId, input.outputIndex),
         value: this._encoding.encodeUsedUtxoIndexValue(
-          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, tx.id, utxoValue.scriptBuffer
+          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, tx.id, block.height, utxoValue.scriptBuffer
         )
       }
     ]
@@ -392,6 +393,57 @@ class AddressService extends BaseService {
         )
       }
     ]
+  }
+
+  async snapshot(height, minBalance = 0) {
+    if (!height) {
+      height = this._block.getTip().height + 1
+    }
+    let balanceMap = new Map()
+
+    await new Promise((resolve, reject) => {
+      let prefix = this._encoding.encodeUtxoIndexKey('Q'.repeat(34)).slice(0, 3)
+      let start = Buffer.concat([prefix, Buffer.alloc(70)])
+      let end = Buffer.concat([prefix, Buffer.alloc(70, 0xff)])
+      let utxoStream = this._db.createReadStream({gte: start, lt: end})
+      utxoStream.on('end', resolve)
+      utxoStream.on('error', reject)
+      utxoStream.on('data', data => {
+        let key = this._encoding.decodeUtxoIndexKey(data.key)
+        let value = this._encoding.decodeUtxoIndexValue(data.value)
+        if (value.height <= height) {
+          let balance = balanceMap.get(key.address) || 0
+          balance += value.satoshis
+          balanceMap.set(key.address, balance)
+        }
+      })
+    })
+
+    await new Promise((resolve, reject) => {
+      let prefix = this._encoding.encodeUsedUtxoIndexKey('Q'.repeat(34)).slice(0, 3)
+      let start = Buffer.concat([prefix, Buffer.alloc(70)])
+      let end = Buffer.concat([prefix, Buffer.alloc(70, 0xff)])
+      let utxoStream = this._db.createReadStream({gte: start, lt: end})
+      utxoStream.on('end', resolve)
+      utxoStream.on('error', reject)
+      utxoStream.on('data', data => {
+        let key = this._encoding.decodeUsedUtxoIndexKey(data.key)
+        let value = this._encoding.decodeUsedUtxoIndexValue(data.value)
+        if (value.height <= height && value.spentHeight > height) {
+          let balance = balanceMap.get(key.address) || 0
+          balance += value.satoshis
+          balanceMap.set(key.aaddress, balance)
+        }
+      })
+    })
+
+    let results = []
+    for (let [address, balance] of balanceMap.entries()) {
+      if (balance >= minBalance) {
+        results.push([address, balance])
+      }
+    }
+    return results.sort((x, y) => y[1] - x[1])
   }
 }
 
