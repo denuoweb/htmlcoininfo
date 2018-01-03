@@ -12,7 +12,7 @@
     "name": "symbol",
     "inputs": [],
     "outputs": [
-      {"name": "", "type": "string"}
+      {"name": "symbol", "type": "string"}
     ]
   },
   {
@@ -20,7 +20,7 @@
     "name": "decimals",
     "inputs": [],
     "outputs": [
-      {"name": "", "type": "uint8"}
+      {"name": "decimals", "type": "uint8"}
     ]
   },
   {

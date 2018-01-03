@@ -133,7 +133,7 @@ const callspec = {
   getTxOutSetInfo: '',
   listContracts: '',
   preciousBlock: '',
-  searchLogs: '',
+  searchLogs: 'int int',
   sendRawTransaction: '',
   signMessageWithPrivkey: '',
   signRawTransaction: 'str obj',
