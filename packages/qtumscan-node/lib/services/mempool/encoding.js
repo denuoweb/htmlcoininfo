@@ -29,7 +29,6 @@ class Encoding {
     let writer = new BufferWriter()
     writer.write(this.servicePrefix)
     writer.write(this.addressPrefix)
-    writer.writeUInt8(address.length)
     writer.write(Buffer.from(address))
     writer.writeHexString(txid || '0'.repeat(64))
     writer.writeUInt32BE(index || 0)
@@ -40,8 +39,7 @@ class Encoding {
   decodeMempoolAddressKey(buffer) {
     let reader = new BufferReader(buffer)
     reader.set({pos: 3})
-    let addressSize = reader.readUInt8()
-    let address = reader.read(addressSize).toString()
+    let address = reader.read(34).toString()
     let txid = reader.readHexString(32)
     let index = reader.readUInt32BE()
     let input = buffer.readUInt8()
