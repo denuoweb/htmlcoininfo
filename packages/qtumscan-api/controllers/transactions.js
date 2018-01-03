@@ -117,6 +117,13 @@ class TransactionController {
     let address = await this._getAddress(input, this._network)
     if (address) {
       transformed.address = address.toString()
+    } else if (input.script.isContractSpend()) {
+      let indexBuffer = Buffer.alloc(4)
+      indexBuffer.writeUInt32LE(input.outputIndex)
+      transformed.address = sha256ripemd160(Buffer.concat([
+        BufferUtil.reverse(Buffer.from(input.prevTxId, 'hex')),
+        indexBuffer
+      ])).toString('hex')
     }
     return transformed
   }

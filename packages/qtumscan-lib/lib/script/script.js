@@ -38,7 +38,8 @@ const inputIdentifiers = {
   PUBKEY_IN: 'isPublicKeyIn',
   PUBKEYHASH_IN: 'isPublicKeyHashIn',
   MULTISIG_IN: 'isMultisigIn',
-  SCRIPTHASH_IN: 'isScriptHashIn'
+  SCRIPTHASH_IN: 'isScriptHashIn',
+  CONTRACT_SPEND: 'isContractSpend'
 }
 const OP_RETURN_STANDARD_SIZE = 80
 
@@ -349,6 +350,10 @@ class Script {
 
   isContractCall() {
     return this.chunks.length === 6 && this.chunks[5].opcodenum === Opcode.OP_CALL
+  }
+
+  isContractSpend() {
+    return this.chunks.length === 1 && this.chunks[0].opcodenum === Opcode.OP_SPEND
   }
 
   getData() {
