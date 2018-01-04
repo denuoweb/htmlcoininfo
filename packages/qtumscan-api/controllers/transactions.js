@@ -107,6 +107,9 @@ class TransactionController {
     if (item.script.isPublicKeyIn()) {
       let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
       return prevTransaction.outputs[item.outputIndex].script.toAddress()
+    } else if (item.script.isContractSpend()) {
+      let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
+      return prevTransaction.outputs[item.outputIndex].script.chunks[4].buf.toString('hex')
     } else {
       return item.script.toAddress(network)
     }
@@ -135,13 +138,6 @@ class TransactionController {
     let address = await this._getAddress(input, this._network)
     if (address) {
       transformed.address = address.toString()
-    } else if (input.script.isContractSpend()) {
-      let indexBuffer = Buffer.alloc(4)
-      indexBuffer.writeUInt32LE(input.outputIndex)
-      transformed.address = sha256ripemd160(Buffer.concat([
-        BufferUtil.reverse(Buffer.from(input.prevTxId, 'hex')),
-        indexBuffer
-      ])).toString('hex')
     }
     return transformed
   }
