@@ -11,6 +11,7 @@ class TransactionController {
     this._transaction = this.node.services.get('transaction')
     this._address = this.node.services.get('address')
     this._p2p = this.node.services.get('p2p')
+    this._contract = this.node.services.get('contract')
     this._network = this.node.network
     if (this.node.network === 'livenet') {
       this._network = 'mainnet'
@@ -80,6 +81,23 @@ class TransactionController {
 
     if (transformed.confirmations) {
       transformed.blockTime = transformed.time
+    }
+
+    let tokenTransfers = await this._contract.getTokenTransfers(transaction.id)
+    if (tokenTransfers) {
+      transformed.tokenTransfers = {
+        token: {
+          name: tokenTransfers.token.name,
+          symbol: tokenTransfers.token.symbol,
+          decimals: tokenTransfers.token.decimals,
+          totalSupply: tokenTransfers.token.totalSupply.toString()
+        },
+        list: tokenTransfers.list.map(item => ({
+          from: item.from,
+          to: item.to,
+          amount: item.amount.toString()
+        }))
+      }
     }
 
     return transformed
