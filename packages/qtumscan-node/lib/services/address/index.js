@@ -189,7 +189,7 @@ class AddressService extends BaseService {
         address,
         txid: tx.id,
         vout: i,
-        staking: tx.outputs[0].script.chunks.length === 0,
+        staking: false,
         scriptPubKey: output.script.toBuffer().toString('hex'),
         height: null,
         satoshis: output.satoshis,
