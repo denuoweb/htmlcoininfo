@@ -54,6 +54,7 @@ class AddressController {
       totalReceived: summary.totalReceived,
       totalSent: summary.totalSent,
       unconfirmedBalance: summary.unconfirmedBalance,
+      stakingBalance: summary.stakingBalance,
       transactions: summary.transactions
     }
   }

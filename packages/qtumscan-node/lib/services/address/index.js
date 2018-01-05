@@ -55,6 +55,7 @@ class AddressService extends BaseService {
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
     let unconfirmedBalance = new BN(0)
+    let stakingBalance = new BN(0)
     let txidMap = new Map()
     for (let utxo of utxos) {
       let value = new BN(utxo.satoshis)
@@ -81,6 +82,9 @@ class AddressService extends BaseService {
           unconfirmedBalance.iadd(new BN(value))
         }
       }
+      if (utxo.staking) {
+        stakingBalance.iadd(new BN(value))
+      }
     }
     for (let {received, sent} of txidMap.values()) {
       if (received > sent) {
@@ -96,7 +100,8 @@ class AddressService extends BaseService {
       balance: balance.toString(),
       totalReceived: totalReceived.toString(),
       totalSent: totalSent.toString(),
-      unconfirmedBalance: unconfirmedBalance.toString()
+      unconfirmedBalance: unconfirmedBalance.toString(),
+      stakingBalance: stakingBalance.toString()
     }
   }
 
@@ -127,16 +132,18 @@ class AddressService extends BaseService {
         if (!listUsed && outputTxid) {
           return
         }
+        let confirmations = this._block.getTip().height - value.height + 1
         results.push({
           address,
           txid: key.txid,
           vout: key.outputIndex,
           timestamp: value.timestamp,
+          staking: value.isStake && confirmations < 500,
           outputTxid,
           scriptPubKey: value.scriptBuffer.toString('hex'),
           height: value.height,
           satoshis: value.satoshis,
-          confirmations: this._block.getTip().height - value.height + 1,
+          confirmations
         })
       })
     })
@@ -157,6 +164,7 @@ class AddressService extends BaseService {
             txid: key.txid,
             vout: key.outputIndex,
             timestamp: value.timestamp,
+            staking: false,
             outputTxid: value.outputTxid,
             scriptPubKey: value.scriptBuffer.toString('hex'),
             height: value.height,
@@ -181,6 +189,7 @@ class AddressService extends BaseService {
         address,
         txid: tx.id,
         vout: i,
+        staking: tx.outputs[0].script.chunks.length === 0,
         scriptPubKey: output.script.toBuffer().toString('hex'),
         height: null,
         satoshis: output.satoshis,
@@ -284,14 +293,15 @@ class AddressService extends BaseService {
         key: this._encoding.encodeUtxoIndexKey(address, _tx.id, input.outputIndex),
         value: this._encoding.encodeUtxoIndexValue(
           _tx.__height,
-          _tx.__inputValues[input.outputIndex],
+          _tx.outputs[input.outputIndex].satoshis,
           _tx.__timestamp,
+          _tx.outputs[0].script.chunks.length === 0,
           _tx.outputs[input.outputIndex].script.toBuffer()
         )
       },
       {
         type: 'del',
-        key: this._encoding.encodeUsedUtxoIndexKey(address, tx.id, index)
+        key: this._encoding.encodeUsedUtxoIndexKey(address, _tx.id, input.outputIndex)
       }
     ]
   }
@@ -360,7 +370,8 @@ class AddressService extends BaseService {
         type: 'put',
         key: this._encoding.encodeUsedUtxoIndexKey(address, input.prevTxId, input.outputIndex),
         value: this._encoding.encodeUsedUtxoIndexValue(
-          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, tx.id, block.height, utxoValue.scriptBuffer
+          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, utxoValue.isStake,
+          tx.id, block.height, utxoValue.scriptBuffer
         )
       }
     ]
@@ -377,6 +388,7 @@ class AddressService extends BaseService {
       height: block.height,
       satoshis: output.satoshis,
       timestamp: block.header.time,
+      isStake: tx.outputs[0].script.chunks.length === 0,
       scriptBuffer: output.script.toBuffer()
     }
     utxoMap.set(utxoKey.toString('hex'), utxoValue)
@@ -389,7 +401,7 @@ class AddressService extends BaseService {
         type: 'put',
         key: utxoKey,
         value: this._encoding.encodeUtxoIndexValue(
-          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, utxoValue.scriptBuffer
+          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, utxoValue.isStake, utxoValue.scriptBuffer
         )
       }
     ]

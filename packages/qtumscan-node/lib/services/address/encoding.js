@@ -56,11 +56,12 @@ class Encoding {
     return {address, txid, outputIndex}
   }
 
-  encodeUtxoIndexValue(height, satoshis, timestamp, scriptBuffer) {
+  encodeUtxoIndexValue(height, satoshis, timestamp, isStake, scriptBuffer) {
     let writer = new BufferWriter()
     writer.writeUInt32BE(height)
     writer.writeDoubleBE(satoshis)
     writer.writeUInt32BE(timestamp)
+    writer.writeUInt8(+isStake)
     writer.write(scriptBuffer)
     return writer.toBuffer()
   }
@@ -70,8 +71,9 @@ class Encoding {
     let height = reader.readUInt32BE()
     let satoshis = reader.readDoubleBE()
     let timestamp = reader.readUInt32BE()
+    let isStake = !!reader.readUInt8()
     let scriptBuffer = reader.readAll()
-    return {height, satoshis, timestamp, scriptBuffer}
+    return {height, satoshis, timestamp, isStake, scriptBuffer}
   }
 
   encodeUsedUtxoIndexKey(address, txid = '0'.repeat(64), outputIndex = 0) {
@@ -97,11 +99,12 @@ class Encoding {
     return {address, txid, outputIndex}
   }
 
-  encodeUsedUtxoIndexValue(height, satoshis, timestamp, outputTxid, spentHeight, scriptBuffer) {
+  encodeUsedUtxoIndexValue(height, satoshis, timestamp, isStake, outputTxid, spentHeight, scriptBuffer) {
     let writer = new BufferWriter()
     writer.writeUInt32BE(height)
     writer.writeDoubleBE(satoshis)
     writer.writeUInt32BE(timestamp)
+    writer.writeUInt8(+isStake)
     writer.writeHexString(outputTxid)
     writer.writeUInt32BE(spentHeight)
     writer.write(scriptBuffer)
@@ -113,10 +116,11 @@ class Encoding {
     let height = reader.readUInt32BE()
     let satoshis = reader.readDoubleBE()
     let timestamp = reader.readUInt32BE()
+    let isStake = !!reader.readUInt8()
     let outputTxid = reader.readHexString(32)
     let spentHeight = reader.readUInt32BE()
     let scriptBuffer = reader.readAll()
-    return {height, satoshis, timestamp, outputTxid, spentHeight, scriptBuffer}
+    return {height, satoshis, timestamp, isStake, outputTxid, spentHeight, scriptBuffer}
   }
 }
 
