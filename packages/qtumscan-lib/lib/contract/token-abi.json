@@ -103,5 +103,32 @@
       {"name": "_spender", "type": "address", "indexed": true},
       {"name": "_value", "type": "uint256", "indexed": false}
     ]
+  },
+  {
+    "type": "event",
+    "name": "Mint",
+    "inputs": [
+      {"name": "_supply", "type": "uint256", "indexed": false},
+      {"name": "_to", "type": "address", "indexed": true},
+      {"name": "_amount", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Burn",
+    "inputs": [
+      {"name": "_burner", "type": "address", "indexed": true},
+      {"name": "_value", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "TokenPurchase",
+    "inputs": [
+      {"name": "_purchaser", "type": "address", "indexed": true},
+      {"name": "_beneficiary", "type": "address", "indexed": true},
+      {"name": "_value", "type": "uint256", "indexed": false},
+      {"name": "_amount", "type": "uint256", "indexed": false}
+    ]
   }
 ]

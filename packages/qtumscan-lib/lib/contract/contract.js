@@ -29,6 +29,12 @@ class Contract {
     assert(event)
     return abi.decodeEvent(event, data)
   }
+
+  eventSignature(name) {
+    let event = this.abiJson.find(item => item.name === name && item.type === 'event')
+    assert(event)
+    return abi.eventSignature(event)
+  }
 }
 
 module.exports = Contract
