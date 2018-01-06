@@ -49,7 +49,7 @@ class AddressService extends BaseService {
       options.queryMempool = true
     }
     options.listUsed = true
-    let {totalCount, transactions} = await this.getAddressHistory(address, options)
+    let {totalCount, transactions} = options.noTxList ? {} : await this.getAddressHistory(address, options)
     let utxos = await this.getAddressUnspentOutputs(address, options)
     let balance = new BN(0)
     let totalReceived = new BN(0)

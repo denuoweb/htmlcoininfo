@@ -46,7 +46,9 @@ class ContractService extends BaseService {
   get APIMethods() {
     return [
       ['getContract', this.getContract.bind(this), 1],
-      ['getContractTransactions', this.getContractTransactions, 2],
+      ['getContractHistory', this.getContractHistory, 2],
+      ['getContractSummary', this.getContractSummary, 2],
+      ['getContractUnspentOutputs', this.getContractUnspentOutputs, 2],
       ['getToken', this.getToken.bind(this), 1],
       ['getTokenTransfers', this.getTokenTransfers.bind(this), 1]
     ]
@@ -65,23 +67,113 @@ class ContractService extends BaseService {
     }
   }
 
-  async getContractTransactions(address, {from = 0, to = 0xffffffff} = {}) {
-    let list = []
-    await new Promise((resolve, reject) => {
-      let start = this._encoding.encodeContractTransactionKey(address)
-      let end = Buffer.concat([start.slice(0, -36), Buffer.alloc(36, 0xff)])
-      let utxoStream = this._db.createReadStream({gte: start, lt: end, reverse: true})
-      utxoStream.on('end', resolve)
-      utxoStream.on('error', reject)
-      utxoStream.on('data', async data => {
-        let {txid} = this._encoding.decodeContractTransactionKey(data.key)
-        list.push(txid)
-      })
-    })
+  async getContractHistory(address, {from = 0, to = 0xffffffff} = {}) {
+    let list = await this._getContractTxidHistory(address)
+    list.sort((a, b) => b.height - a.height)
     return {
       totalCount: list.length,
-      transactions: list.slice(from, to)
+      transactions: list.slice(from, to).map(tx => tx.txid)
     }
+  }
+
+  async getContractSummary(address, options = {}) {
+    let {totalCount, transactions} = options.noTxList ? {} : await this.getContractHistory(address, options)
+    options.listUsed = true
+    let utxos = await this.getContractUnspentOutputs(address, options)
+    let balance = new BN(0)
+    let totalReceived = new BN(0)
+    let totalSent = new BN(0)
+    let txidMap = new Map()
+    for (let utxo of utxos) {
+      let value = new BN(utxo.satoshis)
+      let inputItem
+      if (txidMap.has(utxo.txid)) {
+        inputItem = txidMap.get(utxo.txid)
+        inputItem.received += utxo.satoshis
+      } else {
+        inputItem = {received: utxo.satoshis, sent: 0}
+        txidMap.set(utxo.txid, inputItem)
+      }
+      if (utxo.outputTxid) {
+        let outputItem
+        if (txidMap.has(utxo.outputTxid)) {
+          outputItem = txidMap.get(utxo.outputTxid)
+          outputItem.sent += utxo.satoshis
+        } else {
+          outputItem = {received: 0, sent: utxo.satoshis}
+          txidMap.set(utxo.outputTxid, outputItem)
+        }
+      } else {
+        balance.iadd(value)
+      }
+    }
+    for (let {received, sent} of txidMap.values()) {
+      if (received > sent) {
+        totalReceived.iadd(new BN(received - sent))
+      } else {
+        totalSent.iadd(new BN(sent - received))
+      }
+    }
+    return {
+      address,
+      totalCount,
+      transactions,
+      balance: balance.toString(),
+      totalReceived: totalReceived.toString(),
+      totalSent: totalSent.toString()
+    }
+  }
+
+  async getContractUnspentOutputs(address, {listUsed = false} = {}) {
+    let results = []
+
+    await new Promise((resolve, reject) => {
+      let start = this._encoding.encodeContractUtxoKey(address)
+      let end = Buffer.concat([start.slice(0, -36), Buffer.alloc(36, 0xff)])
+      let utxoStream = this._db.createReadStream({gte: start, lt: end})
+      utxoStream.on('end', resolve)
+      utxoStream.on('error', reject)
+      utxoStream.on('data', data => {
+        let key = this._encoding.decodeContractUtxoKey(data.key)
+        let value = this._encoding.decodeContractUtxoValue(data.value)
+        let confirmations = this._block.getTip().height - value.height + 1
+        results.push({
+          address,
+          txid: key.txid,
+          vout: key.outputIndex,
+          timestamp: value.timestamp,
+          height: value.height,
+          satoshis: value.satoshis,
+          confirmations
+        })
+      })
+    })
+
+    if (listUsed) {
+      await new Promise((resolve, reject) => {
+        let start = this._encoding.encodeContractUsedUtxoKey(address)
+        let end = Buffer.concat([start.slice(0, -36), Buffer.alloc(36, 0xff)])
+        let utxoStream = this._db.createReadStream({gte: start, lt: end})
+        utxoStream.on('end', resolve)
+        utxoStream.on('error', reject)
+        utxoStream.on('data', data => {
+          let key = this._encoding.decodeContractUsedUtxoKey(data.key)
+          let value = this._encoding.decodeContractUsedUtxoValue(data.value)
+          results.push({
+            address,
+            txid: key.txid,
+            vout: key.outputIndex,
+            timestamp: value.timestamp,
+            outputTxid: value.outputTxid,
+            height: value.height,
+            satoshis: value.satoshis,
+            confirmations: this._block.getTip().height - value.height + 1,
+          })
+        })
+      })
+    }
+
+    return results.sort((x, y) => x.confirmations - y.confirmations)
   }
 
   async getToken(address) {
@@ -198,7 +290,7 @@ class ContractService extends BaseService {
     return operations
   }
 
-  _getContractAddress(tx, index) {
+  static _getContractAddress(tx, index) {
     let indexBuffer = Buffer.alloc(4)
     indexBuffer.writeUInt32LE(index)
     return sha256ripemd160(Buffer.concat([
@@ -211,7 +303,7 @@ class ContractService extends BaseService {
     if (tx.outputs[index].script.getData().length < 80) {
       return []
     }
-    let address = this._getContractAddress(tx, index)
+    let address = ContractService._getContractAddress(tx, index)
     try {
       await this._client.callContract(address, '00')
     } catch (err) {
@@ -248,7 +340,7 @@ class ContractService extends BaseService {
   }
 
   _removeContract(tx, index) {
-    let address = this._getContractAddress(tx, index)
+    let address = ContractService._getContractAddress(tx, index)
     return [
       {type: 'del', key: this._encoding.encodeContractKey(address)},
       {type: 'del', key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)},
@@ -433,9 +525,24 @@ class ContractService extends BaseService {
       let utxoStream = this._db.createReadStream({gte: start, lt: end})
       utxoStream.on('end', () => resolve(results))
       utxoStream.on('error', reject)
-      utxoStream.on('data', async data => {
+      utxoStream.on('data', data => {
         let {index} = this._encoding.decodeTokenTransferKey(data.key)
         results.push({type: 'del', key: data.key})
+      })
+    })
+  }
+
+  _getContractTxidHistory(address) {
+    return new Promise((resolve, reject) => {
+      let list = []
+      let start = this._encoding.encodeContractTransactionKey(address)
+      let end = Buffer.concat([start.slice(0, -36), Buffer.alloc(36, 0xff)])
+      let utxoStream = this._db.createReadStream({gte: start, lt: end})
+      utxoStream.on('end', () => resolve(list))
+      utxoStream.on('error', reject)
+      utxoStream.on('data', data => {
+        let {height, txid} = this._encoding.decodeContractTransactionKey(data.key)
+        list.push({height, txid})
       })
     })
   }

@@ -7,6 +7,7 @@ const bodyparser = require('koa-bodyparser')
 const BaseService = require('qtumscan-node/lib/service')
 const AddressController = require('./controllers/addresses')
 const BlockController = require('./controllers/blocks')
+const contractController = require('./controllers/contracts')
 const MiscController = require('./controllers/misc')
 const TransactionController = require('./controllers/transactions')
 const RateLimiter = require('./components/rate-limiter')
@@ -41,6 +42,7 @@ class QtumscanAPI extends BaseService {
     }
     this.addressController = new AddressController(this.node)
     this.blockController = new BlockController(blockOptions)
+    this.contractController = new contractController(this.node)
     this.transactionController = new TransactionController(this.node)
     this.miscController = new MiscController(this.node)
   }
@@ -63,7 +65,7 @@ class QtumscanAPI extends BaseService {
   }
 
   static get dependencies() {
-    return ['block', 'header', 'mempool', 'timestamp', 'transaction', 'web']
+    return ['block', 'contract', 'header', 'mempool', 'timestamp', 'transaction', 'web']
   }
 
   get routePrefix() {
@@ -219,6 +221,20 @@ class QtumscanAPI extends BaseService {
       this.cacheShort(),
       addresses.checkAddresses.bind(addresses),
       addresses.unconfirmedBalance.bind(addresses)
+    )
+
+    let contracts = this.contractController
+    router.get(
+      '/contract/:contract',
+      this.cacheShort(),
+      contracts.contract.bind(contracts),
+      contracts.show.bind(contracts)
+    )
+    router.get(
+      '/contract/:contract/txs',
+      this.cacheShort(),
+      contracts.contract.bind(contracts),
+      contracts.txs.bind(contracts)
     )
 
     app.use(router.routes()).use(router.allowedMethods())

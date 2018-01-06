@@ -21,8 +21,8 @@ class BlocksController {
     blockCacheSize = DEFAULT_BLOCK_CACHE_SIZE
   }) {
     this.node = node
-    this.blockSummaryCache = LRU(blockSummaryCacheSize)
-    this.blockCache = LRU(blockCacheSize)
+    this.blockSummaryCache = new LRU(blockSummaryCacheSize)
+    this.blockCache = new LRU(blockCacheSize)
     this.errorResponse = new ErrorResponse({log: this.node.log})
     this._block = this.node.services.get('block')
     this._header = this.node.services.get('header')
