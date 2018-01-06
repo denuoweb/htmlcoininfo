@@ -12,7 +12,6 @@ class MempoolService extends BaseService {
     this._network = this.node.network
     this._flush = options.flush
     this._enabled = false
-
     if (this._network === 'livenet') {
       this._network = 'mainnet'
     } else if (this._network === 'regtest') {

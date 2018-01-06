@@ -22,7 +22,7 @@ class BlockService extends BaseService {
     this._timestamp = this.node.services.get('timestamp')
     this._mempool = this.node.services.get('mempool')
     this.GENESIS_HASH = QTUM_GENESIS_HASH[this.node.network]
-    this.GENESIS_BLOCK_HEX = QTUM_GENESIS_BLOCK_HEX[this.node.network]
+    this.GENESIS_BLOCK_HEX = QTUM_GENESIS_BLOCK_HEX
     this._initialSync = false
     this._processingBlock = false
     this._blocksInQueue = 0

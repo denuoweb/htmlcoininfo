@@ -9,7 +9,7 @@ class FeeService extends BaseService {
       pass: 'qtumpassword',
       host: 'localhost',
       protocol: 'http',
-      port: 3889
+      port: ['testnet', 'regtest'].includes(this.node.network) ? 13889 : 3889
     }
     this._client = new QtumscanRPC(this._config)
   }

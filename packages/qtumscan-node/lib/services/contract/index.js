@@ -32,11 +32,16 @@ class ContractService extends BaseService {
       pass: 'qtumpassword',
       host: 'localhost',
       protocol: 'http',
-      port: 3889
+      port: ['testnet', 'regtest'].includes(this._network) ? 13889 : 3889
     }
     this._client = new QtumscanRPC(this._config)
     this._contractCache = new LRU(1000)
     this._tokenCache = new LRU(1000)
+    if (this._network === 'livenet') {
+      this._network = 'mainnet'
+    } else if (this._network === 'regtest') {
+      this._network = 'testnet'
+    }
   }
 
   static get dependencies() {

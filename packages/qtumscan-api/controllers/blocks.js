@@ -28,6 +28,12 @@ class BlocksController {
     this._header = this.node.services.get('header')
     this._timestamp = this.node.services.get('timestamp')
     this._transaction = this.node.services.get('transaction')
+    this._network = this.node.network
+    if (this.node.network === 'livenet') {
+      this._network = 'mainnet'
+    } else if (this.node.network === 'regtest') {
+      this._network = 'testnet'
+    }
   }
 
   async checkBlockHash(ctx, next) {
@@ -222,13 +228,13 @@ class BlocksController {
       for (let value of transaction.__inputValues) {
         reward -= value
       }
-      minedBy = transaction.outputs[1].script.toAddress().toString()
+      minedBy = transaction.outputs[1].script.toAddress(this._network).toString()
     } else {
       let transaction = block.transactions[0]
       for (let output of transaction.outputs) {
         reward += output.satoshis
       }
-      minedBy = transaction.outputs[0].script.toAddress().toString()
+      minedBy = transaction.outputs[0].script.toAddress(this._network).toString()
     }
     let prevHash = block.header.toObject().prevHash
     if (prevHash !== '0'.repeat(64)) {

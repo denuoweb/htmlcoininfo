@@ -1,7 +1,10 @@
 const assert = require('assert')
 const BN = require('bn.js')
 const BaseService = require('../../service')
-const {QTUM_GENESIS_HASH} = require('../../constants')
+const {
+  QTUM_GENESIS_HASH, QTUM_GENESIS_TIMESTAMP, QTUM_GENESIS_NONCE,
+  QTUM_GENESIS_HASH_STATE_ROOT, QTUM_GENESIS_HASH_UTXO_ROOT
+} = require('../../constants')
 const {encodeTip, fromCompact, getTarget, double256, getDifficulty, revHex, AsyncQueue} = require('../../utils')
 const Encoding = require('./encoding')
 
@@ -18,6 +21,10 @@ class HeaderService extends BaseService {
     this._subscriptions = {block: []}
     this._checkpoint = options.checkpoint || 2000
     this.GENESIS_HASH = QTUM_GENESIS_HASH[this.node.network]
+    this.GENESIS_TIMESTAMP = QTUM_GENESIS_TIMESTAMP
+    this.GENESIS_NONCE = QTUM_GENESIS_NONCE[this.node.network]
+    this.GENESIS_HASH_STATE_ROOT = QTUM_GENESIS_HASH_STATE_ROOT[this.node.network]
+    this.GENESIS_HASH_UTXO_ROOT = QTUM_GENESIS_HASH_UTXO_ROOT[this.node.network]
     this._lastHeader = null
     this._initialSync = true
     this._originalHeight = 0
@@ -106,12 +113,12 @@ class HeaderService extends BaseService {
       chainwork: STARTING_CHAINWORK,
       version: 1,
       prevHash: '0'.repeat(64),
-      timestamp: 1504695029,
-      nonce: 8026361,
+      timestamp: this.GENESIS_TIMESTAMP,
+      nonce: this.GENESIS_NONCE,
       bits: 0x1f00ffff,
       merkleRoot: 'ed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d',
-      hashStateRoot: '56a5d77f0998d3353d7d830adbc9ec72d1af5f8743b30dbffcb4ca7ea8de7b39',
-      hashUTXORoot: '2f68552d0a4ac271250b16b4417bbceb7ac408e3446b57ea0e027dfa23972900',
+      hashStateRoot: this.GENESIS_HASH_STATE_ROOT,
+      hashUTXORoot: this.GENESIS_HASH_UTXO_ROOT,
       prevOutStakeHash: '0'.repeat(64),
       prevOutStakeN: 0xffffffff,
       vchBlockSig: ''

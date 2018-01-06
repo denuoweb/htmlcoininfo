@@ -103,15 +103,15 @@ class TransactionController {
     return transformed
   }
 
-  async _getAddress(item, network) {
+  async _getAddress(item) {
     if (item.script.isPublicKeyIn()) {
       let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
-      return prevTransaction.outputs[item.outputIndex].script.toAddress()
+      return prevTransaction.outputs[item.outputIndex].script.toAddress(this._network)
     } else if (item.script.isContractSpend()) {
       let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
       return prevTransaction.outputs[item.outputIndex].script.chunks[4].buf.toString('hex')
     } else {
-      return item.script.toAddress(network)
+      return item.script.toAddress(this._network)
     }
   }
 
@@ -135,7 +135,7 @@ class TransactionController {
       }
     }
 
-    let address = await this._getAddress(input, this._network)
+    let address = await this._getAddress(input)
     if (address) {
       transformed.address = address.toString()
     }
@@ -159,7 +159,7 @@ class TransactionController {
       transformed.spentHeight = output.spentHeight || null
     }
 
-    let address = await this._getAddress(output, this._network)
+    let address = await this._getAddress(output)
     if (address) {
       transformed.address = address.toString()
       transformed.scriptPubKey.type = address.type
