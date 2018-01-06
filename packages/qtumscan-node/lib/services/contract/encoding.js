@@ -54,7 +54,7 @@ class Encoding {
     let writer = new BufferWriter()
     writer.write(this._servicePrefix)
     writer.write(this._utxoPrefix)
-    writer.write(Buffer.from(address))
+    writer.write(Buffer.from(address, 'hex'))
     if (Buffer.isBuffer(txid)) {
       writer.write(txid)
     } else {
@@ -67,7 +67,7 @@ class Encoding {
   decodeContractUtxoKey(buffer) {
     let reader = new BufferReader(buffer)
     reader.set({pos: 3})
-    let address = reader.read(20).toString('hex')
+    let address = reader.readHexString(20)
     let txid = reader.readHexString(32)
     let outputIndex = reader.readUInt32BE()
     return {address, txid, outputIndex}
@@ -93,7 +93,7 @@ class Encoding {
     let writer = new BufferWriter()
     writer.write(this._servicePrefix)
     writer.write(this._usedUtxoPrefix)
-    writer.write(Buffer.from(address))
+    writer.write(Buffer.from(address, 'hex'))
     if (Buffer.isBuffer(txid)) {
       writer.write(txid)
     } else {
@@ -106,7 +106,7 @@ class Encoding {
   decodeContractUsedUtxoKey(buffer) {
     let reader = new BufferReader(buffer)
     reader.set({pos: 3})
-    let address = reader.read(34).toString()
+    let address = reader.readHexString(20)
     let txid = reader.readHexString(32)
     let outputIndex = reader.readUInt32BE()
     return {address, txid, outputIndex}

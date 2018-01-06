@@ -224,7 +224,7 @@ class ContractService extends BaseService {
 
   async onBlock(block) {
     let operations = []
-    let contractAddresses = new Set()
+    let tokenAddresses = new Set()
     let utxoMap = new Map()
     for (let tx of block.transactions) {
       for (let i = 0; i < tx.outputs.length; ++i) {
@@ -234,12 +234,12 @@ class ContractService extends BaseService {
         } else if (output.script.isContractCall()) {
           let address = tx.outputs[i].script.chunks[4].buf.toString('hex')
           if (await this.getToken(address)) {
-            operations.push({
-              type: 'put',
-              key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
-            })
-            contractAddresses.add(address)
+            tokenAddresses.add(address)
           }
+          operations.push({
+            type: 'put',
+            key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
+          })
           if (output.satoshis) {
             operations.push(...this._processOutput(tx, i, block, address, utxoMap))
           }
@@ -251,8 +251,8 @@ class ContractService extends BaseService {
         }
       }
     }
-    if (contractAddresses.size) {
-      operations.push(...(await this._processTokenTransfers(block, [...contractAddresses])))
+    if (tokenAddresses.size) {
+      operations.push(...(await this._processTokenTransfers(block, [...tokenAddresses])))
     }
     return operations
   }
@@ -437,7 +437,7 @@ class ContractService extends BaseService {
     return new BN(data.slice(data.length - 64).replace(/^0+/, '') || '0', 16)
   }
 
-  async _processTokenTransfers(block, contracts) {
+  async _processTokenTransfers(block, tokens) {
     if (!block.height) {
       return []
     }
@@ -445,7 +445,7 @@ class ContractService extends BaseService {
     let list = await this._client.searchLogs(
       block.height, block.height,
       JSON.stringify({
-        addresses: contracts,
+        addresses: tokens,
         topics: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
       })
     )
