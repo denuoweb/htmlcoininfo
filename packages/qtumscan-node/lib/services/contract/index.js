@@ -245,18 +245,21 @@ class ContractService extends BaseService {
 
   async onBlock(block) {
     let operations = []
-    let tokenAddresses = new Set()
+    let contractAddresses = new Set()
     let utxoMap = new Map()
     for (let tx of block.transactions) {
       for (let i = 0; i < tx.outputs.length; ++i) {
         let output = tx.outputs[i]
         if (output.script.isContractCreate()) {
-          operations.push(...(await this._processContractCreate(tx, i, block)))
+          let address = ContractService._getContractAddress(tx, i)
+          try {
+            await this._client.callContract(address, '00')
+            operations.push(...(await this._createContract(tx, block, address)))
+            contractAddresses.add(address)
+          } catch (err) {}
         } else if (output.script.isContractCall()) {
           let address = tx.outputs[i].script.chunks[4].buf.toString('hex')
-          if (await this.getToken(address)) {
-            tokenAddresses.add(address)
-          }
+          contractAddresses.add(address)
           operations.push({
             type: 'put',
             key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
@@ -272,8 +275,8 @@ class ContractService extends BaseService {
         }
       }
     }
-    if (tokenAddresses.size) {
-      operations.push(...(await this._processTokenTransfers(block, [...tokenAddresses])))
+    if (contractAddresses.size) {
+      operations.push(...(await this._processReceipts(block, [...contractAddresses])))
     }
     return operations
   }
@@ -292,7 +295,7 @@ class ContractService extends BaseService {
               type: 'del',
               key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
             },
-            ...(await this._removeTokenTransfers(tx, block))
+            ...(await this._removeReceipts(tx, block))
           )
           if (output.satoshis) {
             operations.push({
@@ -320,11 +323,8 @@ class ContractService extends BaseService {
     ])).toString('hex')
   }
 
-  async _processContractCreate(tx, index, block) {
-    let address = ContractService._getContractAddress(tx, index)
-    try {
-      await this._client.callContract(address, '00')
-    } catch (err) {
+  async _createContract(tx, block, address) {
+    if (await this.getContract(address)) {
       return []
     }
     let owner = await getAddress(tx.inputs[0], this._transaction, this._network)
@@ -357,8 +357,7 @@ class ContractService extends BaseService {
     return operations
   }
 
-  _removeContract(tx, index) {
-    let address = ContractService._getContractAddress(tx, index)
+  _removeContract(tx, block, address) {
     return [
       {type: 'del', key: this._encoding.encodeContractKey(address)},
       {type: 'del', key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)},
@@ -455,21 +454,19 @@ class ContractService extends BaseService {
     return new BN(data.slice(data.length - 64).replace(/^0+/, '') || '0', 16)
   }
 
-  async _processTokenTransfers(block, tokens) {
+  async _processReceipts(block, addresses) {
     if (!block.height) {
       return []
     }
     let operations = []
-    let list = await this._client.searchLogs(
-      block.height, block.height,
-      JSON.stringify({
-        addresses: tokens,
-        topics: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
-      })
-    )
+    let list = await this._client.searchLogs(block.height, block.height, JSON.stringify({addresses}))
     for (let {transactionHash, contractAddress, log} of list) {
       let index = 0
-      for (let {topics, data} of log) {
+      for (let {address, topics, data} of log) {
+        if (address !== contractAddress) {
+          let transaction = block.transactions.find(tx => tx.hash === transactionHash)
+          await this._createContract(transaction, block, address)
+        }
         if (topics[0] === TOKEN_EVENTS.Transfer) {
           let from = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
           let to = new Address(Buffer.from(topics[2].slice(24), 'hex'), this._network).toString()
@@ -535,7 +532,7 @@ class ContractService extends BaseService {
     return operations
   }
 
-  _removeTokenTransfers(tx, block) {
+  _removeReceipts(tx, block) {
     return new Promise((resolve, reject) => {
       let results = []
       let start = this._encoding.encodeTokenTransferKey(tx.id, 0)
