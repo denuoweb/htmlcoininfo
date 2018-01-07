@@ -222,6 +222,22 @@ class ContractService extends BaseService {
     })
   }
 
+  listContracts() {
+    return new Promise((resolve, reject) => {
+      let list = []
+      let start = this._encoding.encodeContractKey('0'.repeat(40))
+      let end = Buffer.concat([start.slice(0, -20), Buffer.alloc(20, 0xff)])
+      let utxoStream = this._db.createReadStream({gte: start, lt: end})
+      utxoStream.on('end', () => resolve(list))
+      utxoStream.on('error', reject)
+      utxoStream.on('data', async data => {
+        let {address} = this._encoding.decodeContractKey(data.key)
+        let {txid, owner} = this._encoding.decodeContractValue(data.value)
+        list.push({address, txid, owner})
+      })
+    })
+  }
+
   async start() {
     this._prefix = await this._db.getPrefix(this.name)
     this._encoding = new Encoding(this._prefix)
@@ -305,9 +321,6 @@ class ContractService extends BaseService {
   }
 
   async _processContractCreate(tx, index, block) {
-    if (tx.outputs[index].script.getData().length < 80) {
-      return []
-    }
     let address = ContractService._getContractAddress(tx, index)
     try {
       await this._client.callContract(address, '00')
