@@ -22,8 +22,6 @@ class Encoding {
 
   encodeContractValue(height, txid, owner) {
     let writer = new BufferWriter()
-    writer.write(this._servicePrefix)
-    writer.write(this._contractPrefix)
     writer.writeUInt32BE(height)
     writer.writeHexString(txid)
     writer.write(Buffer.from(owner))
@@ -32,7 +30,7 @@ class Encoding {
 
   decodeContractValue(buffer) {
     let reader = new BufferReader(buffer)
-    let height = reader.readUInt32BE(buffer)
+    let height = reader.readUInt32BE()
     let txid = reader.readHexString(32)
     let owner = reader.readAll().toString()
     return {height, txid, owner}
