@@ -85,19 +85,17 @@ class TransactionController {
 
     let tokenTransfers = await this._contract.getTokenTransfers(transaction.id)
     if (tokenTransfers) {
-      transformed.tokenTransfers = {
+      transformed.tokenTransfers = tokenTransfers.map(item => ({
         token: {
-          name: tokenTransfers.token.name,
-          symbol: tokenTransfers.token.symbol,
-          decimals: tokenTransfers.token.decimals,
-          totalSupply: tokenTransfers.token.totalSupply.toString()
+          name: item.token.name,
+          symbol: item.token.symbol,
+          decimals: item.token.decimals,
+          totalSupply: item.token.totalSupply.toString()
         },
-        list: tokenTransfers.list.map(item => ({
-          from: item.from,
-          to: item.to,
-          amount: item.amount.toString()
-        }))
-      }
+        from: item.from,
+        to: item.to,
+        amount: item.amount.toString()
+      }))
     }
 
     return transformed
