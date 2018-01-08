@@ -87,6 +87,7 @@ class TransactionController {
     if (tokenTransfers) {
       transformed.tokenTransfers = tokenTransfers.map(item => ({
         token: {
+          address: item.token.address,
           name: item.token.name,
           symbol: item.token.symbol,
           decimals: item.token.decimals,
