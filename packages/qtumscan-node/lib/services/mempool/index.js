@@ -1,5 +1,5 @@
 const BaseService = require('../../service')
-const {getAddress} = require('../../utils')
+const {getInputAddress, getOutputAddress} = require('../../utils')
 const Encoding = require('./encoding')
 
 class MempoolService extends BaseService {
@@ -145,7 +145,7 @@ class MempoolService extends BaseService {
     let operations = []
     for (let i = 0; i < tx.outputs.length; ++i) {
       let output = tx.outputs[i]
-      let address = await getAddress(output, transactionService, this._network)
+      let address = getOutputAddress(output, transactionService, this._network)
       if (address) {
         operations.push({
           type: action,
@@ -155,7 +155,7 @@ class MempoolService extends BaseService {
     }
     for (let i = 0; i < tx.inputs.length; ++i) {
       let input = tx.inputs[i]
-      let address = await getAddress(input, transactionService, this._network)
+      let address = await getInputAddress(input, transactionService, this._network)
       if (address) {
         operations.push({
           type: action,

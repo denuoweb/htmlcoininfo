@@ -4,7 +4,7 @@ const qtumscan = require('qtumscan-lib')
 const QtumscanRPC = require('qtumscan-rpc')
 const BaseService = require('../../service')
 const Encoding = require('./encoding')
-const {getAddress} = require('../../utils')
+const {getInputAddress} = require('../../utils')
 const BufferUtil = qtumscan.util.buffer
 const {sha256ripemd160} = qtumscan.crypto.Hash
 const {Contract, tokenABI} = qtumscan.contract
@@ -327,7 +327,7 @@ class ContractService extends BaseService {
     if (await this.getContract(address)) {
       return []
     }
-    let owner = await getAddress(tx.inputs[0], this._transaction, this._network)
+    let owner = await getInputAddress(tx.inputs[0], this._transaction, this._network)
     this._contractCache.set(address, {txid: tx.id, owner})
     let operations = [
       {

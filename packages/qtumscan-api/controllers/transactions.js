@@ -104,7 +104,7 @@ class TransactionController {
   }
 
   async _getAddress(item) {
-    if (item.script.isPublicKeyIn()) {
+    if (item.script.isPublicKeyIn() || item.script.isWitnessIn()) {
       let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
       return prevTransaction.outputs[item.outputIndex].script.toAddress(this._network)
     } else if (item.script.isContractSpend()) {

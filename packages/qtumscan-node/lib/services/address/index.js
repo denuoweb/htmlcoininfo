@@ -3,7 +3,7 @@ const {Transform} = require('stream')
 const BN = require('bn.js')
 const BaseService = require('../../service')
 const Encoding = require('./encoding')
-const {getAddress} = require('../../utils')
+const {getInputAddress, getOutputAddress} = require('../../utils')
 
 class AddressService extends BaseService {
   constructor(options) {
@@ -182,7 +182,7 @@ class AddressService extends BaseService {
     let results = []
     for (let i = 0; i < tx.outputs.length; ++i) {
       let output = tx.outputs[i]
-      if (await getAddress(output, this._transaction, this._network) !== address) {
+      if (getOutputAddress(output, this._transaction, this._network) !== address) {
         continue
       }
       results.push({
@@ -197,7 +197,7 @@ class AddressService extends BaseService {
       })
     }
     for (let input of tx.inputs) {
-      if (await getAddress(input, this._transaction, this._network) === address) {
+      if (await getInputAddress(input, this._transaction, this._network) === address) {
         mempoolOutputTxidMap.set(input.prevTxId.toString('hex'), tx.id)
       }
     }
@@ -269,14 +269,14 @@ class AddressService extends BaseService {
       operations.push(...(await this._removeInput(tx, i, block)))
     }
     for (let i = 0; i < tx.outputs.length; ++i) {
-      operations.push(...(await this._removeOutput(tx, i, block)))
+      operations.push(...this._removeOutput(tx, i, block))
     }
     return operations
   }
 
   async _removeInput(tx, index, block) {
     let input = tx.inputs[index]
-    let address = await getAddress(input, this._transaction, this._network)
+    let address = await getInputAddress(input, this._transaction, this._network)
     if (!address) {
       return []
     }
@@ -306,9 +306,9 @@ class AddressService extends BaseService {
     ]
   }
 
-  async _removeOutput(tx, index, block) {
+  _removeOutput(tx, index, block) {
     let output = tx.outputs[index]
-    let address = await getAddress(output, this._transaction, this._network)
+    let address = getOutputAddress(output, this._transaction, this._network)
     if (!address) {
       return []
     }
@@ -336,7 +336,7 @@ class AddressService extends BaseService {
     let utxoMap = new Map()
     for (let tx of block.transactions) {
       for (let i = 0; i < tx.outputs.length; ++i) {
-        operations.push(...(await this._processOutput(tx, i, block, utxoMap)))
+        operations.push(...this._processOutput(tx, i, block, utxoMap))
       }
       for (let i = 0; i < tx.inputs.length; ++i) {
         operations.push(...(await this._processInput(tx, i, block, utxoMap)))
@@ -347,7 +347,7 @@ class AddressService extends BaseService {
 
   async _processInput(tx, index, block, utxoMap) {
     let input = tx.inputs[index]
-    let address = await getAddress(input, this._transaction, this._network)
+    let address = await getInputAddress(input, this._transaction, this._network)
     if (!address) {
       return []
     }
@@ -377,9 +377,9 @@ class AddressService extends BaseService {
     ]
   }
 
-  async _processOutput(tx, index, block, utxoMap) {
+  _processOutput(tx, index, block, utxoMap) {
     let output = tx.outputs[index]
-    let address = await getAddress(output, this._transaction, this._network)
+    let address = getOutputAddress(output, this._transaction, this._network)
     if (!address) {
       return []
     }

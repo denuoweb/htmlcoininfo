@@ -22,6 +22,7 @@ const types = {
   MULTISIG_OUT: 'Pay to multisig',
   MULTISIG_IN: 'Spend from multisig',
   DATA_OUT: 'Data push',
+  WITNESS_IN: 'Send from segwit',
   CONTRACT_CREATE: 'Contract create',
   CONTRACT_CALL: 'Contract call'
 }
@@ -39,6 +40,7 @@ const inputIdentifiers = {
   PUBKEYHASH_IN: 'isPublicKeyHashIn',
   MULTISIG_IN: 'isMultisigIn',
   SCRIPTHASH_IN: 'isScriptHashIn',
+  WITNESS_IN: 'isWitnessIn',
   CONTRACT_SPEND: 'isContractSpend'
 }
 const OP_RETURN_STANDARD_SIZE = 80
@@ -342,6 +344,11 @@ class Script {
         && this.chunks[1].buf && this.chunks[1].buf.length <= OP_RETURN_STANDARD_SIZE
         && this.chunks[1].len === this.chunks[1].buf.length
       ))
+  }
+
+  isWitnessIn() {
+    return this.chunks.length === 1 && this.chunks[0].opcodenum <= 0x16
+      && this.chunks[0].length >= 2 && this.chunks[0].length <= 40
   }
 
   isContractCreate() {
