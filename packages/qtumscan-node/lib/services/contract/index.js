@@ -348,7 +348,7 @@ class ContractService extends BaseService {
           if (output.satoshis) {
             operations.push({
               type: 'del',
-              key: this._encoding.encodeContractUtxoKey(address, tx.id, index)
+              key: this._encoding.encodeContractUtxoKey(address, tx.id, i)
             })
           }
         }
