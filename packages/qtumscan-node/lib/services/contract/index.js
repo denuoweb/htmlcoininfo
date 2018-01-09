@@ -7,6 +7,7 @@ const Encoding = require('./encoding')
 const {getInputAddress} = require('../../utils')
 const BufferUtil = qtumscan.util.buffer
 const {sha256ripemd160} = qtumscan.crypto.Hash
+const {Base58Check} = qtumscan.encoding
 const {Contract, tokenABI} = qtumscan.contract
 const Address = qtumscan.Address
 
@@ -55,7 +56,10 @@ class ContractService extends BaseService {
       ['getContractSummary', this.getContractSummary, 2],
       ['getContractUnspentOutputs', this.getContractUnspentOutputs, 2],
       ['getToken', this.getToken.bind(this), 1],
-      ['getTokenTransfers', this.getTokenTransfers.bind(this), 1]
+      ['getTokenTransfers', this.getTokenTransfers.bind(this), 1],
+      ['listContracts', this.listContracts.bind(this), 0],
+      ['listTokens', this.listTokens.bind(this), 0],
+      ['getAllTokenBalances', this.getAllTokenBalances.bind(this), 1]
     ]
   }
 
@@ -241,6 +245,37 @@ class ContractService extends BaseService {
         list.push({address, height, txid, owner})
       })
     })
+  }
+
+  listTokens() {
+    return new Promise((resolve, reject) => {
+      let list = []
+      let start = this._encoding.encodeTokenKey('0'.repeat(40))
+      let end = Buffer.concat([start.slice(0, -20), Buffer.alloc(20, 0xff)])
+      let utxoStream = this._db.createReadStream({gte: start, lt: end})
+      utxoStream.on('end', () => resolve(list))
+      utxoStream.on('error', reject)
+      utxoStream.on('data', async data => {
+        let {address} = this._encoding.decodeTokenKey(data.key)
+        let {name, symbol, decimals, totalSupply} = this._encoding.decodeTokenValue(data.value)
+        list.push({address, name, symbol, decimals, totalSupply})
+      })
+    })
+  }
+
+  async getAllTokenBalances(address) {
+    let hexAddress = Base58Check.decode(address).slice(1).toString('hex')
+    let tokens = await this.listTokens()
+    let list = []
+    for (let token of tokens) {
+      try {
+        let {balance} = await this._callMethod(token.address, tokenAbi, 'balanceOf', '0x' + hexAddress)
+        if (!balance.isZero()) {
+          list.push(Object.assign(token, {balance}))
+        }
+      } catch (err) {}
+    }
+    return list
   }
 
   async start() {
@@ -446,7 +481,7 @@ class ContractService extends BaseService {
   async _callMethod(address, contract, method, ...args) {
     let {executionResult} = await this._client.callContract(
       address,
-      contract.encodeMethod(method).slice(2)
+      contract.encodeMethod(method, ...args).slice(2)
     )
     if (executionResult.excepted === 'None') {
       return contract.decodeMethod(method, '0x' + executionResult.output)

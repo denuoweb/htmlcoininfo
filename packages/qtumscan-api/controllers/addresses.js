@@ -6,6 +6,7 @@ class AddressController {
     this.errorResponse = new ErrorResponse({log: this.node.log})
     this._address = this.node.services.get('address')
     this._block = this.node.services.get('block')
+    this._contract = this.node.services.get('contract')
   }
 
   async show(ctx) {
@@ -15,7 +16,7 @@ class AddressController {
       options.to = Number.parseInt(ctx.query.to)
     }
     try {
-      ctx.body = await this._address.getAddressSummary(ctx.address, options)
+      ctx.body = await this.getAddressSummary(ctx.address, options)
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
@@ -48,6 +49,7 @@ class AddressController {
 
   async getAddressSummary(address, options) {
     let summary = await this._address.getAddressSummary(address, options)
+    let tokenBalances = await this._contract.getAllTokenBalances(address)
     return {
       address,
       balance: summary.balance,
@@ -55,6 +57,15 @@ class AddressController {
       totalSent: summary.totalSent,
       unconfirmedBalance: summary.unconfirmedBalance,
       stakingBalance: summary.stakingBalance,
+      tokenBalances: tokenBalances.map(token => ({
+        address: token.address,
+        name: token.name,
+        symbol: token.symbol,
+        decimals: token.decimals,
+        totalSupply: token.totalSupply.toString(),
+        balance: token.balance.toString()
+      })),
+      totalCount: summary.totalCount,
       transactions: summary.transactions
     }
   }
