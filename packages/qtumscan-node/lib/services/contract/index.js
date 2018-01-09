@@ -198,37 +198,34 @@ class ContractService extends BaseService {
     }
   }
 
-  getTokenTransfers(txid) {
-    return new Promise((resolve, reject) => {
-      let list = []
-      let start = this._encoding.encodeEventLogKey(txid, 0)
-      let end = Buffer.concat([start.slice(0, -4), Buffer.alloc(4, 0xff)])
-      let utxoStream = this._db.createReadStream({gte: start, lt: end})
-      utxoStream.on('end', () => resolve(list))
-      utxoStream.on('error', reject)
-      utxoStream.on('data', async bufferData => {
-        let {address, topics, data} = this._encoding.decodeEventLogValue(bufferData.value)
-        let token = await this.getToken(address)
-        if (!token) {
-          return
-        }
-        token = Object.assign({address}, token)
-        if (topics[0] === TOKEN_EVENTS.Transfer) {
-          let from = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
-          let to = new Address(Buffer.from(topics[2].slice(24), 'hex'), this._network).toString()
-          let amount = ContractService._uint256toBN(data)
-          list.push({token, from, to, amount})
-        } else if (topics[0] === TOKEN_EVENTS.Mint) {
-          let to = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
-          let amount = ContractService._uint256toBN(data.slice(64))
-          list.push({token, from: null, to, amount})
-        } else if (topics[0] === TOKEN_EVENTS.Burn) {
-          let from = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
-          let amount = ContractService._uint256toBN(data.slice(64))
-          list.push({token, from, to: null, amount})
-        }
-      })
-    })
+  async getTokenTransfers(txid) {
+    let eventLogBuffer = await this._db.get(this._encoding.encodeEventLogKey(txid))
+    if (!eventLogBuffer) {
+      return []
+    }
+    let list = []
+    for (let {address, topics, data} of this._encoding.decodeEventLogValue(eventLogBuffer)) {
+      let token = await this.getToken(address)
+      if (!token) {
+        return
+      }
+      token = Object.assign({address}, token)
+      if (topics[0] === TOKEN_EVENTS.Transfer) {
+        let from = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
+        let to = new Address(Buffer.from(topics[2].slice(24), 'hex'), this._network).toString()
+        let amount = ContractService._uint256toBN(data)
+        list.push({token, from, to, amount})
+      } else if (topics[0] === TOKEN_EVENTS.Mint) {
+        let to = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
+        let amount = ContractService._uint256toBN(data.slice(64))
+        list.push({token, from: null, to, amount})
+      } else if (topics[0] === TOKEN_EVENTS.Burn) {
+        let from = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
+        let amount = ContractService._uint256toBN(data.slice(64))
+        list.push({token, from, to: null, amount})
+      }
+    }
+    return list
   }
 
   listContracts() {
@@ -240,7 +237,7 @@ class ContractService extends BaseService {
       utxoStream.on('end', () => resolve(list))
       utxoStream.on('error', reject)
       utxoStream.on('data', async data => {
-        let {address} = this._encoding.decodeContractKey(data.key)
+        let address = this._encoding.decodeContractKey(data.key)
         let {height, txid, owner} = this._encoding.decodeContractValue(data.value)
         list.push({address, height, txid, owner})
       })
@@ -256,7 +253,7 @@ class ContractService extends BaseService {
       utxoStream.on('end', () => resolve(list))
       utxoStream.on('error', reject)
       utxoStream.on('data', async data => {
-        let {address} = this._encoding.decodeTokenKey(data.key)
+        let address = this._encoding.decodeTokenKey(data.key)
         let {name, symbol, decimals, totalSupply} = this._encoding.decodeTokenValue(data.value)
         list.push({address, name, symbol, decimals, totalSupply})
       })
@@ -334,17 +331,15 @@ class ContractService extends BaseService {
       }
     }
     for (let tx of block.transactions) {
+      operations.push({type: 'del', key: this._encoding.encodeEventLogKey(tx.id)})
       for (let i = 0; i < tx.outputs.length; ++i) {
         let output = tx.outputs[i]
         if (output.script.isContractCall()) {
           let address = output.script.chunks[4].buf.toString('hex')
-          operations.push(
-            {
-              type: 'del',
-              key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
-            },
-            ...(await this._removeReceipts(tx))
-          )
+          operations.push({
+            type: 'del',
+            key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
+          })
           if (output.satoshis) {
             operations.push({
               type: 'del',
@@ -501,13 +496,12 @@ class ContractService extends BaseService {
     let operations = []
     let list = await this._client.searchLogs(block.height, block.height, JSON.stringify({addresses}))
     for (let {transactionHash, contractAddress, log} of list) {
-      for (let i = 0; i < log.length; ++i) {
-        let {address, topics, data} = log[i]
-        operations.push({
-          type: 'put',
-          key: this._encoding.encodeEventLogKey(transactionHash, i),
-          value: this._encoding.encodeEventLogValue(address, topics, data)
-        })
+      operations.push({
+        type: 'put',
+        key: this._encoding.encodeEventLogKey(transactionHash),
+        value: this._encoding.encodeEventLogValue(log)
+      })
+      for (let {address, topics, data} of log) {
         if (address !== contractAddress) {
           let transaction = block.transactions.find(tx => tx.hash === transactionHash)
           operations.push(...(await this._createContract(transaction, block, address)))
@@ -530,20 +524,6 @@ class ContractService extends BaseService {
       }
     }
     return operations
-  }
-
-  _removeReceipts(tx) {
-    return new Promise((resolve, reject) => {
-      let results = []
-      let start = this._encoding.encodeEventLogKey(tx.id, 0)
-      let end = Buffer.concat([start.slice(0, -4), Buffer.alloc(4, 0xff)])
-      let utxoStream = this._db.createReadStream({gte: start, lt: end})
-      utxoStream.on('end', () => resolve(results))
-      utxoStream.on('error', reject)
-      utxoStream.on('data', data => {
-        results.push({type: 'del', key: data.key})
-      })
-    })
   }
 
   _getContractTxidHistory(address) {

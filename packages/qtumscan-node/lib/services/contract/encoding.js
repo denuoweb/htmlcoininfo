@@ -17,7 +17,7 @@ class Encoding {
   }
 
   decodeContractKey(buffer) {
-    return {address: buffer.slice(3).toString('hex')}
+    return buffer.slice(3).toString('hex')
   }
 
   encodeContractValue(height, txid, owner) {
@@ -41,7 +41,7 @@ class Encoding {
   }
 
   decodeTokenKey(buffer) {
-    return {address: buffer.slice(3).toString('hex')}
+    return buffer.slice(3).toString('hex')
   }
 
   encodeTokenValue(name, symbol, decimals, totalSupply) {
@@ -168,43 +168,42 @@ class Encoding {
   }
 
   encodeEventLogKey(txid, index) {
-    let writer = new BufferWriter()
-    writer.write(this._servicePrefix)
-    writer.write(this._eventLogPrefix)
-    writer.writeHexString(txid)
-    writer.writeUInt32BE(index)
-    return writer.toBuffer()
+    return Buffer.concat([this._servicePrefix, this._eventLogPrefix, Buffer.from(txid, 'hex')])
   }
 
   decodeEventLogKey(buffer) {
-    let reader = new BufferReader(buffer)
-    reader.set({pos: 3})
-    let txid = reader.readHexString(32)
-    let index = reader.readUInt32BE()
-    return {txid, index}
+    return buffer.slice(3).toString('hex')
   }
 
-  encodeEventLogValue(address, topics, data) {
+  encodeEventLogValue(list) {
     let writer = new BufferWriter()
-    writer.writeHexString(address)
-    writer.writeUInt32BE(topics.length)
-    for (let topic of topics) {
-      writer.writeHexString(topic)
+    writer.writeUInt32BE(list.length)
+    for (let {address, topics, data} of list) {
+      writer.writeHexString(address)
+      writer.writeUInt32BE(topics.length)
+      for (let topic of topics) {
+        writer.writeHexString(topic)
+      }
+      writer.writeHexString(data)
     }
-    writer.writeHexString(data)
     return writer.toBuffer()
   }
 
   decodeEventLogValue(buffer) {
     let reader = new BufferReader(buffer)
-    let address = reader.readHexString(20)
-    let topicLength = reader.readUInt32BE()
-    let topics = []
-    for (let i = 0; i < topicLength; ++i) {
-      topics.push(reader.readHexString(32))
+    let logLength = reader.readUInt32BE()
+    let log = []
+    for (let i = 0; i < logLength; ++i) {
+      let address = reader.readHexString(20)
+      let topicLength = reader.readUInt32BE()
+      let topics = []
+      for (let j = 0; j < topicLength; ++j) {
+        topics.push(reader.readHexString(32))
+      }
+      let data = reader.readAll().toString('hex')
+      log.push({address, topics, data})
     }
-    let data = reader.readAll().toString('hex')
-    return {address, topics, data}
+    return log
   }
 }
 
