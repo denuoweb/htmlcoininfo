@@ -211,16 +211,16 @@ class ContractService extends BaseService {
       }
       token = Object.assign({address}, token)
       if (topics[0] === TOKEN_EVENTS.Transfer) {
-        let from = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
-        let to = new Address(Buffer.from(topics[2].slice(24), 'hex'), this._network).toString()
+        let from = topics[1] === '0'.repeat(64) ? null : this._fromHexAddress(topics[1].slice(24))
+        let to = this._fromHexAddress(topics[2].slice(24))
         let amount = ContractService._uint256toBN(data)
         list.push({token, from, to, amount})
       } else if (topics[0] === TOKEN_EVENTS.Mint) {
-        let to = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
+        let to = this._fromHexAddress(topics[1].slice(24))
         let amount = ContractService._uint256toBN(data.slice(64))
         list.push({token, from: null, to, amount})
       } else if (topics[0] === TOKEN_EVENTS.Burn) {
-        let from = new Address(Buffer.from(topics[1].slice(24), 'hex'), this._network).toString()
+        let from = this._fromHexAddress(topics[1].slice(24))
         let amount = ContractService._uint256toBN(data.slice(64))
         list.push({token, from, to: null, amount})
       }
@@ -487,6 +487,10 @@ class ContractService extends BaseService {
 
   static _uint256toBN(data) {
     return new BN(data.replace(/^0+/, '') || '0', 16)
+  }
+
+  _fromHexAddress(data) {
+    return new Address(Buffer.from(data, 'hex'), this._network).toString()
   }
 
   async _processReceipts(block, addresses) {
