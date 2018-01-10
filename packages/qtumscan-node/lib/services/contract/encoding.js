@@ -184,6 +184,7 @@ class Encoding {
       for (let topic of topics) {
         writer.writeHexString(topic)
       }
+      writer.writeUInt32BE(data.length >>> 6)
       writer.writeHexString(data)
     }
     return writer.toBuffer()
@@ -200,7 +201,8 @@ class Encoding {
       for (let j = 0; j < topicLength; ++j) {
         topics.push(reader.readHexString(32))
       }
-      let data = reader.readAll().toString('hex')
+      let dataLength = reader.readUInt32BE()
+      let data = reader.readHexString(dataLength << 5)
       log.push({address, topics, data})
     }
     return log

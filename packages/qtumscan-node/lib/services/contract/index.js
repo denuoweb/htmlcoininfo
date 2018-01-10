@@ -207,7 +207,7 @@ class ContractService extends BaseService {
     for (let {address, topics, data} of this._encoding.decodeEventLogValue(eventLogBuffer)) {
       let token = await this.getToken(address)
       if (!token) {
-        return
+        continue
       }
       token = Object.assign({address}, token)
       if (topics[0] === TOKEN_EVENTS.Transfer) {
