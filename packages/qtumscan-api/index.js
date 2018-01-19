@@ -25,7 +25,6 @@ class QtumscanAPI extends BaseService {
     this.rateLimiterOptions = options.rateLimiterOptions || {}
     this.disableRateLimiter = options.disableRateLimiter
 
-    this.blockSummaryCacheSize = options.blockSummaryCacheSize || BlockController.DEFAULT_BLOCKSUMMARY_CACHE_SIZE
     this.blockCacheSize = options.blockCacheSize || BlockController.DEFAULT_BLOCK_CACHE_SIZE
 
     if ("routePrefix" in options) {
@@ -65,7 +64,8 @@ class QtumscanAPI extends BaseService {
   }
 
   static get dependencies() {
-    return ['block', 'contract', 'header', 'mempool', 'timestamp', 'transaction', 'web']
+    // return ['block', 'contract', 'header', 'mempool', 'transaction', 'web']
+    return ['block', 'contract', 'header', 'transaction', 'web']
   }
 
   get routePrefix() {

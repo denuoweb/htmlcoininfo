@@ -30,7 +30,7 @@ class TransactionController {
     let txid = ctx.params.txid
 
     try {
-      let transaction = await this._transaction.getDetailedTransaction(txid)
+      let transaction = await this._transaction.getTransaction(txid)
       if (!transaction) {
         ctx.throw(404)
       }
@@ -42,143 +42,74 @@ class TransactionController {
   }
 
   async transformTransaction(transaction, options = {}) {
-    let confirmations = 0
-    if (transaction.__height >= 0) {
-      confirmations = this._block.getTip().height - transaction.__height + 1
-    }
-
+    let confirmations = Math.max(this._block.getTip().height - transaction.block.height + 1, 0)
     let transformed = {
       txid: transaction.id,
       hash: transaction.hash,
       version: transaction.version,
-      lockTime: transaction.locktime,
-      blockHash: transaction.blockHash,
-      blockHeight: transaction.__height,
+      lockTime: transaction.nLockTime,
+      blockHash: transaction.block.hash,
+      blockHeight: transaction.block.height,
       confirmations,
-      time: transaction.__timestamp || Math.floor(Date.now() / 1000),
-      isCoinbase: transaction.isCoinbase(),
+      timestamp: transaction.block.timestamp || Math.floor(Date.now() / 1000),
+      isCoinbase: transaction.isCoinbase,
       valueOut: transaction.outputSatoshis,
-      size: transaction.toBuffer().length
+      size: (await this._transaction.toRawTransaction(transaction)).toBuffer().length,
+      tokenTransfers: []
     }
 
-    if (transaction.isCoinbase()) {
+    if (transaction.isCoinbase) {
       transformed.vin = [{
-        coinbase: transaction.inputs[0].script.toBuffer().toString('hex'),
+        coinbase: this._transaction.toRawScript(transaction.inputs[0].script).toBuffer().toString('hex'),
         sequence: transaction.inputs[0].sequence,
         n: 0
       }]
     } else {
-      options.inputValues = transaction.__inputValues
-      transformed.vin = await Promise.all(transaction.inputs.map(
-        this.transformInput.bind(this, options)
-      ))
+      transformed.vin = await Promise.all(transaction.inputs.map((input, index) => {
+        let rawScript = this._transaction.toRawScript(input.script)
+        return {
+          txid: input.prevTxId,
+          vout: input.outputIndex,
+          sequence: input.sequence,
+          n: index,
+          value: input.satoshis,
+          address: input.address,
+          scriptSig: {
+            hex: rawScript.toBuffer().toString('hex'),
+            asm: rawScript.toString()
+          }
+        }
+      }))
       transformed.valueIn = transaction.inputSatoshis
       transformed.fees = transaction.feeSatoshis
     }
-    transformed.vout = await Promise.all(transaction.outputs.map(
-      this.transformOutput.bind(this, transaction, options)
-    ))
-
-    if (transformed.confirmations) {
-      transformed.blockTime = transformed.time
-    }
-
-    let tokenTransfers = await this._contract.getTokenTransfers(transaction.id)
-    if (tokenTransfers) {
-      transformed.tokenTransfers = tokenTransfers.map(item => ({
-        token: {
-          address: item.token.address,
-          name: item.token.name,
-          symbol: item.token.symbol,
-          decimals: item.token.decimals,
-          totalSupply: item.token.totalSupply.toString()
-        },
-        from: item.from,
-        to: item.to,
-        amount: item.amount.toString()
-      }))
-    }
-
-    return transformed
-  }
-
-  async _getAddress(item) {
-    if (item.script.isPublicKeyIn() || item.script.isWitnessIn()) {
-      let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
-      return prevTransaction.outputs[item.outputIndex].script.toAddress(this._network)
-    } else if (item.script.isContractSpend()) {
-      let prevTransaction = await this._transaction.getTransaction(item.prevTxId)
-      return prevTransaction.outputs[item.outputIndex].script.chunks[4].buf.toString('hex')
-    } else {
-      return item.script.toAddress(this._network)
-    }
-  }
-
-  async transformInput({noscriptSig, noAsm, inputValues}, input, index) {
-    let transformed = {
-      txid: input.prevTxId.toString('hex'),
-      vout: input.outputIndex,
-      sequence: input.sequence,
-      n: index,
-      value: inputValues[index],
-      doubleSpentTxId: null,
-      isConfirmed: null,
-      confirmations: null,
-      unconfirmedInput: null
-    }
-
-    if (!noscriptSig) {
-      transformed.noscriptSig = {hex: input.script.toBuffer().toString('hex')}
-      if (!noAsm) {
-        transformed.noscriptSig.asm = input.script.toString()
+    transformed.vout = transaction.outputs.map((output, index) => {
+      let rawScript = this._transaction.toRawScript(output.script)
+      let address = rawScript.toAddress(this._network)
+      let type
+      if (address) {
+        type = address.type
+      } else if (rawScript.isDataOut()) {
+        type = 'nulldata'
+      } else if (rawScript.isContractCreate()) {
+        type = 'create'
+      } else if (rawScript.isContractCall()) {
+        type = 'call'
+      } else if (rawScript.chunks.length === 0) {
+        type = 'nonstandard'
       }
-    }
-
-    let address = await this._getAddress(input)
-    if (address) {
-      transformed.address = address.toString()
-    }
-    return transformed
-  }
-
-  async transformOutput(transaction, {noAsm, noSpent}, output, index) {
-    let transformed = {
-      value: output.satoshis,
-      n: index,
-      scriptPubKey: {hex: output.script.toBuffer().toString('hex')}
-    }
-
-    if (!noAsm) {
-      transformed.scriptPubKey.asm = output.script.toString()
-    }
-
-    if (!noSpent) {
-      transformed.spentTxId = output.spentTxId || null
-      transformed.spentIndex = 'spentIndex' in output ? output.spentIndex : null
-      transformed.spentHeight = output.spentHeight || null
-    }
-
-    let address = await this._getAddress(output)
-    if (address) {
-      transformed.address = address.toString()
-      transformed.scriptPubKey.type = address.type
-    } else if (output.script.isDataOut()) {
-      transformed.scriptPubKey.type = 'nulldata'
-    } else if (output.script.isContractCreate()) {
-      let indexBuffer = Buffer.alloc(4)
-      indexBuffer.writeUInt32LE(index)
-      transformed.address = sha256ripemd160(Buffer.concat([
-        BufferUtil.reverse(Buffer.from(transaction.hash, 'hex')),
-        indexBuffer
-      ])).toString('hex')
-      transformed.scriptPubKey.type = 'create'
-    } else if (output.script.isContractCall()) {
-      transformed.address = output.script.chunks[4].buf.toString('hex')
-      transformed.scriptPubKey.type = 'call'
-    } else if (output.script.chunks.length === 0) {
-      transformed.scriptPubKey.type = 'nonstandard'
-    }
-
+      return {
+        value: output.satoshis,
+        n: index,
+        address: output.address,
+        scriptPubKey: {
+          type,
+          hex: rawScript.toBuffer().toString('hex'),
+          asm: rawScript.toString()
+        }
+      }
+    })
+    transformed.tokenTransfers = await this._contract.getTokenTransfers(transaction)
     return transformed
   }
 
@@ -217,14 +148,15 @@ class TransactionController {
 
     try {
       let transaction = await this._transaction.getTransaction(txid)
-      ctx.rawTransaction = {rawtx: transaction.toBuffer().toString('hex')}
+      if (!transaction) {
+        ctx.throw(404)
+      }
+      ctx.rawTransaction = {
+        rawtx: (await this._transaction.toRawTransaction(transaction)).toBuffer().toString('hex')
+      }
       await next()
     } catch (err) {
-      if (err.code === -5) {
-        ctx.throw(404)
-      } else {
-        this.errorResponse.handleErrors(ctx, err)
-      }
+      this.errorResponse.handleErrors(ctx, err)
     }
   }
 
@@ -253,7 +185,7 @@ class TransactionController {
 
         let transactions = []
         for (let txid of txids) {
-          let transaction = await this.transactionService.getDetailedTransaction(txid)
+          let transaction = await this._transaction.getTransaction(txid)
           transactions.push(await this.transformTransaction(transaction))
         }
 

@@ -74,19 +74,19 @@ class Script {
         if (opcodenum > 0 && opcodenum < Opcode.OP_PUSHDATA1) {
           let len = opcodenum
           let buf = br.read(len)
-          this.chunks.push({buf, len, opcodenum})
+          this.chunks.push({buf, opcodenum})
         } else if (opcodenum === Opcode.OP_PUSHDATA1) {
           let len = br.readUInt8()
           let buf = br.read(len)
-          this.chunks.push({buf, len, opcodenum})
+          this.chunks.push({buf, opcodenum})
         } else if (opcodenum === Opcode.OP_PUSHDATA2) {
           let len = br.readUInt16LE()
           let buf = br.read(len)
-          this.chunks.push({buf, len, opcodenum})
+          this.chunks.push({buf, opcodenum})
         } else if (opcodenum === Opcode.OP_PUSHDATA4) {
           let len = br.readUInt32LE()
           let buf = br.read(len)
-          this.chunks.push({buf, len, opcodenum})
+          this.chunks.push({buf, opcodenum})
         } else {
           this.chunks.push({opcodenum})
         }
@@ -108,19 +108,19 @@ class Script {
 
   toBuffer() {
     let bw = new BufferWriter()
-    for (let {buf, len, opcodenum} of this.chunks) {
+    for (let {buf, opcodenum} of this.chunks) {
       bw.writeUInt8(opcodenum)
       if (buf) {
         if (opcodenum < Opcode.OP_PUSHDATA1) {
           bw.write(buf)
         } else if (opcodenum === Opcode.OP_PUSHDATA1) {
-          bw.writeUInt8(len)
+          bw.writeUInt8(buf.length)
           bw.write(buf)
         } else if (opcodenum === Opcode.OP_PUSHDATA2) {
-          bw.writeUInt16LE(len)
+          bw.writeUInt16LE(buf.length)
           bw.write(buf)
         } else if (opcodenum === Opcode.OP_PUSHDATA4) {
-          bw.writeUInt32LE(len)
+          bw.writeUInt32LE(buf.length)
           bw.write(buf)
         }
       }
@@ -138,11 +138,10 @@ class Script {
       let opcodenum = opcode.toNumber()
       if (opcodenum !== undefined) {
         let buf = Buffer.from(token[i], 'hex')
-        script.chunks.push({buf, len: buf.length, opcodenum: buf.length})
+        script.chunks.push({buf, opcodenum: buf.length})
       } else if ([Opcode.OP_PUSHDATA1, Opcode.OP_PUSHDATA2, Opcode.OP_PUSHDATA4].include(opcodenum)) {
         script.chunks.push({
           buf: Buffer.from(token[i + 2], 'hex'),
-          len: Number.parseInt(tokens[i + 1]),
           opcodenum
         })
         i += 2
@@ -174,7 +173,6 @@ class Script {
         }
         this.chunks.push({
           buf: Buffer.from(tokens[i + 1].slice(2), 'hex'),
-          len: opcodenum,
           opcodenum
         })
         ++i
@@ -183,8 +181,7 @@ class Script {
           throw new Error('Pushdata data must start with 0x')
         }
         this.chunks.push({
-          buf: new Bufffer(tokens[i + 2].slice(2), 'hex'),
-          len: Number.parseInt(tokens[i + 1]),
+          buf: new Buffer(tokens[i + 2].slice(2), 'hex'),
           opcodenum
         })
         i += 2
@@ -203,7 +200,7 @@ class Script {
   _chunkToString(chunk) {
     let opcodenum = chunk.opcodenum
     if (chunk.buf) {
-        return chunk.buf.toString('hex')
+      return chunk.buf.toString('hex')
     } else if (opcodenum in Opcode.reverseMap) {
       return new Opcode(opcodenum).toString()
     } else {
@@ -342,7 +339,6 @@ class Script {
       && (this.chunks.length === 1 || (
         this.chunks.length === 2
         && this.chunks[1].buf && this.chunks[1].buf.length <= OP_RETURN_STANDARD_SIZE
-        && this.chunks[1].len === this.chunks[1].buf.length
       ))
   }
 
@@ -480,7 +476,7 @@ class Script {
   }
 
   _addBuffer(buf, prepend) {
-    let len = buffer.len
+    let len = buf.length
     let opcodenum
     if (len < Opcode.OP_PUSHDATA1) {
       opcodenum = len
@@ -493,7 +489,7 @@ class Script {
     } else {
       throw new Error('You can\'t push that much data')
     }
-    this._insertAtPosition({buf, len, opcodenum}, prepend)
+    this._insertAtPosition({buf, opcodenum}, prepend)
     return this
   }
 
@@ -665,7 +661,7 @@ class Script {
     } else if (this._isOutput) {
       return this._getOutputAddressInfo()
     } else {
-      return this._getOutputAddressInfo() && this._getInputAddressInfo()
+      return this._getOutputAddressInfo() || this._getInputAddressInfo()
     }
   }
 

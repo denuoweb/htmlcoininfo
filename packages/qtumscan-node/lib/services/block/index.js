@@ -1,11 +1,13 @@
 const assert = require('assert')
 const LRU = require('lru-cache')
-const {Block} = require('qtumscan-lib')
+const qtumscan = require('qtumscan-lib')
 const BaseService = require('../../service')
-const Encoding = require('./encoding')
+const Block = require('../../models/block')
+const Header = require('../../models/header')
+const Transaction = require('../../models/transaction')
 const utils = require('../../utils')
 const {
-  encodeTip, getTarget, getDifficulty, revHex, convertSecondsToHumanReadable,
+  getTarget, getDifficulty, revHex, convertSecondsToHumanReadable,
   AsyncQueue,
   IndeterminateProgressBar
 } = utils
@@ -19,10 +21,15 @@ class BlockService extends BaseService {
     this._db = this.node.services.get('db')
     this._p2p = this.node.services.get('p2p')
     this._header = this.node.services.get('header')
-    this._timestamp = this.node.services.get('timestamp')
-    this._mempool = this.node.services.get('mempool')
-    this.GENESIS_HASH = QTUM_GENESIS_HASH[this.node.network]
-    this.GENESIS_BLOCK_HEX = QTUM_GENESIS_BLOCK_HEX
+    this._network = this.node.network
+    if (this._network === 'livenet') {
+      this._network = 'mainnet'
+    } else if (this._network === 'regtest') {
+      this._network = 'testnet'
+    }
+    // this._mempool = this.node.services.get('mempool')
+    this.GENESIS_HASH = QTUM_GENESIS_HASH[this._network]
+    this.GENESIS_BLOCK_HEX = QTUM_GENESIS_BLOCK_HEX[this._network]
     this._initialSync = false
     this._processingBlock = false
     this._blocksInQueue = 0
@@ -34,7 +41,8 @@ class BlockService extends BaseService {
   }
 
   static get dependencies() {
-    return ['db', 'header', 'mempool', 'p2p', 'timestamp']
+    // return ['db', 'header', 'mempool', 'p2p']
+    return ['db', 'header', 'p2p']
   }
 
   subscribe(name, emitter) {
@@ -86,9 +94,9 @@ class BlockService extends BaseService {
       connections: this._p2p.getNumberOfPeers(),
       timeoffset: 0,
       proxy: '',
-      testnet: this.node.network !== 'livenet',
+      testnet: this._network !== 'livenet',
       errors: '',
-      network: this.node.network,
+      network: this._network,
       relayFee: 0,
       version: '',
       protocolversion: 70016,
@@ -108,44 +116,71 @@ class BlockService extends BaseService {
     return this._tip
   }
 
-  async getBlock(arg) {
-    let hash = await this._getHash(arg)
-    if (hash) {
-      return this._getBlock(hash)
+  getBlock(arg) {
+    if (Number.isInteger(arg)) {
+      return Block.findOne({height: arg})
+    } else {
+      return Block.findOne({hash: arg})
     }
   }
 
+  async toRawBlock(block) {
+    let transactions = await Promise.all(block.transactions.map(async id => {
+      let transaction = await Transaction.findOne({id})
+      return transaction.toRawTransaction()
+    }))
+    return new qtumscan.Block({
+      header: {
+        hash: block.hash,
+        version: block.version,
+        prevHash: block.prevHash,
+        merkleRoot: block.merkleRoot,
+        timestamp: block.timestamp,
+        bits: block.bits,
+        nonce: block.nonce,
+        hashStateRoot: block.hashStateRoot,
+        hashUTXORoot: block.hashUTXORoot,
+        prevOutStakeHash: block.prevOutStakeHash,
+        prevOutStakeN: block.prevOutStakeN,
+        vchBlockSig: block.vchBlockSig
+      },
+      transactions
+    })
+  }
+
   async getBlockOverview(hash) {
-    let block = await this._getBlock(hash)
+    let block = await Block.findOne({hash})
     if (!block) {
       return
     }
-    let header = await this._header.getBlockHeader(hash)
-    let target = getTarget(header.bits)
+    let target = getTarget(block.bits)
     let difficulty = getDifficulty(target)
-    let txids = block.transactions.map(tx => tx.id)
     return {
       hash: block.hash,
       version: block.version,
       confirmations: this.getTip().height - header.height + 1,
-      height: header.height,
-      chainWork: header.chainwork,
-      prevHash: header.prevHash,
-      nextHash: header.nextHash,
-      merkleRoot: header.merkleRoot,
-      time: block.ts,
-      medianTime: null,
-      nonce: header.nonce,
-      bits: header.bits,
+      height: block.height,
+      prevHash: block.prevHash,
+      nextHash: block.nextHash,
+      merkleRoot: block.merkleRoot,
+      timestamp: block.timestamp,
+      nonce: block.nonce,
+      bits: block.bits,
       difficulty,
-      txids
+      hashStateRoot: block.hashStateRoot,
+      hashUTXORoot: block.hashUTXORoot,
+      prevOutStakeHash: block.prevOutStakeHash,
+      prevOutStakeN: block.prevOutStakeN,
+      vchBlockSig: block.vchBlockSig,
+      chainwork: block.chainwork,
+      txids: block.transactions
     }
   }
 
   async getRawBlock(hash) {
     let block = await this.getBlock(hash)
     if (block) {
-      return block.toString()
+      return block.toBuffer().toString('hex')
     }
   }
 
@@ -155,7 +190,7 @@ class BlockService extends BaseService {
     if (header.hash === this._tip.hash && !this._reorgToBlock) {
       this.node.log.info('Block Service: saved tip is good to go.')
     }
-    return this._handleReorg()
+    await this._handleReorg()
   }
 
   async _resetTip() {
@@ -167,18 +202,14 @@ class BlockService extends BaseService {
     this.node.log.warn('Block Service: resetting tip due to a non-existent tip block...')
     let header = this._header.getLastHeader()
     let height = header.height
-    let headers = await this._header.getAllHeaders()
-    if (!headers) {
-      throw new Error('headers required')
-    }
     this.node.log.info('Block Service: retrieved all the headers for lookups.')
     let block
     do {
-      block = await this._getBlock(header.hash)
+      block = await Block.findOne({hash: header.hash})
       if (!block) {
         this.node.log.debug('Block Service: block:', header.hash, 'was not found, proceeding to older blocks.')
       }
-      header = headers.getIndex(--height)
+      header = await Block.findOne({height: --height})
       assert(header, 'Header not found for reset')
       if (!block) {
         this.node.log.debug('Block Service: trying block:', header.hash)
@@ -187,20 +218,19 @@ class BlockService extends BaseService {
         bar.tick()
       }
     } while (!block)
-    return this._setTip({hash: block.hash, height: height + 1})
+    await this._setTip({hash: block.hash, height: height + 1})
   }
 
   async _performSanityCheck(tip) {
     if (tip.height === 0) {
       return tip
     }
-    let block = await this._getBlock(tip.hash)
-    return block ? tip : false
+    if (await Block.findOne({hash: tip.hash})) {
+      return tip
+    }
   }
 
   async start() {
-    this._prefix = await this._db.getPrefix(this.name)
-    this._encoding = new Encoding(this._prefix)
     let tip = await this._db.getServiceTip('block')
     tip = await this._performSanityCheck(tip)
     this._blockProcessor = new AsyncQueue(this._onBlock.bind(this))
@@ -209,6 +239,7 @@ class BlockService extends BaseService {
       this._tipResetNeeded = true
       return
     }
+    await Block.remove({height: {$gt: tip.height}})
     this._header.on('reorg', () => this._reorging = true)
     this._header.on('reorg complete', () => this._reorging = false)
     await this._setTip(tip)
@@ -220,15 +251,9 @@ class BlockService extends BaseService {
     let times = Math.min(this._tip.height, this._recentBlockHashesCount)
     for (let i = 0; i < times; ++i) {
       let block = await this.getBlock(hash)
-      if (!block) {
-        throw new Error(
-          'Block Service: attempted to retrive block: '
-            + hash + ' but was not in the index.'
-        )
-      }
-      let prevHash = revHex(block.prevBlock)
-      this._recentBlockHashes.set(hash, prevHash)
-      hash = prevHash
+      assert(block, 'Block Service: attempted to retrive block: ' + hash + ' but was not in the index.')
+      this._recentBlockHashes.set(hash, block.prevHash)
+      hash = block.prevHash
     }
     assert(
       this._recentBlockHashes.length === times,
@@ -238,15 +263,10 @@ class BlockService extends BaseService {
   }
 
   async _getTimeSinceLastBlock() {
-    let header = await this._header.getBlockHeader(Math.max(this._tip.height - 1, 0))
-    if (!header) {
-      throw new Error('Block Service: we should have a header in order to get time since last block.')
-    }
-    let [tipTimestamp, headerTimestamp] = await Promise.all([
-      this._timestamp.getTimestamp(this._tip.hash),
-      this._timestamp.getTimestamp(header.hash)
-    ])
-    return convertSecondsToHumanReadable(tipTimestamp - headerTimestamp)
+    let header = await Block.findOne({height: Math.max(this._tip.height - 1, 0)}, 'timestamp')
+    assert(header, 'Block Service: we should have a header in order to get time since last block.')
+    let tip = await Block.findOne({hash: this._tip.hash}, 'timestamp')
+    return convertSecondsToHumanReadable(tip.timestamp - header.timestamp)
   }
 
   _queueBlock(block) {
@@ -271,13 +291,6 @@ class BlockService extends BaseService {
     return revHex(block.prevBlock) !== this._tip.hash
   }
 
-  async _getBlock(hash) {
-    let data = await this._db.get(this._encoding.encodeBlockKey(hash))
-    if (data) {
-      return this._encoding.decodeBlockValue(data)
-    }
-  }
-
   async _getHash(blockArg) {
     if (Number.isInteger(blockArg)) {
       let header = await this._header.getBlockHeader(blockArg)
@@ -290,9 +303,7 @@ class BlockService extends BaseService {
   }
 
   onReorg(_, block) {
-    return [
-      {type: 'del', key: this._encoding.encodeBlockKey(block.hash)}
-    ]
+    return Block.remove({hash: block.hash})
   }
 
   async _onReorg(commonAncestorHash, block) {
@@ -300,7 +311,7 @@ class BlockService extends BaseService {
     for (let service of this.node.services.values()) {
       if (service.onReorg) {
         this.node.log.info('Block Service: Reorging', service.name, 'service.')
-        operations.push(...(await service.onReorg(commonAncestorHash, block)))
+        await service.onReorg(commonAncestorHash, block)
       }
     }
     return operations
@@ -365,11 +376,6 @@ class BlockService extends BaseService {
     this._bus.subscribe('p2p/block')
   }
 
-  _saveTip(tip) {
-    let tipOps = encodeTip({hash: tip.hash, height: tip.height}, this.name)
-    return this._db.put(tipOps.key, tipOps.value)
-  }
-
   async _findLatestValidBlockHeader() {
     if (this._reorgToBlock) {
       let header = await this._header.getBlockHeader(this._reorgToBlock)
@@ -408,12 +414,12 @@ class BlockService extends BaseService {
     let {hash, height} = this._tip
     let blocks = []
     for (let i = 0; i < this._recentBlockHashes.length && hash !== commonHeader.hash; ++i) {
-      let block = await this._getBlock(hash)
+      let block = await Block.findOne({hash})
       assert(block, 'Block Service: block not found in index.')
-      let timestamp = await this._timestamp.getTimestamp(block.hash)
-      assert(timestamp, 'timestamp missing from reorg.')
+      block = await block.toRawBlock()
+      console.log(block);
       block.height = height
-      block.header.time = block.header.timestamp = timestamp
+      block.header.time = block.header.timestamp = block.timestamp
       blocks.push(block)
       hash = revHex(block.prevBlock)
       --height
@@ -453,11 +459,9 @@ class BlockService extends BaseService {
       }
       let ops = await this._onReorg(commonAncestorHeader.hash, block)
       ++blockCount
-      operations.push(...ops)
       this._recentBlockHashes.del(block.hash)
     }
     this.node.log.info('Block Service: removed', blockCount, 'block(s) during the reorganization event.')
-    return this._db.batch(operations)
   }
 
   async _onBlock(block) {
@@ -467,7 +471,7 @@ class BlockService extends BaseService {
     }
     this._processingBlock = true
     try {
-      let _block = await this._getBlock(block.hash)
+      let _block = await Block.findOne({hash: block.hash})
       if (_block) {
         this._processingBlock = false
         this.node.log.debug('Block Service: not syncing, block already in database.')
@@ -487,9 +491,10 @@ class BlockService extends BaseService {
     }
     this.node.log.debug('Block Service: new block:', block.hash)
     if (!this._detectReorg(block)) {
-      return this._saveBlock(block)
+      await this._saveBlock(block)
+    } else {
+      this._processingBlock = false
     }
-    this._processingBlock = false
   }
 
   async _saveBlock(block) {
@@ -497,13 +502,11 @@ class BlockService extends BaseService {
       block.height = this._tip.height + 1
     }
     try {
-      let operations = []
       for (let service of this.node.services.values()) {
         if (service.onBlock) {
-          operations.push(...(await service.onBlock(block)))
+          await service.onBlock(block)
         }
       }
-      await this._db.batch(operations)
       this._recentBlockHashes.set(block.hash, revHex(block.prevBlock))
       await this._setTip({hash: block.hash, height: block.height})
       this._processingBlock = false
@@ -542,19 +545,35 @@ class BlockService extends BaseService {
     }
   }
 
-  onBlock(block) {
-    return [{
-      type: 'put',
-      key: this._encoding.encodeBlockKey(block.hash),
-      value: this._encoding.encodeBlockValue(block)
-    }]
+  async onBlock(block) {
+    let header
+    do {
+      header = await Header.findOne({hash: block.hash})
+    } while (!header)
+    return new Block({
+      hash: header.hash,
+      height: header.height,
+      version: header.version,
+      prevHash: header.prevHash,
+      merkleRoot: header.merkleRoot,
+      timestamp: header.timestamp,
+      bits: header.bits,
+      nonce: header.nonce,
+      hashStateRoot: header.hashStateRoot,
+      hashUTXORoot: header.hashUTXORoot,
+      prevOutStakeHash: header.prevOutStakeHash,
+      prevOutStakeN: header.prevOutStakeN,
+      vchBlockSig: header.vchBlockSig,
+      chainwork: header.chainwork,
+      transactions: block.transactions.map(tx => tx.id)
+    }).save()
   }
 
-  _setTip(tip) {
+  async _setTip(tip) {
     this.node.log.debug('Block Service: Setting tip to height:', tip.height)
     this.node.log.debug('Block Service: Setting tip to hash:', tip.hash)
     this._tip = tip
-    return this._saveTip(tip)
+    await this._db.updateServiceTip(this.name, tip)
   }
 
   async _logSynced() {
@@ -581,7 +600,7 @@ class BlockService extends BaseService {
     this._initialSync = false
     this._startBlockSubscription()
     this._logSynced(this._tip.hash)
-    this._mempool.enable()
+    // this._mempool.enable()
   }
 
   async _startSync() {
@@ -592,7 +611,7 @@ class BlockService extends BaseService {
       this.on('synced', this._onSynced.bind(this))
       clearInterval(this._reportInterval)
       if (this._tip.height === 0) {
-        let genesisBlock = new Block(Buffer.from(this.GENESIS_BLOCK_HEX, 'hex'))
+        let genesisBlock = new qtumscan.Block(Buffer.from(this.GENESIS_BLOCK_HEX, 'hex'))
         genesisBlock.height = 0
         await this._saveBlock(genesisBlock)
       }
@@ -629,7 +648,7 @@ class BlockService extends BaseService {
           filter: {startHash: this._tip.hash, endHash},
           blockHash: targetHash
         })
-        return this._syncBlock(block)
+        await this._syncBlock(block)
       }
     } catch (err) {
       if (err) {

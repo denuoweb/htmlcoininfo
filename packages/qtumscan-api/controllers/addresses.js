@@ -49,7 +49,7 @@ class AddressController {
 
   async getAddressSummary(address, options) {
     let summary = await this._address.getAddressSummary(address, options)
-    let tokenBalances = await this._contract.getAllTokenBalances(address)
+    let tokenBalances = await this._contract.getAllQRC20TokenBalances(address)
     return {
       address,
       balance: summary.balance,
@@ -62,8 +62,8 @@ class AddressController {
         name: token.name,
         symbol: token.symbol,
         decimals: token.decimals,
-        totalSupply: token.totalSupply.toString(),
-        balance: token.balance.toString()
+        totalSupply: token.totalSupply,
+        balance: token.balance
       })),
       totalCount: summary.totalCount,
       transactions: summary.transactions

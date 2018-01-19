@@ -17,16 +17,6 @@ class ContractsController {
       if (!contract) {
         ctx.throw(404)
       }
-      contract = Object.assign({address}, contract)
-      let token = await this._contract.getToken(address)
-      if (token) {
-        contract.token = {
-          name: token.name,
-          symbol: token.symbol,
-          decimals: token.decimals,
-          totalSupply: token.totalSupply.toString()
-        }
-      }
       ctx.contract = contract
       await next()
     } catch (err) {
@@ -42,7 +32,10 @@ class ContractsController {
     }
     try {
       let summary = await this._contract.getContractSummary(ctx.contract.address, options)
-      Object.assign(summary, ctx.contract)
+      summary.owner = ctx.contract.owner
+      summary.txid = ctx.contract.createTransactionId
+      summary.type = ctx.contract.type
+      summary.qrc20 = ctx.contract.qrc20
       ctx.body = summary
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)

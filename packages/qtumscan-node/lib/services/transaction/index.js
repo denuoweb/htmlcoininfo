@@ -1,7 +1,12 @@
 const assert = require('assert')
 const LRU = require('lru-cache')
+const qtumscan = require('qtumscan-lib')
 const BaseService = require('../../service')
-const Encoding = require('./encoding')
+const Block = require('../../models/block')
+const Transaction = require('../../models/transaction')
+const Utxo = require('../../models/utxo')
+const {revHex} = require('../../utils')
+const {sha256ripemd160} = qtumscan.crypto.Hash
 
 class TransactionService extends BaseService {
   constructor(options) {
@@ -9,60 +14,25 @@ class TransactionService extends BaseService {
     this._block = this.node.services.get('block')
     this._db = this.node.services.get('db')
     this._header = this.node.services.get('header')
-    this._mempool = this.node.services.get('mempool')
-    this._p2p = this.node.services.get('p2p')
-    this._timestamp = this.node.services.get('timestamp')
     this._network = this.node.network
     if (this._network === 'livenet') {
       this._network = 'mainnet'
     } else if (this._network === 'regtest') {
       this._network = 'testnet'
     }
+    this._tip = null
     this._cacheTx = LRU(1000)
   }
 
   static get dependencies() {
-    return ['block', 'db', 'header', 'mempool', 'p2p', 'timestamp']
+    return ['block', 'db', 'header']
   }
 
   get APIMethods() {
     return [
       ['getTransaction', this.getTransaction.bind(this), 1],
-      ['getDetailedTransaction', this.getDetailedTransaction.bind(this), 1],
       ['setTxMetaInfo', this.setTxMetaInfo.bind(this), 2]
     ]
-  }
-
-  async getDetailedTransaction(txid, options) {
-    let tx = await this.getTransaction(txid, options)
-    if (!tx) {
-      return
-    }
-    await Promise.all([
-      (async () => {
-        for (let i = 0; i < tx.outputs.length; ++i) {
-          let output = tx.outputs[i]
-          let value = await this._db.get(this._encoding.encodeSpentKey(txid, i))
-          if (value) {
-            let spentIndex = this._encoding.decodeSpentValue(value)
-            output.spentTxId = spentIndex.txid
-            output.spentIndex = spentIndex.inputIndex
-            output.spentHeight = spentIndex.blockHeight
-            output.spentBlockHash = spentIndex.blockHash
-          }
-        }
-      })(),
-      (async () => {
-        for (let input of tx.inputs) {
-          let value = await this._db.get(this._encoding.encodeDoubleSpentKey(input.prevTxId))
-          if (value) {
-            let doubleSpentInfo = this._encoding.decodeDoubleSpentValue(value)
-            input.doubleSpentTxID = doubleSpentInfo.txid
-          }
-        }
-      })()
-    ])
-    return tx
   }
 
   async getTransaction(txid, options) {
@@ -70,165 +40,291 @@ class TransactionService extends BaseService {
     if (cacheTx) {
       return cacheTx
     }
-    let tx = await this._getTransaction(txid, options)
+    let tx = await this._getTransaction(txid)
     if (tx) {
+      await this.setTxMetaInfo(tx, options)
       this._cacheTx.set(txid, tx)
-    } else {
-      tx = await this._getMempoolTransaction(txid, options)
-    }
-    await this.setTxMetaInfo(tx, options)
-    return tx
-  }
-
-  async setTxMetaInfo(tx, options) {
-    if (!tx) {
-      return
-    }
-    if (!tx.__inputValues) {
-      tx.__inputValues = await this._getInputValues(tx, options)
-      tx.confirmations = 0
-      tx.blockHash = null
-      tx.__blockHash = null
-    }
-    tx.outputSatoshis = 0
-    for (let output of tx.outputs) {
-      tx.outputSatoshis += output.satoshis
-    }
-    if (!tx.isCoinbase()) {
-      tx.inputSatoshis = 0
-      assert(
-        tx.__inputValues.length === tx.inputs.length,
-        'Transaction Service: input values length is not the same as the number of inputs.'
-      )
-      for (let value of tx.__inputValues) {
-        tx.inputSatoshis += value
-      }
-      tx.feeSatoshis = tx.inputSatoshis - tx.outputSatoshis
-    }
-    return tx
-  }
-
-  _getMempoolTransaction(txid, options = {}) {
-    let queryMempool = 'queryMempool' in options ? options.queryMempool : true
-    if (queryMempool) {
-      return this._mempool.getMempoolTransaction(txid)
-    }
-  }
-
-  async _getTransaction(txid, options) {
-    if (options && options.processedTxs && options.processedTxs[txid]) {
-      return options.processedTxs[txid]
-    }
-    let key = this._encoding.encodeTransactionKey(txid)
-    let txBuffer = await this._db.get(key)
-    if (txBuffer) {
-      let tx = this._encoding.decodeTransactionValue(txBuffer)
-      tx.__confirmations = tx.confirmations = this._block.getTip().height - tx.__height + 1
-      tx.height = tx.__height
-      tx.blockhash = tx.__blockhash
       return tx
     }
   }
 
-  async _getInputValues(transaction, options) {
-    if (transaction.isCoinbase()) {
-      return [0]
-    }
-    return Promise.all(transaction.inputs.map(async input => {
-      let outputIndex = input.outputIndex
-      let txid = input.prevTxId.toString('hex')
-      let tx = await this._getTransaction(txid, options)
-      if (!tx) {
-        tx = await this._mempool.getMempoolTransaction(txid)
-        if (!tx) {
-          throw new Error([
-            'Transaction Service:',
-            `prev transaction: (${txid}) for tx: ${transaction.id} at input index ${outputIndex}`,
-            'is missing from the index or not in the memory pool.',
-            'It could be that the parent tx has not yet been relayed to us,',
-            'but will be relayed in the near future.'
-          ].join(' '))
-        }
+  async toRawTransaction(transaction) {
+    let inputs = await Promise.all(transaction.inputs.map(async input => {
+      let utxo = await Utxo.findById(input)
+      return {
+        prevTxId: utxo.output.transactionId,
+        outputIndex: utxo.output.index,
+        sequenceNumber: utxo.input.sequence,
+        script: utxo.toRawScript(utxo.input.script)
       }
-      let output = tx.outputs[outputIndex]
-      assert(output, `Expected an output, but did not get one for tx: ${tx.id} outputIndex: ${outputIndex}`)
-      return output.satoshis
     }))
+    let outputs = await Promise.all(transaction.outputs.map(async output => {
+      let utxo = await Utxo.findById(output)
+      return {
+        satoshis: utxo.satoshis,
+        script: utxo.toRawScript(utxo.output.script)
+      }
+    }))
+    return new qtumscan.Transaction({
+      version: transaction.version,
+      dummy: transaction.dummy,
+      flags: transaction.flags,
+      inputs,
+      outputs,
+      witnessStack: transaction.witnessStack.map(
+        witness => witness.map(item => Buffer.from(item, 'hex'))
+      ),
+      nLockTime: transaction.nLockTime
+    })
+  }
+
+  toRawScript(script) {
+    return new qtumscan.Script({
+      chunks: script.map(chunk => ({
+        buf: chunk.buffer && Buffer.from(chunk.buffer, 'hex'),
+        opcodenum: chunk.opcode
+      }))
+    })
+  }
+
+  async setTxMetaInfo(tx, options) {
+    tx.outputSatoshis = 0
+    for (let output of tx.outputs) {
+      tx.outputSatoshis += output.satoshis
+    }
+    if (tx.inputs.length === 1) {
+      let utxo = await Utxo.findById(tx.inputs[0]._id)
+      if (utxo.output.transactionId === '0'.repeat(64) && utxo.output.index === 0xffffffff) {
+        tx.isCoinbase = true
+        return
+      }
+    }
+    tx.inputSatoshis = 0
+    for (let input of tx.inputs) {
+      tx.inputSatoshis += input.satoshis
+    }
+    tx.feeSatoshis = tx.inputSatoshis - tx.outputSatoshis
+  }
+
+  async _getTransaction(txid) {
+    let list = await Transaction.aggregate(
+      {$match: {id: txid}},
+      {$unwind: '$inputs'},
+      {
+        $lookup: {
+          from: 'utxos',
+          localField: 'inputs',
+          foreignField: '_id',
+          as: 'input'
+        }
+      },
+      {
+        $group: {
+          _id: '$_id',
+          id: {$first: '$id'},
+          hash: {$first: '$hash'},
+          version: {$first: '$version'},
+          dummy: {$first: '$dummy'},
+          flags: {$first: '$flags'},
+          inputs: {
+            $push: {
+              _id: {$arrayElemAt: ['$input._id', 0]},
+              prevTxId: {$arrayElemAt: ['$input.output.transactionId', 0]},
+              outputIndex: {$arrayElemAt: ['$input.output.index', 0]},
+              script: {
+                $map: {
+                  input: {$arrayElemAt: ['$input.input.script', 0]},
+                  as: 'chunk',
+                  in: {
+                    opcode: '$$chunk.opcode',
+                    buffer: '$$chunk.buffer'
+                  }
+                }
+              },
+              sequence: {$arrayElemAt: ['$input.input.sequence', 0]},
+              satoshis: {$arrayElemAt: ['$input.satoshis', 0]},
+              address: {$arrayElemAt: ['$input.address', 0]}
+            }
+          },
+          outputs: {$first: '$outputs'},
+          witnessStack: {$first: '$witnessStack'},
+          block: {$first: '$block'},
+          isStake: {$first: '$isStake'},
+          receipts: {$first: '$receipts'}
+        }
+      },
+      {$unwind: '$outputs'},
+      {
+        $lookup: {
+          from: 'utxos',
+          localField: 'outputs',
+          foreignField: '_id',
+          as: 'output'
+        }
+      },
+      {
+        $group: {
+          _id: '$_id',
+          id: {$first: '$id'},
+          hash: {$first: '$hash'},
+          version: {$first: '$version'},
+          dummy: {$first: '$dummy'},
+          flags: {$first: '$flags'},
+          inputs: {$first: '$inputs'},
+          outputs: {
+            $push: {
+              _id: {$arrayElemAt: ['$output._id', 0]},
+              satoshis: {$arrayElemAt: ['$output.satoshis', 0]},
+              script: {
+                $map: {
+                  input: {$arrayElemAt: ['$output.output.script', 0]},
+                  as: 'chunk',
+                  in: {
+                    opcode: '$$chunk.opcode',
+                    buffer: '$$chunk.buffer'
+                  }
+                }
+              },
+              address: {$arrayElemAt: ['$output.address', 0]}
+            }
+          },
+          witnessStack: {$first: '$witnessStack'},
+          block: {$first: '$block'},
+          isStake: {$first: '$isStake'},
+          receipts: {$first: '$receipts'}
+        }
+      },
+      {
+        $lookup: {
+          from: 'blocks',
+          localField: 'block.hash',
+          foreignField: 'hash',
+          as: 'block'
+        }
+      },
+      {$addFields: {block: {$arrayElemAt: ['$block', 0]}}}
+    )
+    return list[0]
   }
 
   async start() {
-    this.prefix = await this._db.getPrefix(this.name)
-    this._encoding = new Encoding(this.prefix)
-  }
-
-  _getBlockTimestamp(hash) {
-    return this._timestamp.getTimestampSync(hash)
+    this._tip = await this._db.getServiceTip(this.name)
+    let blockTip = this._block.getTip()
+    if (this._tip.height > blockTip.height) {
+      this._tip = blockTip
+      await this._db.updateServiceTip(this._tip)
+    }
+    await Transaction.deleteMany({'block.height': {$gt: blockTip.height}})
+    await Utxo.deleteMany({createHeight: {$gt: blockTip.height}})
+    await Utxo.updateMany(
+      {useHeight: {$gt: blockTip.height}},
+      {
+        'input.transactionId': '0'.repeat(64),
+        'input.index': null,
+        'input.script': [],
+        'input.sequence': null,
+        useHeight: null
+      }
+    )
   }
 
   async onBlock(block) {
     if (this.node.stopping) {
       return
     }
-    let processedTxs = {}
-    let operations = []
     for (let tx of block.transactions) {
-      processedTxs[tx.id] = tx
-      operations.push(...(await this._processTransaction(tx, {block, processedTxs})))
+      await this._processTransaction(tx, block)
     }
-    return operations
+    this._tip.height = block.height
+    this._tip.hash = block.hash
+    await this._db.updateServiceTip(this.name, this._tip)
   }
 
-  onReorg(_, block) {
-    let removalOps = []
-    for (let tx of block.transactions) {
-      removalOps.push({type: 'del', key: this._encoding.encodeTransactionKey(tx.id)})
-      for (let input of tx.inputs) {
-        removalOps.push({type: 'del', key: this._encoding.encodeSpentKey(input.prevTxId, input.outputIndex)})
-      }
-    }
-    return removalOps
+  async onReorg(_, block) {
+    await Transaction.deleteMany({'block.hash': block.hash})
   }
 
-  _getSpentInfo(input) {
-    if (!this.node.stopping) {
-      return this._db.get(this._encoding.encodeSpentKey(input.prevTxId, input.outputIndex))
+  static _getAddress(tx, index) {
+    let script = tx.outputs[index].script
+    if (script.isContractCreate()) {
+      let indexBuffer = Buffer.alloc(4)
+      indexBuffer.writeUInt32LE(index)
+      return sha256ripemd160(
+        Buffer.concat([Buffer.from(revHex(tx.hash), 'hex'), indexBuffer])
+      ).toString('hex')
+    } else if (script.isContractCall()) {
+      return script.chunks[4].buf.toString('hex')
+    } else {
+      let address = script.toAddress()
+      return address && address.toString()
     }
   }
 
-  async _getSpentTxOperations(tx) {
-    return Promise.all(tx.inputs.map(async (input, index) => {
-      let info = await this._getSpentInfo(input)
-      if (info) {
-        return {
-          type: 'put',
-          key: this._encoding.encodeDoubleSpentKey(input.prevTxId, input.outputIndex),
-          value: this._encoding.encodeDoubleSpentValue(tx.id, index, tx.__height, tx.__blockhash)
-        }
-      } else {
-        return {
-          type: 'put',
-          key: this._encoding.encodeSpentKey(input.prevTxId, input.outputIndex),
-          value: this._encoding.encodeSpentValue(tx.id, index, tx.__height, tx.__blockhash)
-        }
-      }
+  static _transformScript(script) {
+    return script.chunks.map(chunk => ({
+      opcode: chunk.opcodenum,
+      buffer: chunk.buf && chunk.buf.toString('hex')
     }))
   }
 
-  async _processTransaction(tx, options) {
-    tx.__inputValues = await this._getInputValues(tx, options)
-    tx.__timestamp = this._getBlockTimestamp(options.block.hash)
-    assert(tx.__timestamp, 'Timestamp is required when saving a transaction')
-    tx.__height = options.block.height
-    assert(tx.__height !== undefined, 'Block height is required when saving a transaction')
-    tx.__blockhash = options.block.hash
-    return [
-      {
-        type: 'put',
-        key: this._encoding.encodeTransactionKey(tx.id),
-        value: this._encoding.encodeTransactionValue(tx)
+  async _processTransaction(tx, block) {
+    let inputs = await Promise.all(tx.inputs.map(async (input, index) => {
+      let utxo
+      if (Buffer.compare(input.prevTxId, Buffer.alloc(32)) === 0) {
+        utxo = new Utxo({
+          input: {
+            transactionId: tx.id,
+            index,
+            script: TransactionService._transformScript(input.script),
+            sequence: input.sequenceNumber
+          },
+          createHeight: block.height,
+          useHeight: block.height
+        })
+      } else {
+        utxo = await Utxo.findOne({
+          'output.transactionId': input.prevTxId.toString('hex'),
+          'output.index': input.outputIndex
+        })
+        utxo.input.transactionId = tx.id
+        utxo.input.index = index
+        utxo.input.script = TransactionService._transformScript(input.script)
+        utxo.input.sequence = input.sequenceNumber
+        utxo.useHeight = block.height
+      }
+      await utxo.save()
+      return utxo._id
+    }))
+    let outputs = await Promise.all(tx.outputs.map(async (output, index) => {
+      let utxo = new Utxo({
+        satoshis: output.satoshis,
+        output: {
+          transactionId: tx.id,
+          index,
+          script: TransactionService._transformScript(output.script)
+        },
+        address: TransactionService._getAddress(tx, index),
+        createHeight: block.height
+      })
+      await utxo.save()
+      return utxo._id
+    }))
+    await new Transaction({
+      id: tx.id,
+      hash: tx.hash,
+      version: tx.version,
+      dummy: tx.dummy,
+      flags: tx.flags,
+      inputs,
+      outputs,
+      witnessStack: tx.witnessStack.map(witness => witness.map(item => item.toString('hex'))),
+      nLockTime: tx.nLockTime,
+      block: {
+        hash: block.hash,
+        height: block.height,
       },
-      ...(await this._getSpentTxOperations(tx))
-    ]
+      isStake: tx.outputs[0].script.chunks.length === 0
+    }).save()
   }
 }
 

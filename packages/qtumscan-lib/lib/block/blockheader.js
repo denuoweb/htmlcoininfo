@@ -16,8 +16,7 @@ class BlockHeader {
     this.version = info.version
     this.prevHash = info.prevHash
     this.merkleRoot = info.merkleRoot
-    this.time = info.time
-    this.timestamp = info.time
+    this.timestamp = info.timestamp
     this.bits = info.bits
     this.nonce = info.nonce
     this.hashStateRoot = info.hashStateRoot
@@ -25,10 +24,6 @@ class BlockHeader {
     this.prevOutStakeHash = info.prevOutStakeHash
     this.prevOutStakeN = info.prevOutStakeN
     this.vchBlockSig = info.vchBlockSig
-
-    if (info.hash) {
-      assert(this.hash === info.hash, 'Argument object hash property does not match block hash.')
-    }
   }
 
   static _from(arg) {
@@ -68,8 +63,7 @@ class BlockHeader {
       version: data.version,
       prevHash,
       merkleRoot,
-      time: data.time,
-      timestamp: data.time,
+      timestamp: data.timestamp,
       bits: data.bits,
       nonce: data.nonce,
       hashStateRoot,
@@ -106,7 +100,7 @@ class BlockHeader {
     let version = br.readInt32LE()
     let prevHash = br.read(32)
     let merkleRoot = br.read(32)
-    let time = br.readUInt32LE()
+    let timestamp = br.readUInt32LE()
     let bits = br.readUInt32LE()
     let nonce = br.readUInt32LE()
     let hashStateRoot = br.read(32)
@@ -119,7 +113,7 @@ class BlockHeader {
       version,
       prevHash,
       merkleRoot,
-      time,
+      timestamp,
       bits,
       nonce,
       hashStateRoot,
@@ -140,7 +134,7 @@ class BlockHeader {
       version: this.version,
       prevHash: BufferUtil.reverse(this.prevHash).toString('hex'),
       merkleRoot: BufferUtil.reverse(this.merkleRoot).toString('hex'),
-      time: this.time,
+      timestamp: this.timestamp,
       bits: this.bits,
       nonce: this.nonce,
       hashStateRoot: BufferUtil.reverse(this.hashStateRoot).toString('hex'),
@@ -167,7 +161,7 @@ class BlockHeader {
     bw.writeInt32LE(this.version)
     bw.write(this.prevHash)
     bw.write(this.merkleRoot)
-    bw.writeUInt32LE(this.time)
+    bw.writeUInt32LE(this.timestamp)
     bw.writeUInt32LE(this.bits)
     bw.writeUInt32LE(this.nonce)
     bw.write(this.hashStateRoot)
@@ -213,7 +207,7 @@ class BlockHeader {
 
   validTimestamp() {
     let currentTime = Math.floor(Date.now() / 1000)
-    return this.time <= currentTime + MAX_TIME_OFFSET
+    return this.timestamp <= currentTime + MAX_TIME_OFFSET
   }
 
   validProofOfWork() {

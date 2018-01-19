@@ -1,17 +1,17 @@
-const LRU = require('lru-cache')
 const BN = require('bn.js')
 const qtumscan = require('qtumscan-lib')
 const QtumscanRPC = require('qtumscan-rpc')
 const BaseService = require('../../service')
-const Encoding = require('./encoding')
+const Transaction = require('../../models/transaction')
+const Utxo = require('../../models/utxo')
+const Contract = require('../../models/contract')
 const {getInputAddress} = require('../../utils')
 const BufferUtil = qtumscan.util.buffer
 const {sha256ripemd160} = qtumscan.crypto.Hash
 const {Base58Check} = qtumscan.encoding
-const {Contract, tokenABI} = qtumscan.contract
 const Address = qtumscan.Address
 
-const tokenAbi = new Contract(tokenABI)
+const tokenAbi = new qtumscan.contract.Contract(qtumscan.contract.tokenABI)
 const TOKEN_EVENTS = {
   Transfer: tokenAbi.eventSignature('Transfer').slice(2),
   Approval: tokenAbi.eventSignature('Approval').slice(2),
@@ -24,9 +24,9 @@ const TOKEN_EVENT_HASHES = Object.values(TOKEN_EVENTS)
 class ContractService extends BaseService {
   constructor(options) {
     super(options)
+    this._address = this.node.services.get('address')
     this._block = this.node.services.get('block')
     this._db = this.node.services.get('db')
-    this._transaction = this.node.services.get('transaction')
     this._network = this.node.network
     this._config = options.rpc || {
       user: 'qtum',
@@ -36,8 +36,6 @@ class ContractService extends BaseService {
       port: ['testnet', 'regtest'].includes(this._network) ? 13889 : 3889
     }
     this._client = new QtumscanRPC(this._config)
-    this._contractCache = new LRU(1000)
-    this._tokenCache = new LRU(1000)
     if (this._network === 'livenet') {
       this._network = 'mainnet'
     } else if (this._network === 'regtest') {
@@ -46,7 +44,7 @@ class ContractService extends BaseService {
   }
 
   static get dependencies() {
-    return ['block', 'db', 'transaction']
+    return ['address', 'block', 'db']
   }
 
   get APIMethods() {
@@ -54,41 +52,28 @@ class ContractService extends BaseService {
       ['getContract', this.getContract.bind(this), 1],
       ['getContractHistory', this.getContractHistory, 2],
       ['getContractSummary', this.getContractSummary, 2],
-      ['getContractUnspentOutputs', this.getContractUnspentOutputs, 2],
-      ['getToken', this.getToken.bind(this), 1],
-      ['getTokenTransfers', this.getTokenTransfers.bind(this), 1],
+      ['getTokenTransfers', this.getTokenTransfers, 2],
       ['listContracts', this.listContracts.bind(this), 0],
-      ['listTokens', this.listTokens.bind(this), 0],
-      ['getAllTokenBalances', this.getAllTokenBalances.bind(this), 1]
+      ['listQRC20Tokens', this.listQRC20Tokens.bind(this), 0],
+      ['getAllQRC20TokenBalances', this.getAllQRC20TokenBalances.bind(this), 1]
     ]
   }
 
-  async getContract(address) {
-    let cacheContract = this._contractCache.get(address)
-    if (cacheContract) {
-      return cacheContract
-    }
-    let contractBuffer = await this._db.get(this._encoding.encodeContractKey(address))
-    if (contractBuffer) {
-      let contract = this._encoding.decodeContractValue(contractBuffer)
-      this._contractCache.set(address, contract)
-      return contract
-    }
+  getContract(address) {
+    return Contract.findOne({address})
   }
 
   async getContractHistory(address, {from = 0, to = 0xffffffff} = {}) {
     let list = await this._getContractTxidHistory(address)
-    list.sort((a, b) => b.height - a.height)
     return {
       totalCount: list.length,
-      transactions: list.slice(from, to).map(tx => tx.txid)
+      transactions: list.slice(from, to)
     }
   }
 
   async getContractSummary(address, options = {}) {
     let {totalCount, transactions} = options.noTxList ? {} : await this.getContractHistory(address, options)
-    options.listUsed = true
-    let utxos = await this.getContractUnspentOutputs(address, options)
+    let utxos = await this._address.getAddressUnspentOutputs(address, {listUsed: true})
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
@@ -133,142 +118,72 @@ class ContractService extends BaseService {
     }
   }
 
-  async getContractUnspentOutputs(address, {listUsed = false} = {}) {
-    let results = []
-
-    await new Promise((resolve, reject) => {
-      let start = this._encoding.encodeContractUtxoKey(address)
-      let end = Buffer.concat([start.slice(0, -36), Buffer.alloc(36, 0xff)])
-      let utxoStream = this._db.createReadStream({gte: start, lt: end})
-      utxoStream.on('end', resolve)
-      utxoStream.on('error', reject)
-      utxoStream.on('data', data => {
-        let key = this._encoding.decodeContractUtxoKey(data.key)
-        let value = this._encoding.decodeContractUtxoValue(data.value)
-        let confirmations = this._block.getTip().height - value.height + 1
-        results.push({
-          address,
-          txid: key.txid,
-          vout: key.outputIndex,
-          timestamp: value.timestamp,
-          height: value.height,
-          satoshis: value.satoshis,
-          confirmations
-        })
-      })
-    })
-
-    if (listUsed) {
-      await new Promise((resolve, reject) => {
-        let start = this._encoding.encodeContractUsedUtxoKey(address)
-        let end = Buffer.concat([start.slice(0, -36), Buffer.alloc(36, 0xff)])
-        let utxoStream = this._db.createReadStream({gte: start, lt: end})
-        utxoStream.on('end', resolve)
-        utxoStream.on('error', reject)
-        utxoStream.on('data', data => {
-          let key = this._encoding.decodeContractUsedUtxoKey(data.key)
-          let value = this._encoding.decodeContractUsedUtxoValue(data.value)
-          results.push({
-            address,
-            txid: key.txid,
-            vout: key.outputIndex,
-            timestamp: value.timestamp,
-            outputTxid: value.outputTxid,
-            height: value.height,
-            satoshis: value.satoshis,
-            confirmations: this._block.getTip().height - value.height + 1,
-          })
-        })
-      })
-    }
-
-    return results.sort((x, y) => x.confirmations - y.confirmations)
-  }
-
-  async getToken(address) {
-    let cacheToken = this._tokenCache.get(address)
-    if (cacheToken) {
-      return cacheToken
-    }
-    let tokenBuffer = await this._db.get(this._encoding.encodeTokenKey(address))
-    if (tokenBuffer) {
-      let token = this._encoding.decodeTokenValue(tokenBuffer)
-      this._tokenCache.set(address, token)
-      return token
-    }
-  }
-
-  async getTokenTransfers(txid) {
-    let eventLogBuffer = await this._db.get(this._encoding.encodeEventLogKey(txid))
-    if (!eventLogBuffer) {
-      return []
-    }
+  async getTokenTransfers(transaction) {
     let list = []
-    for (let {address, topics, data} of this._encoding.decodeEventLogValue(eventLogBuffer)) {
-      let token = await this.getToken(address)
-      if (!token) {
-        continue
-      }
-      token = Object.assign({address}, token)
-      if (topics[0] === TOKEN_EVENTS.Transfer) {
-        let from = topics[1] === '0'.repeat(64) ? null : this._fromHexAddress(topics[1].slice(24))
-        let to = this._fromHexAddress(topics[2].slice(24))
-        let amount = ContractService._uint256toBN(data)
-        list.push({token, from, to, amount})
-      } else if (topics[0] === TOKEN_EVENTS.Mint) {
-        let to = this._fromHexAddress(topics[1].slice(24))
-        let amount = ContractService._uint256toBN(data.slice(64))
-        list.push({token, from: null, to, amount})
-      } else if (topics[0] === TOKEN_EVENTS.Burn) {
-        let from = this._fromHexAddress(topics[1].slice(24))
-        let amount = ContractService._uint256toBN(data.slice(64))
-        list.push({token, from, to: null, amount})
+    for (let receipt of transaction.receipts) {
+      for (let {address, topics, data} of receipt.logs) {
+        let token = await Contract.findOne({address, type: 'qrc20'})
+        if (!token) {
+          continue
+        }
+        token = {
+          address,
+          name: token.qrc20.name,
+          symbol: token.qrc20.symbol,
+          decimals: token.qrc20.decimals,
+          totalSupply: token.qrc20.totalSupply
+        }
+        if (topics[0] === TOKEN_EVENTS.Transfer) {
+          list.push({
+            token,
+            from: topics[1] === '0'.repeat(64) ? null : this._fromHexAddress(topics[1].slice(24)),
+            to: this._fromHexAddress(topics[2].slice(24)),
+            amount: ContractService._uint256toBN(data).toString()
+          })
+        } else if (topics[0] === TOKEN_EVENTS.Mint) {
+          list.push({
+            token,
+            from: null,
+            to: this._fromHexAddress(topics[1].slice(24)),
+            amount: ContractService._uint256toBN(data.slice(64)).toString()
+          })
+        } else if (topics[0] === TOKEN_EVENTS.Burn) {
+          list.push({
+            token,
+            from: this._fromHexAddress(topics[1].slice(24)),
+            to: null,
+            amount: ContractService._uint256toBN(data.slice(64)).toString()
+          })
+        }
       }
     }
     return list
   }
 
   listContracts() {
-    return new Promise((resolve, reject) => {
-      let list = []
-      let start = this._encoding.encodeContractKey('0'.repeat(40))
-      let end = Buffer.concat([start.slice(0, -20), Buffer.alloc(20, 0xff)])
-      let utxoStream = this._db.createReadStream({gte: start, lt: end})
-      utxoStream.on('end', () => resolve(list))
-      utxoStream.on('error', reject)
-      utxoStream.on('data', async data => {
-        let address = this._encoding.decodeContractKey(data.key)
-        let {height, txid, owner} = this._encoding.decodeContractValue(data.value)
-        list.push({address, height, txid, owner})
-      })
-    })
+    return Contract.find()
   }
 
-  listTokens() {
-    return new Promise((resolve, reject) => {
-      let list = []
-      let start = this._encoding.encodeTokenKey('0'.repeat(40))
-      let end = Buffer.concat([start.slice(0, -20), Buffer.alloc(20, 0xff)])
-      let utxoStream = this._db.createReadStream({gte: start, lt: end})
-      utxoStream.on('end', () => resolve(list))
-      utxoStream.on('error', reject)
-      utxoStream.on('data', async data => {
-        let address = this._encoding.decodeTokenKey(data.key)
-        let {name, symbol, decimals, totalSupply} = this._encoding.decodeTokenValue(data.value)
-        list.push({address, name, symbol, decimals, totalSupply})
-      })
-    })
+  listQRC20Tokens() {
+    return Contract.find({type: 'qrc20'})
   }
 
-  async getAllTokenBalances(address) {
+  async getAllQRC20TokenBalances(address) {
     let hexAddress = Base58Check.decode(address).slice(1).toString('hex')
-    let tokens = await this.listTokens()
+    let tokens = await this.listQRC20Tokens()
     let list = []
     for (let token of tokens) {
       try {
         let {balance} = await this._callMethod(token.address, tokenAbi, 'balanceOf', '0x' + hexAddress)
         if (!balance.isZero()) {
-          list.push(Object.assign(token, {balance}))
+          list.push({
+            address: token.address,
+            name: token.qrc20.name,
+            symbol: token.qrc20.symbol,
+            decimals: token.qrc20.decimals,
+            totalSupply: token.qrc20.totalSupply,
+            balance: balance.toString()
+          })
         }
       } catch (err) {}
     }
@@ -276,14 +191,23 @@ class ContractService extends BaseService {
   }
 
   async start() {
-    this._prefix = await this._db.getPrefix(this.name)
-    this._encoding = new Encoding(this._prefix)
+    this._tip = await this._db.getServiceTip(this.name)
+    let blockTip = this._block.getTip()
+    if (this._tip.height > blockTip.height) {
+      this._tip = blockTip
+      await this._db.updateServiceTip(this._tip)
+    }
+    for (let x of ['80', '81', '82', '83', '84']) {
+      let dgpAddress = '0'.repeat(38) + x
+      await Contract.findOneAndUpdate({address: dgpAddress}, {$set: {type: 'dgp'}}, {upsert: true})
+    }
+    await Contract.deleteMany({createHeight: {$gt: blockTip.height}})
   }
 
   async onBlock(block) {
-    let operations = []
-    let contractAddresses = new Set()
-    let utxoMap = new Map()
+    if (block.height === 0) {
+      return
+    }
     for (let tx of block.transactions) {
       for (let i = 0; i < tx.outputs.length; ++i) {
         let output = tx.outputs[i]
@@ -291,70 +215,22 @@ class ContractService extends BaseService {
           let address = ContractService._getContractAddress(tx, i)
           try {
             await this._client.callContract(address, '00')
-            operations.push(...(await this._createContract(tx, block, address)))
-            contractAddresses.add(address)
-          } catch (err) {}
-        } else if (output.script.isContractCall()) {
-          let address = tx.outputs[i].script.chunks[4].buf.toString('hex')
-          contractAddresses.add(address)
-          operations.push({
-            type: 'put',
-            key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
-          })
-          if (output.satoshis) {
-            operations.push(...this._processOutput(tx, i, block, address, utxoMap))
+          } catch (err) {
+            continue
           }
-        }
-      }
-      for (let i = 0; i < tx.inputs.length; ++i) {
-        if (tx.inputs[i].script.isContractSpend()) {
-          operations.push(...(await this._processInput(tx, i, block, utxoMap)))
+          let owner = (await Utxo.findOne({
+            'input.transactionId': tx.id,
+            'input.index': 0
+          })).address
+          await this._createContract(tx, block, address, owner)
         }
       }
     }
-    if (contractAddresses.size) {
-      operations.push(...(await this._processReceipts(block, [...contractAddresses])))
-    }
-    return operations
+    await this._processReceipts(block)
   }
 
   async onReorg(_, block) {
-    let operations = []
-    let contracts = (await this.listContracts()).filter(contract => contract.height === block.height)
-    for (let {address, height, txid} of contracts) {
-      if (height === block.height) {
-        operations.push(
-          {type: 'del', key: this._encoding.encodeContractKey(address)},
-          {type: 'del', key: this._encoding.encodeContractTransactionKey(address, height, txid)},
-          {type: 'del', key: this._encoding.encodeTokenKey(address)}
-        )
-      }
-    }
-    for (let tx of block.transactions) {
-      operations.push({type: 'del', key: this._encoding.encodeEventLogKey(tx.id)})
-      for (let i = 0; i < tx.outputs.length; ++i) {
-        let output = tx.outputs[i]
-        if (output.script.isContractCall()) {
-          let address = output.script.chunks[4].buf.toString('hex')
-          operations.push({
-            type: 'del',
-            key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
-          })
-          if (output.satoshis) {
-            operations.push({
-              type: 'del',
-              key: this._encoding.encodeContractUtxoKey(address, tx.id, i)
-            })
-          }
-        }
-      }
-      for (let i = 0; i < tx.inputs.length; ++i) {
-        if (tx.inputs[i].script.isContractSpend()) {
-          operations.push(...(await this._removeInput(tx, i, block)))
-        }
-      }
-    }
-    return operations
+    await Contract.deleteMany({createHeight: block.height})
   }
 
   static _getContractAddress(tx, index) {
@@ -366,111 +242,31 @@ class ContractService extends BaseService {
     ])).toString('hex')
   }
 
-  async _createContract(tx, block, address) {
-    if (await this.getContract(address)) {
-      return []
+  async _createContract(tx, block, address, owner) {
+    if (await Contract.findOne({address})) {
+      return
     }
-    let owner = await getInputAddress(tx.inputs[0], this._transaction, this._network)
-    this._contractCache.set(address, {txid: tx.id, owner})
-    let operations = [
-      {
-        type: 'put',
-        key: this._encoding.encodeContractKey(address),
-        value: this._encoding.encodeContractValue(block.height, tx.id, owner)
-      },
-      {
-        type: 'put',
-        key: this._encoding.encodeContractTransactionKey(address, block.height, tx.id)
-      }
-    ]
+    let contract = new Contract({address, owner, createTransactionId: tx.id, createHeight: block.height})
     try {
-      let [{name}, {symbol}, {decimals}, {totalSupply}] = await Promise.all(
-        ['name', 'symbol', 'decimals', 'totalSupply'].map(
-          method => this._callMethod(address, tokenAbi, method)
-        )
-      )
-      decimals = decimals.toNumber()
-      this._tokenCache.set(address, {name, symbol, decimals, totalSupply})
-      operations.push({
-        type: 'put',
-        key: this._encoding.encodeTokenKey(address),
-        value: this._encoding.encodeTokenValue(name, symbol, decimals, totalSupply)
-      })
-    } catch (err) {}
-    return operations
-  }
-
-  _processOutput(tx, index, block, address, utxoMap) {
-    let output = tx.outputs[index]
-    utxoMap.set(tx.id + ' ' + index, {
-      address,
-      height: block.height,
-      satoshis: output.satoshis,
-      timestamp: block.header.time
-    })
-    return [{
-      type: 'put',
-      key: this._encoding.encodeContractUtxoKey(address, tx.id, index),
-      value: this._encoding.encodeContractUtxoValue(
-        block.height, output.satoshis, block.header.time
-      )
-    }]
-  }
-
-  async _processInput(tx, index, block, utxoMap) {
-    let input = tx.inputs[index]
-    let key = input.prevTxId.toString('hex') + ' ' + input.outputIndex
-    let utxoValue = utxoMap.get(key)
-    if (utxoValue) {
-      utxoMap.delete(key)
-    } else {
-      let transaction = await this._transaction.getTransaction(input.prevTxId.toString('hex'))
-      let output = transaction.outputs[input.outputIndex]
-      utxoValue = {
-        address: output.script.chunks[4].buf.toString('hex'),
-        height: transaction.height,
-        satoshis: output.satoshis,
-        timestamp: block.header.time
-      }
-    }
-    return [
-      {
-        type: 'del',
-        key: this._encoding.encodeContractUtxoKey(
-          utxoValue.address, input.prevTxId, input.outputIndex
-        )
-      },
-      {
-        type: 'put',
-        key: this._encoding.encodeContractUsedUtxoKey(
-          utxoValue.address, input.prevTxId, input.outputIndex
+      let {totalSupply} = await this._callMethod(address, tokenAbi, 'totalSupply')
+      contract.qrc20.totalSupply = totalSupply.toString()
+      contract.type = 'qrc20'
+      await Promise.all([
+        this._callMethod(address, tokenAbi, 'name').then(
+          ({name}) => contract.qrc20.name = name,
+          () => {}
         ),
-        value: this._encoding.encodeContractUsedUtxoValue(
-          utxoValue.height, utxoValue.satoshis, utxoValue.timestamp, tx.id, block.height
+        this._callMethod(address, tokenAbi, 'symbol').then(
+          ({symbol}) => contract.qrc20.symbol = symbol,
+          () => {}
+        ),
+        this._callMethod(address, tokenAbi, 'decimals').then(
+          ({decimals}) => contract.qrc20.decimals = decimals.toNumber(),
+          () => {}
         )
-      }
-    ]
-  }
-
-  async _removeInput(tx, index, block) {
-    let input = tx.inputs[index]
-    let _tx = await this._transaction.getTransaction(input.prevTxId)
-    let address = _tx.outputs[input.outputIndex].script.chunks[4].buf.toString('hex')
-    return [
-      {
-        type: 'put',
-        key: this._encoding.encodeContractUtxoKey(address, _tx.id, input.outputIndex),
-        value: this._encoding.encodeContractUtxoValue(
-          _tx.__height,
-          _tx.outputs[input.outputIndex].satoshis,
-          _tx.__timestamp
-        )
-      },
-      {
-        type: 'del',
-        key: this._encoding.encodeContractUsedUtxoKey(address, _tx.id, input.outputIndex)
-      }
-    ]
+      ])
+    } catch (err) {}
+    await contract.save()
   }
 
   async _callMethod(address, contract, method, ...args) {
@@ -493,56 +289,66 @@ class ContractService extends BaseService {
     return new Address(Buffer.from(data, 'hex'), this._network).toString()
   }
 
-  async _processReceipts(block, addresses) {
-    if (!block.height) {
-      return []
-    }
-    let operations = []
-    let list = await this._client.searchLogs(block.height, block.height, JSON.stringify({addresses}))
-    for (let {transactionHash, contractAddress, log} of list) {
-      operations.push({
-        type: 'put',
-        key: this._encoding.encodeEventLogKey(transactionHash),
-        value: this._encoding.encodeEventLogValue(log)
-      })
+  async _processReceipts(block) {
+    let list = await this._client.searchLogs(block.height, block.height)
+    for (let {transactionHash, gasUsed, contractAddress, log} of list) {
+      await Transaction.findOneAndUpdate(
+        {$or: [{id: transactionHash}, {hash: transactionHash}]},
+        {$push: {receipts: {gasUsed, contractAddress, logs: log}}}
+      )
       for (let {address, topics, data} of log) {
         if (address !== contractAddress) {
-          let transaction = block.transactions.find(tx => tx.hash === transactionHash)
-          operations.push(...(await this._createContract(transaction, block, address)))
+          let transaction = block.transactions.find(
+            tx => tx.id === transactionHash || tx.hash === transactionHash
+          )
+          if (!(await Contract.findOne({address}))) {
+            await this._createContract(transaction, block, address, contractAddress)
+          }
         }
         if ([TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn].includes(topics[0])) {
-          let token = await this.getToken(address)
-          if (!token) {
+          let contract = await Contract.findOne({address, type: 'qrc20'})
+          if (!contract) {
             continue
           }
           let {totalSupply} = await this._callMethod(address, tokenAbi, 'totalSupply')
-          token.totalSupply = totalSupply
-          operations.push({
-            type: 'put',
-            key: this._encoding.encodeTokenKey(contractAddress),
-            value: this._encoding.encodeTokenValue(
-              token.name, token.symbol, token.decimals, token.totalSupply
-            )
-          })
+          contract.totalSupply = totalSupply.toString()
+          await contract.save()
         }
       }
     }
-    return operations
   }
 
-  _getContractTxidHistory(address) {
-    return new Promise((resolve, reject) => {
-      let list = []
-      let start = this._encoding.encodeContractTransactionKey(address)
-      let end = Buffer.concat([start.slice(0, -36), Buffer.alloc(36, 0xff)])
-      let utxoStream = this._db.createReadStream({gte: start, lt: end})
-      utxoStream.on('end', () => resolve(list))
-      utxoStream.on('error', reject)
-      utxoStream.on('data', data => {
-        let {height, txid} = this._encoding.decodeContractTransactionKey(data.key)
-        list.push({height, txid})
-      })
-    })
+  async _getContractTxidHistory(address) {
+    let contract = await Contract.findOne({address}, ['createTransactionId', 'createHeight'])
+    let utxoList = await Utxo.find(
+      {address},
+      ['output.transactionId', 'input.transactionId', 'createHeight', 'useHeight']
+    )
+    let contractList = await Transaction.find(
+      {
+        $or: [
+          {'receipts.contractAddress': address},
+          {'receipts.logs.address': address}
+        ]
+      },
+      ['id', 'block.height']
+    )
+    let results = new Set()
+    results.add(contract.createTransactionId + ' ' + (contract.createHeight || 0))
+    for (let utxo of utxoList) {
+      results.add(utxo.output.transactionId + ' ' + utxo.createHeight)
+      if (utxo.useHeight != null) {
+        results.add(utxo.input.transactionId + ' ' + utxo.useHeight)
+      }
+    }
+    for (let tx of contractList) {
+      results.add(tx.id + ' ' + tx.block.height)
+    }
+    return [...results].map(s => {
+      let [txid, height] = s.split(' ')
+      height = Number.parseInt(height)
+      return {txid, height}
+    }).sort((x, y) => y.height - x.height).map(tx => tx.txid)
   }
 }
 

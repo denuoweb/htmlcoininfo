@@ -206,10 +206,10 @@ class Transaction {
 
   toBufferWriter(writer) {
     writer.writeInt32LE(this.version)
-    if (this.dummy !== undefined) {
+    if (this.dummy != undefined) {
       writer.writeUInt8(0)
     }
-    if (this.flags !== undefined) {
+    if (this.flags != undefined) {
       writer.writeUInt8(+this.flags)
     }
     writer.writeVarintNum(this.inputs.length)
@@ -351,6 +351,9 @@ class Transaction {
     }
     this.nLockTime = transaction.nLockTime
     this.version = transaction.version
+    this.dummy = transaction.dummy
+    this.flags = transaction.flags
+    this.witnessStack = transaction.witnessStack
     this._checkConsistency(arg)
     return this
   }

@@ -1,12 +1,9 @@
 const assert = require('assert')
 const BN = require('bn.js')
 const BaseService = require('../../service')
-const {
-  QTUM_GENESIS_HASH, QTUM_GENESIS_TIMESTAMP, QTUM_GENESIS_NONCE,
-  QTUM_GENESIS_HASH_STATE_ROOT, QTUM_GENESIS_HASH_UTXO_ROOT
-} = require('../../constants')
-const {encodeTip, fromCompact, getTarget, double256, getDifficulty, revHex, AsyncQueue} = require('../../utils')
-const Encoding = require('./encoding')
+const Header = require('../../models/header')
+const {QTUM_GENESIS_HASH, QTUM_GENESIS_NONCE} = require('../../constants')
+const {fromCompact, getTarget, double256, getDifficulty, revHex, AsyncQueue} = require('../../utils')
 
 const MAX_CHAINWORK = new BN(1).ushln(256)
 const STARTING_CHAINWORK = '0'.repeat(56) + '0001'.repeat(2)
@@ -20,11 +17,14 @@ class HeaderService extends BaseService {
     this._hashes = []
     this._subscriptions = {block: []}
     this._checkpoint = options.checkpoint || 2000
-    this.GENESIS_HASH = QTUM_GENESIS_HASH[this.node.network]
-    this.GENESIS_TIMESTAMP = QTUM_GENESIS_TIMESTAMP
-    this.GENESIS_NONCE = QTUM_GENESIS_NONCE[this.node.network]
-    this.GENESIS_HASH_STATE_ROOT = QTUM_GENESIS_HASH_STATE_ROOT[this.node.network]
-    this.GENESIS_HASH_UTXO_ROOT = QTUM_GENESIS_HASH_UTXO_ROOT[this.node.network]
+    this._network = this.node.network
+    if (this._network === 'livenet') {
+      this._network = 'mainnet'
+    } else if (this._network === 'regtest') {
+      this._network = 'testnet'
+    }
+    this.GENESIS_HASH = QTUM_GENESIS_HASH[this._network]
+    this.GENESIS_NONCE = QTUM_GENESIS_NONCE[this._network]
     this._lastHeader = null
     this._initialSync = true
     this._originalHeight = 0
@@ -57,7 +57,6 @@ class HeaderService extends BaseService {
 
   get APIMethods() {
     return [
-      ['getAllHeaders', this.getAllHeaders.bind(this), 0],
       ['getBestHeight', this.getBestHeight.bind(this), 0],
       ['getBlockHeader', this.getBlockHeader.bind(this), 1]
     ]
@@ -65,22 +64,6 @@ class HeaderService extends BaseService {
 
   getCurrentDifficulty() {
     return getDifficulty(getTarget(this._lastHeader.bits))
-  }
-
-  getAllHeaders() {
-    let start = this._encoding.encodeHeaderHeightKey(0)
-    let end = this._encoding.encodeHeaderHeightKey(this._tip.height + 1)
-    let allHeaders = new Map()
-    let stream = this._db.createReadStream({gte: start, lt: end})
-
-    return new Promise((resolve, reject) => {
-      stream.on('error', reject)
-      stream.on('data', data => {
-        let header = this._encoding.decodeHeaderValue(data.value)
-        allHeaders.set(header.hash, header)
-      })
-      stream.on('end', () => resolve(allHeaders))
-    })
   }
 
   getBlockHeader(arg) {
@@ -105,42 +88,28 @@ class HeaderService extends BaseService {
     }
   }
 
-  _setGenesisBlock() {
+  async _setGenesisBlock() {
     assert(this._tip.hash === this.GENESIS_HASH, 'Expected tip hash to be genesis hash, but it was not.')
-    let genesisHeader = {
+    await Header.remove()
+    let genesisBlock = new Header({
       hash: this.GENESIS_HASH,
       height: 0,
-      chainwork: STARTING_CHAINWORK,
       version: 1,
-      prevHash: '0'.repeat(64),
-      timestamp: this.GENESIS_TIMESTAMP,
-      nonce: this.GENESIS_NONCE,
-      bits: 0x1f00ffff,
       merkleRoot: 'ed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d',
-      hashStateRoot: this.GENESIS_HASH_STATE_ROOT,
-      hashUTXORoot: this.GENESIS_HASH_UTXO_ROOT,
-      prevOutStakeHash: '0'.repeat(64),
+      timestamp: 1504695029,
+      bits: 0x1f00ffff,
+      nonce: this.GENESIS_NONCE,
+      hashStateRoot: '9514771014c9ae803d8cea2731b2063e83de44802b40dce2d06acd02d0ff65e9',
+      hashUTXORoot: '21b463e3b52f6201c0ad6c991be0485b6ef8c092e64583ffa655cc1b171fe856',
       prevOutStakeN: 0xffffffff,
-      vchBlockSig: ''
-    }
-    this._lastHeader = genesisHeader
-    return this._db.batch([
-      {
-        type: 'put',
-        key: this._encoding.encodeHeaderHeightKey(0),
-        value: this._encoding.encodeHeaderValue(genesisHeader)
-      },
-      {
-        type: 'put',
-        key: this._encoding.encodeHeaderHashKey(this.GENESIS_HASH),
-        value: this._encoding.encodeHeaderValue(genesisHeader)
-      }
-    ])
+      vchBlockSig: '',
+      chainwork: STARTING_CHAINWORK,
+    })
+    this._lastHeader = genesisBlock
+    await genesisBlock.save()
   }
 
   async start() {
-    let prefix = await this._db.getPrefix(this.name)
-    this._encoding = new Encoding(prefix)
     this._tip = await this._db.getServiceTip(this.name)
     this._adjustTipBackToCheckpoint()
     if (this._tip.height === 0) {
@@ -192,7 +161,7 @@ class HeaderService extends BaseService {
       if (header) {
         this.node.log.debug('Header Service: block already exists in data set.')
       } else {
-        return this._persistHeader(block)
+        await this._persistHeader(block)
       }
     } catch (err) {
       this._handleError(err)
@@ -201,7 +170,7 @@ class HeaderService extends BaseService {
 
   async _persistHeader(block) {
     if (!this._detectReorg(block)) {
-      return this._syncBlock(block)
+      return await this._syncBlock(block)
     }
     this._reorging = true
     this.emit('reorg')
@@ -209,15 +178,12 @@ class HeaderService extends BaseService {
     this._startSync()
   }
 
-  _formatHeader(block) {
-    return block.header.toJSON()
-  }
-
-  _syncBlock(block) {
-    let header = this._formatHeader(block)
+  async _syncBlock(block) {
     this.node.log.debug('Header Service: new block:', block.hash)
-    let dbOps = this._getDBOpForLastHeader(header).concat(this._onHeader(header))
-    return this._saveHeaders(dbOps)
+    let header = new Header({hash: block.hash, ...block.header.toObject()})
+    this._onHeader(header)
+    await header.save()
+    await this._db.updateServiceTip(this.name, this._tip)
   }
 
   _broadcast(block) {
@@ -227,53 +193,20 @@ class HeaderService extends BaseService {
   }
 
   _onHeader(header) {
-    if (!header) {
-      return []
-    }
     header.height = this._lastHeader.height + 1
     header.chainwork = this._getChainwork(header, this._lastHeader).toString(16, 64)
-    header.timestamp = header.timestamp || header.time
     this._lastHeader = header
     this._tip.height = header.height
     this._tip.hash = header.hash
-    return [
-      {
-        type: 'put',
-        key: this._encoding.encodeHeaderHashKey(header.hash),
-        value: this._encoding.encodeHeaderValue(header)
-      },
-      {
-        type: 'put',
-        key: this._encoding.encodeHeaderHeightKey(header.height),
-        value: this._encoding.encodeHeaderValue(header)
-      }
-    ]
   }
 
   _transformHeaders(headers) {
     let result = []
     for (let i = 0; i < headers.length; ++i) {
       let header = headers[i].toObject()
-      if (i < headers.length - 1) {
-        header.nextHash = headers[i + 1].hash
-      }
-      result.push(header)
+      result.push(new Header({hash: header.hash, ...header}))
     }
     return result
-  }
-
-  _getDBOpForLastHeader(nextHeader) {
-    this._lastHeader.nextHash = nextHeader.hash
-    let keyHash = this._encoding.encodeHeaderHashKey(this._lastHeader.hash)
-    assert(this._lastHeader.height >= 0, 'Trying to save a header with incorrect height.')
-    let keyHeight = this._encoding.encodeHeaderHeightKey(this._lastHeader.height)
-    let value = this._encoding.encodeHeaderValue(this._lastHeader)
-    return [
-      {type: 'del', key: keyHash},
-      {type: 'del', key: keyHeight},
-      {type: 'put', key: keyHash, value},
-      {type: 'put', key: keyHeight, value}
-    ]
   }
 
   async _onHeaders(headers) {
@@ -282,10 +215,6 @@ class HeaderService extends BaseService {
     }
     this._lastHeaderCount = headers.length
     this.node.log.debug('Header Service: Received:', headers.length, 'header(s).')
-    if (!headers[0]) {
-      return
-    }
-    let dbOps = this._getDBOpForLastHeader(headers[0])
     let transformedHeaders = this._transformHeaders(headers)
     for (let header of transformedHeaders) {
       assert(
@@ -293,25 +222,16 @@ class HeaderService extends BaseService {
         `headers not in order: ${this._lastHeader.hash} -and- ${header.prevHash}, `
           + `Last header at height: ${this._lastHeader.height}`
       )
-      dbOps.push(...this._onHeader(header))
+      this._onHeader(header)
     }
-    try {
-      await this._saveHeaders(dbOps)
-    } catch (err) {
-      this._handleError(err)
-    }
+    await Header.insertMany(transformedHeaders)
+    await this._db.updateServiceTip(this.name, this._tip)
+    await this._onHeadersSave()
   }
 
   _handleError(err) {
     this.node.log.error('Header Service:', err)
     this.node.stop()
-  }
-
-  async _saveHeaders(dbOps) {
-    let tipOps = encodeTip(this._tip, this.name)
-    dbOps.push({type: 'put', key: tipOps.key, value: tipOps.value})
-    await this._db.batch(dbOps)
-    return this._onHeadersSave()
   }
 
   async _onHeadersSave() {
@@ -363,36 +283,25 @@ class HeaderService extends BaseService {
     this.node.log.debug('Header Service:', this._lastHeader.hash, 'is the best bock hash.')
   }
 
-  async _getHeader(height, hash) {
-    if (!hash && height < 0) {
-      throw new Error('invalid arguments')
-    }
+  _getHeader(height, hash) {
+    assert(hash || height >= 0, 'invalid arguments')
     if (this._lastHeader.height === height || this._lastHeader.hash === hash) {
       return this._lastHeader
     }
-    let key
-    if (hash) {
-      key = this._encoding.encodeHeaderHashKey(hash)
-    } else {
-      key = this._encoding.encodeHeaderHeightKey(height)
-    }
-    let data = await this._db.get(key)
-    if (data) {
-      return this._encoding.decodeHeaderValue(data)
-    }
+    return Header.findOne({$or: [{height}, {hash}]})
   }
 
   _detectReorg(block) {
     return revHex(block.prevBlock) !== this._lastHeader.hash
   }
 
-  _handleReorg(block) {
+  async _handleReorg(block) {
     this.node.log.warn(
       `Header Service: Reorganization detected, current tip hash: ${this._tip.hash},`,
       'new block causing the reorg:', block.hash
     )
     this._adjustTipBackToCheckpoint()
-    return this._adjustHeadersForCheckPointTip()
+    await this._adjustHeadersForCheckPointTip()
   }
 
   _setListeners() {
@@ -530,7 +439,7 @@ class HeaderService extends BaseService {
     this._getP2PHeaders(this._tip.hash)
   }
 
-  getEndHash(tip, blockCount) {
+  async getEndHash(tip, blockCount) {
     assert(blockCount >= 1, 'Header Service: block count to getEndHash must be at least 1.')
     let numResultsNeeded = Math.min(this._tip.height - tip.height, blockCount + 1)
     if (numResultsNeeded === 0 && this._tip.hash === tip.hash) {
@@ -539,25 +448,20 @@ class HeaderService extends BaseService {
       throw new Error('Header Service: block service is mis-aligned')
     }
     let startingHeight = tip.height + 1
-    let start = this._encoding.encodeHeaderHeightKey(startingHeight)
-    let end = this._encoding.encodeHeaderHeightKey(startingHeight + blockCount)
-    let results = []
-    let stream = this._db.createReadStream({gte: start, lte: end})
-
-    return new Promise((resolve, reject) => {
-      stream.on('error', reject)
-      stream.on('data', data => results.push(this._encoding.decodeHeaderValue(data.value).hash))
-      stream.on('end', () => {
-        assert(results.length === numResultsNeeded, 'getEndHash returned incorrect number of results.')
-        let index = numResultsNeeded - 1
-        let endHash = index <= 0 || !results[index] ? 0 : results[index]
-        if (this._slowMode) {
-          setTimeout(() => resolve({targetHash: results[0], endHash}), this._slowMode)
-        } else {
-          resolve({targetHash: results[0], endHash})
-        }
-      })
-    })
+    let results = (await Header.find(
+      {height: {$gte: startingHeight, $lte: startingHeight + blockCount}},
+      'hash'
+    )).map(header => header.hash)
+    assert(results.length === numResultsNeeded, 'getEndHash returned incorrect number of results.')
+    let index = numResultsNeeded - 1
+    let endHash = index <= 0 || !results[index] ? 0 : results[index]
+    if (this._slowMode) {
+      return new Promise(resolve =>
+        setTimeout(() => resolve({targetHash: results[0], endHash}))
+      )
+    } else {
+      return {targetHash: results[0], endHash}
+    }
   }
 
   getLastHeader() {
@@ -565,33 +469,12 @@ class HeaderService extends BaseService {
     return this._lastHeader
   }
 
-  _adjustHeadersForCheckPointTip() {
-    let removalOps = []
-    let start = this._encoding.encodeHeaderHeightKey(this._tip.height)
-    let end = this._encoding.encodeHeaderHeightKey(0xffffffff)
+  async _adjustHeadersForCheckPointTip() {
     this.node.log.info('Getting last header synced at height:', this._tip.height)
-    let stream = this._db.createReadStream({gte: start, lte: end})
-
-    return new Promise((resolve, reject) => {
-      stream.on('error', reject)
-      stream.on('data', data => {
-        let header = this._encoding.decodeHeaderValue(data.value)
-        if (header.height > this._tip.height) {
-          removalOps.push(
-            {type: 'del', key: data.key},
-            {type: 'del', key: this._encoding.encodeHeaderHashKey(header.hash)}
-          )
-        } else if (header.height === this._tip.height) {
-          this._lastHeader = header
-        }
-      })
-      stream.on('end', () => {
-        assert(this._lastHeader, 'The last synced header was not in the database.')
-        this._tip.hash = this._lastHeader.hash
-        this._tip.height = this._lastHeader.height
-        resolve(this._db.batch(removalOps))
-      })
-    })
+    await Header.remove({height: {$gt: this._tip.height}})
+    this._lastHeader = await Header.findOne({height: this._tip.height})
+    this._tip.hash = this._lastHeader.hash
+    this._tip.height = this._lastHeader.height
   }
 
   _getChainwork(header, prevHeader) {

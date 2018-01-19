@@ -38,15 +38,6 @@ class MempoolService extends BaseService {
     }]
   }
 
-  async start() {
-    let prefix = await this._db.getPrefix(this.name)
-    this._encoding = new Encoding(prefix)
-    if (this._flush) {
-      return this._flushMempool()
-    }
-    this.log.info('Mempool service: mempool disabled until full sync.')
-  }
-
   subscribe(name, emitter) {
     let subscriptions = this.subscriptions[name]
     subscriptions.push(emitter)
@@ -60,38 +51,6 @@ class MempoolService extends BaseService {
       subscriptions.splice(index, 1)
       this.log.info(emitter.remoteAddress, 'unsubscribe:', 'mempool/' + name, 'total:', subscriptions.length)
     }
-  }
-
-  _flushMempool() {
-    this.log.warn('Mempool service: flushing mempool, this could take a minute.')
-    let totalCount = 0
-    let criteria = {
-      gte: this._encoding.encodeMempoolTransactionKey('0'.repeat(64)),
-      lte: this._encoding.encodeMempoolTransactionKey('f'.repeat(64))
-    }
-
-    let timer = setInterval(() => {
-      this.log.info('Mempool service: removed:', totalCount, 'records during mempool flush.')
-    }, 5000)
-    timer.unref()
-
-    return new Promise(resolve => {
-      let stream = this._db.createReadStream(criteria)
-      stream.on('data', async data => {
-        let operations = await this._getAddressOperations(
-          this._encoding.decodeMempoolTransactionValue(data.value),
-          'del'
-        )
-        operations.push({type: 'del', key: data.key})
-        totalCount += operations.length
-        await this._db.batch(operations)
-      })
-      steam.on('end', () => {
-        clearInterval(timer)
-        this.node.log.info('Mempool service: complete flushing:', totalCount, 'tx mempool records.')
-        resolve()
-      })
-    })
   }
 
   async onReorg(_, block) {

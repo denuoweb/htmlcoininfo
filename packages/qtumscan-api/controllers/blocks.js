@@ -1,9 +1,8 @@
 const LRU = require('lru-cache')
-const {Block} = require('qtumscan-lib')
+const Block = require('qtumscan-node/lib/models/block')
 const {ErrorResponse} = require('../components/utils')
 
 const BLOCK_LIMIT = 200
-const DEFAULT_BLOCKSUMMARY_CACHE_SIZE = 1000000
 const DEFAULT_BLOCK_CACHE_SIZE = 1000
 const BLOCK_CACHE_CONFIRMATIONS = 6
 
@@ -17,16 +16,13 @@ function formatTimestamp(date) {
 class BlocksController {
   constructor({
     node,
-    blockSummaryCacheSize = DEFAULT_BLOCKSUMMARY_CACHE_SIZE,
     blockCacheSize = DEFAULT_BLOCK_CACHE_SIZE
   }) {
     this.node = node
-    this.blockSummaryCache = new LRU(blockSummaryCacheSize)
     this.blockCache = new LRU(blockCacheSize)
     this.errorResponse = new ErrorResponse({log: this.node.log})
     this._block = this.node.services.get('block')
     this._header = this.node.services.get('header')
-    this._timestamp = this.node.services.get('timestamp')
     this._transaction = this.node.services.get('transaction')
     this._network = this.node.network
     if (this.node.network === 'livenet') {
@@ -59,8 +55,7 @@ class BlocksController {
           ctx.throw(404)
         }
 
-        let info = await this._header.getBlockHeader(hash)
-        let blockResult = await this.transformBlock(block, info)
+        let blockResult = await this.transformBlock(block)
         if (blockResult.confirmations >= BLOCK_CACHE_CONFIRMATIONS) {
           this.blockCache.set(hash, blockResult)
         }
@@ -77,43 +72,39 @@ class BlocksController {
     let blockHash = ctx.params.blockHash
 
     try {
-      let blockBuffer = await this.node.getRawBlock(blockHash)
+      let block = await this._block.getBlock(blockHash)
+      if (!block) {
+        ctx.throw(404)
+      }
+      let blockBuffer = (await this._block.toRawBlock(block)).toBuffer()
       ctx.rawBlock = {rawBlock: blockBuffer.toString('hex')}
       await next()
     } catch (err) {
-      if ([-5, -8].includes(err.code)) {
-        ctx.throw(404)
-      } else {
-        this.errorResponse.handleErrors(ctx, err)
-      }
+      this.errorResponse.handleErrors(ctx, err)
     }
   }
 
-  static normalizePrevHash(hash) {
-    return hash !== '0'.repeat(64) ? hash : null
-  }
-
-  async transformBlock(block, info) {
-    let blockObj = block.toObject()
-    let {reward, minedBy, duration} = await this.getBlockReward(block)
-    let blockBuffer = block.toBuffer()
-    let blockHashBuffer = block.toHashBuffer()
+  async transformBlock(block) {
+    let rawBlock = await this._block.toRawBlock(block)
+    let blockBuffer = rawBlock.toBuffer()
+    let blockHashBuffer = rawBlock.toHashBuffer()
+    let {reward, minedBy, duration} = await this.getBlockReward(block, rawBlock)
     return {
       hash: block.hash,
       size: blockBuffer.length,
       weight: blockBuffer.length + blockHashBuffer.length * 3,
-      height: info.height,
-      version: blockObj.header.version,
-      merkleRoot: blockObj.header.merkleRoot,
-      tx: block.transactions.map(tx => tx.id),
-      time: blockObj.header.time,
-      nonce: blockObj.header.nonce,
-      bits: blockObj.header.bits.toString(16),
-      difficulty: block.header.getDifficulty(),
-      chainWork: info.chainWork,
-      confirmations: this._block.getTip().height - info.height + 1,
-      previousBlockHash: info.prevHash,
-      nextBlockHash: info.nextHash,
+      height: block.height,
+      version: block.version,
+      merkleRoot: block.merkleRoot,
+      tx: block.transactions,
+      timestamp: block.timestamp,
+      nonce: block.nonce,
+      bits: block.bits.toString(16),
+      difficulty: rawBlock.header.getDifficulty(),
+      chainWork: block.chainwork,
+      confirmations: this._block.getTip().height - block.height + 1,
+      previousBlockHash: block.prevHash,
+      nextBlockHash: block.nextHash,
       reward,
       minedBy,
       duration,
@@ -146,35 +137,18 @@ class BlocksController {
     }
   }
 
-  async _getBlockSummary(hash) {
-    let summaryCache = this.blockSummaryCache.get(hash)
-    if (summaryCache) {
-      return summaryCache
-    }
-    let blockBuffer = await this._block.getRawBlock(hash)
-    if (!blockBuffer) {
-      return
-    }
-    let block = Block.fromBuffer(blockBuffer, 'hex')
-    let header = await this._header.getBlockHeader(hash)
-    if (!header) {
-      return
-    }
-
-    let {reward, minedBy, duration} = await this.getBlockReward(block)
+  async _getBlockSummary(block) {
+    let rawBlock = await this._block.toRawBlock(block)
+    let {reward, minedBy, duration} = await this.getBlockReward(block, rawBlock)
     let summary = {
-      height: header.height,
-      size: block.toBuffer().length,
-      hash,
-      time: header.timestamp,
+      hash: block.hash,
+      height: block.height,
+      size: rawBlock.toBuffer().length,
+      timestamp: block.timestamp,
       txLength: block.transactions.length,
       reward,
       minedBy,
       duration
-    }
-    let confirmations = this._block.getTip().height - header.height + 1
-    if (confirmations >= BLOCK_CACHE_CONFIRMATIONS) {
-        this.blockSummaryCache.set(hash, summary)
     }
     return summary
   }
@@ -191,18 +165,17 @@ class BlocksController {
     let limit = Number.parseInt(ctx.query.limit) || BLOCK_LIMIT
 
     try {
-      let hashes = await this._timestamp.getBlockHashesByTimestamp(lte, gte, limit + 1)
-      let blocks = []
-      for (let hash of hashes) {
-        if (blocks.length >= limit) {
-          break
-        }
-        blocks.push(await this._getBlockSummary(hash))
-      }
-      let more = hashes.length > blocks.length
+      let blocks = await Block.aggregate(
+        {$match: {timestamp: {$lte: lte, $gte: gte}}},
+        {$sort: {height: -1}},
+        {$limit: limit},
+      )
+      blocks = await Promise.all(blocks.map(block => this._getBlockSummary(block)))
+      let count = await Block.find({timestamp: {$lte: lte, $gte: gte}}).count()
+      let more = count > blocks.length
       ctx.body = {
-        blocks: blocks,
-        length: hashes.length,
+        blocks,
+        length: count,
         pagination: {
           currentTs: Math.floor(Date.now() / 1000),
           current: dateStr,
@@ -216,37 +189,26 @@ class BlocksController {
     }
   }
 
-  async getBlockReward(block) {
+  async getBlockReward(block, rawBlock) {
     let minedBy, duration
     let reward = 0
-    if (block.header.isProofOfStake()) {
-      let transaction = block.transactions[1]
-      await this._transaction.setTxMetaInfo(transaction)
-      for (let output of transaction.outputs) {
-        reward += output.satoshis
-      }
-      for (let value of transaction.__inputValues) {
-        reward -= value
-      }
-      minedBy = transaction.outputs[1].script.toAddress(this._network).toString()
+    if (rawBlock.header.isProofOfStake()) {
+      let transaction = await this._transaction.getTransaction(block.transactions[1])
+      reward = -transaction.feeSatoshis
+      minedBy = transaction.outputs[1].address
     } else {
-      let transaction = block.transactions[0]
-      for (let output of transaction.outputs) {
-        reward += output.satoshis
-      }
-      minedBy = transaction.outputs[0].script.toAddress(this._network).toString()
+      let transaction = await this._transaction.getTransaction(block.transactions[0])
+      reward = transaction.outputSatoshis
+      minedBy = transaction.outputs[0].address
     }
-    let prevHash = block.header.toObject().prevHash
+    let prevHash = block.prevHash
     if (prevHash !== '0'.repeat(64)) {
       let prevBlockHeader = await this._header.getBlockHeader(prevHash)
-      duration = block.header.timestamp - prevBlockHeader.timestamp
+      duration = block.timestamp - prevBlockHeader.timestamp
     }
     return {reward, minedBy, duration}
   }
 }
 
 exports = module.exports = BlocksController
-Object.assign(exports, {
-  DEFAULT_BLOCKSUMMARY_CACHE_SIZE,
-  DEFAULT_BLOCK_CACHE_SIZE
-})
+exports.DEFAULT_BLOCK_CACHE_SIZE = DEFAULT_BLOCK_CACHE_SIZE
