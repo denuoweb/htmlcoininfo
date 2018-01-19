@@ -1,6 +1,6 @@
 const BaseService = require('../../service')
-const {getInputAddress, getOutputAddress} = require('../../utils')
-const Encoding = require('./encoding')
+const Transaction = require('../../models/transaction')
+const Utxo = require('../../models/utxo')
 
 class MempoolService extends BaseService {
   constructor(options) {
@@ -54,19 +54,15 @@ class MempoolService extends BaseService {
   }
 
   async onReorg(_, block) {
-    let removalOperations = []
-    for (let i = 2; i < block.transactions.length; ++i) {
-      let tx = block.transactions[i]
-      removalOperations.push(
-        {
-          type: 'put',
-          key: this._encoding.encodeMempoolTransactionKey(tx.id),
-          value: this._encoding.encodeMempoolTransactionValue(tx)
-        },
-        ...(await this._getAddressOperations(tx, 'put'))
-      )
-    }
-    return removalOperations
+    await Transaction.updateMany({'block.height': block.height}, {$set: {block: {height: 0xffffffff}}})
+    await Utxo.updateMany({createHeight: block.height}, {$set: {createHeight: 0xffffffff}})
+    await Utxo.updateMany({useHeight: block.height}, {$set: {useHeight: 0xffffffff}})
+    await Utxo.deleteMany({
+      $or: [
+        {'output.transactionId': {$in: [block.transactions[0].id, block.transactions[1].id]}},
+        {'input.transactionId': block.transactions[0].id}
+      ]
+    })
   }
 
   _startSubscriptions() {
@@ -86,17 +82,6 @@ class MempoolService extends BaseService {
     this.node.log.info('Mempool service: Mempool enabled.')
     this._startSubscriptions()
     this._enabled = true
-  }
-
-  async onBlock(block) {
-    let operations = []
-    for (let tx of block.transactions) {
-      operations.push(
-        {type: 'del', key: this._encoding.encodeMempoolTransactionKey(tx.id)},
-        ...(await this._getAddressOperations(tx, 'del'))
-      )
-    }
-    return operations
   }
 
   async _getAddressOperations(tx, action) {
@@ -126,23 +111,61 @@ class MempoolService extends BaseService {
   }
 
   async _onTransaction(tx) {
-    let ops = [
-      {
-        type: 'put',
-        key: this._encoding.encodeMempoolTransactionKey(tx.id),
-        value: this._encoding.encodeMempoolTransactionValue(tx)
-      },
-      ...(await this._getAddressOperations(tx, 'put'))
-    ]
-
-    try {
-      await this._db.batch(ops)
-      for (let transaction of this._subscriptions.transaction) {
-        transaction.emit('mempool/transaction')
+    console.log(tx.id);
+    let inputs = []
+    for (let index = 0; index < tx.inputs.length; ++index) {
+      let input = tx.inputs[index]
+      let utxo = await Utxo.findOne({
+        'output.transactionId': input.prevTxId.toString('hex'),
+        'output.index': input.outputIndex
+      })
+      if (utxo.useHeight) {
+        let transaction = await Transaction.findOne({id: utxo.input.transactionId})
+        assert(transaction.block.height === 0xffffffff)
+        await transaction.remove()
       }
-    } catch (err) {
-      this.node.log.error(err)
-      this.node.stop()
+      utxo.input.transactionId = tx.id
+      utxo.input.index = index
+      utxo.input.script = Utxo.transformScript(input.script)
+      utxo.input.sequence = input.sequenceNumber
+      utxo.useHeight = 0xffffffff
+      await utxo.save()
+      inputs.push(utxo._id)
+    }
+
+    let outputs = []
+    for (let index = 0; index < tx.outputs.length; ++index) {
+      let output = tx.outputs[index]
+      let utxo = new Utxo({
+        satoshis: output.satoshis,
+        output: {
+          transactionId: tx.id,
+          index,
+          script: Utxo.transformScript(output.script)
+        },
+        address: Utxo.getAddress(tx, index),
+        createHeight: 0xffffffff
+      })
+      await utxo.save()
+      outputs.push(utxo._id)
+    }
+
+    await new Transaction({
+      id: tx.id,
+      hash: tx.hash,
+      version: tx.version,
+      dummy: tx.dummy,
+      flags: tx.flags,
+      inputs,
+      outputs,
+      witnessStack: tx.witnessStack.map(witness => witness.map(item => item.toString('hex'))),
+      nLockTime: tx.nLockTime,
+      block: {height: 0xffffffff},
+      isStake: tx.outputs[0].script.chunks.length === 0
+    }).save()
+
+    for (let transaction of this._subscriptions.transaction) {
+      transaction.emit('mempool/transaction')
     }
   }
 

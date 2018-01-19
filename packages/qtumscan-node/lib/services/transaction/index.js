@@ -5,8 +5,6 @@ const BaseService = require('../../service')
 const Block = require('../../models/block')
 const Transaction = require('../../models/transaction')
 const Utxo = require('../../models/utxo')
-const {revHex} = require('../../utils')
-const {sha256ripemd160} = qtumscan.crypto.Hash
 
 class TransactionService extends BaseService {
   constructor(options) {
@@ -148,6 +146,7 @@ class TransactionService extends BaseService {
           },
           outputs: {$first: '$outputs'},
           witnessStack: {$first: '$witnessStack'},
+          nLockTime: {$first: '$nLockTime'},
           block: {$first: '$block'},
           isStake: {$first: '$isStake'},
           receipts: {$first: '$receipts'}
@@ -189,6 +188,7 @@ class TransactionService extends BaseService {
             }
           },
           witnessStack: {$first: '$witnessStack'},
+          nLockTime: {$first: '$nLockTime'},
           block: {$first: '$block'},
           isStake: {$first: '$isStake'},
           receipts: {$first: '$receipts'}
@@ -240,42 +240,23 @@ class TransactionService extends BaseService {
     await this._db.updateServiceTip(this.name, this._tip)
   }
 
-  async onReorg(_, block) {
-    await Transaction.deleteMany({'block.hash': block.hash})
-  }
-
-  static _getAddress(tx, index) {
-    let script = tx.outputs[index].script
-    if (script.isContractCreate()) {
-      let indexBuffer = Buffer.alloc(4)
-      indexBuffer.writeUInt32LE(index)
-      return sha256ripemd160(
-        Buffer.concat([Buffer.from(revHex(tx.hash), 'hex'), indexBuffer])
-      ).toString('hex')
-    } else if (script.isContractCall()) {
-      return script.chunks[4].buf.toString('hex')
-    } else {
-      let address = script.toAddress()
-      return address && address.toString()
-    }
-  }
-
-  static _transformScript(script) {
-    return script.chunks.map(chunk => ({
-      opcode: chunk.opcodenum,
-      buffer: chunk.buf && chunk.buf.toString('hex')
-    }))
-  }
+  // async onReorg(_, block) {
+  //   await Transaction.deleteMany({'block.height': block.height})
+  //   await Utxo.deleteMany({createHeight: block.height})
+  //   await Utxo.updateMany({useHeight: block.height}, {$set: {useHeight: null}})
+  // }
 
   async _processTransaction(tx, block) {
-    let inputs = await Promise.all(tx.inputs.map(async (input, index) => {
+    let inputs = []
+    for (let index = 0; index < tx.inputs.length; ++index) {
+      let input = tx.inputs[index]
       let utxo
       if (Buffer.compare(input.prevTxId, Buffer.alloc(32)) === 0) {
         utxo = new Utxo({
           input: {
             transactionId: tx.id,
             index,
-            script: TransactionService._transformScript(input.script),
+            script: Utxo.transformScript(input.script),
             sequence: input.sequenceNumber
           },
           createHeight: block.height,
@@ -288,43 +269,59 @@ class TransactionService extends BaseService {
         })
         utxo.input.transactionId = tx.id
         utxo.input.index = index
-        utxo.input.script = TransactionService._transformScript(input.script)
+        utxo.input.script = Utxo.transformScript(input.script)
         utxo.input.sequence = input.sequenceNumber
         utxo.useHeight = block.height
       }
       await utxo.save()
-      return utxo._id
-    }))
-    let outputs = await Promise.all(tx.outputs.map(async (output, index) => {
-      let utxo = new Utxo({
-        satoshis: output.satoshis,
-        output: {
-          transactionId: tx.id,
-          index,
-          script: TransactionService._transformScript(output.script)
-        },
-        address: TransactionService._getAddress(tx, index),
-        createHeight: block.height
-      })
+      inputs.push(utxo._id)
+    }
+
+    let outputs = []
+    for (let index = 0; index < tx.outputs.length; ++index) {
+      let output = tx.outputs[index]
+      let utxo = await Utxo.findOne({'output.transactionId': tx.id, 'output.index': index})
+      if (utxo) {
+        utxo.createHeight = block.height
+      } else {
+        utxo = new Utxo({
+          satoshis: output.satoshis,
+          output: {
+            transactionId: tx.id,
+            index,
+            script: Utxo.transformScript(output.script)
+          },
+          address: Utxo.getAddress(tx, index),
+          createHeight: block.height
+        })
+      }
       await utxo.save()
-      return utxo._id
-    }))
-    await new Transaction({
-      id: tx.id,
-      hash: tx.hash,
-      version: tx.version,
-      dummy: tx.dummy,
-      flags: tx.flags,
-      inputs,
-      outputs,
-      witnessStack: tx.witnessStack.map(witness => witness.map(item => item.toString('hex'))),
-      nLockTime: tx.nLockTime,
-      block: {
-        hash: block.hash,
-        height: block.height,
-      },
-      isStake: tx.outputs[0].script.chunks.length === 0
-    }).save()
+      outputs.push(utxo._id)
+    }
+
+    let transaction = await Transaction.findOne({id: tx.id})
+    if (transaction) {
+      transaction.block.hash = block.hash
+      transaction.block.height = block.height
+    } else {
+      transaction = new Transaction({
+        id: tx.id,
+        hash: tx.hash,
+        version: tx.version,
+        dummy: tx.dummy,
+        flags: tx.flags,
+        inputs,
+        outputs,
+        witnessStack: tx.witnessStack.map(witness => witness.map(item => item.toString('hex'))),
+        nLockTime: tx.nLockTime,
+        block: {
+          hash: block.hash,
+          height: block.height,
+        },
+        isStake: tx.outputs[0].script.chunks.length === 0
+      })
+    }
+    await transaction.save()
   }
 }
 

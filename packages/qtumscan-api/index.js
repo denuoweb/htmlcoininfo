@@ -64,8 +64,7 @@ class QtumscanAPI extends BaseService {
   }
 
   static get dependencies() {
-    // return ['block', 'contract', 'header', 'mempool', 'transaction', 'web']
-    return ['block', 'contract', 'header', 'transaction', 'web']
+    return ['block', 'contract', 'header', 'mempool', 'transaction', 'web']
   }
 
   get routePrefix() {

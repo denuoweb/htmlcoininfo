@@ -27,7 +27,7 @@ class BlockService extends BaseService {
     } else if (this._network === 'regtest') {
       this._network = 'testnet'
     }
-    // this._mempool = this.node.services.get('mempool')
+    this._mempool = this.node.services.get('mempool')
     this.GENESIS_HASH = QTUM_GENESIS_HASH[this._network]
     this.GENESIS_BLOCK_HEX = QTUM_GENESIS_BLOCK_HEX[this._network]
     this._initialSync = false
@@ -41,8 +41,7 @@ class BlockService extends BaseService {
   }
 
   static get dependencies() {
-    // return ['db', 'header', 'mempool', 'p2p']
-    return ['db', 'header', 'p2p']
+    return ['db', 'header', 'mempool', 'p2p']
   }
 
   subscribe(name, emitter) {
@@ -116,12 +115,20 @@ class BlockService extends BaseService {
     return this._tip
   }
 
-  getBlock(arg) {
+  async getBlock(arg) {
+    let block
     if (Number.isInteger(arg)) {
-      return Block.findOne({height: arg})
+      block = await Block.findOne({height: arg})
     } else {
-      return Block.findOne({hash: arg})
+      block = await Block.findOne({hash: arg})
     }
+    if (block) {
+      let nextBlock = await Block.findOne({height: block.height + 1})
+      if (nextBlock) {
+        block.nextHash = nextBlock.hash
+      }
+    }
+    return block
   }
 
   async toRawBlock(block) {
@@ -600,7 +607,7 @@ class BlockService extends BaseService {
     this._initialSync = false
     this._startBlockSubscription()
     this._logSynced(this._tip.hash)
-    // this._mempool.enable()
+    this._mempool.enable()
   }
 
   async _startSync() {
