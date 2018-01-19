@@ -42,16 +42,16 @@ class TransactionController {
   }
 
   async transformTransaction(transaction, options = {}) {
-    let confirmations = Math.max(this._block.getTip().height - transaction.block.height + 1, 0)
+    let confirmations = 'block' in transaction ? this._block.getTip().height - transaction.block.height + 1 : 0
     let transformed = {
       txid: transaction.id,
       hash: transaction.hash,
       version: transaction.version,
       lockTime: transaction.nLockTime,
-      blockHash: transaction.block.hash,
-      blockHeight: transaction.block.height,
+      blockHash: transaction.block && transaction.block.hash,
+      blockHeight: transaction.block && transaction.block.height,
       confirmations,
-      timestamp: transaction.block.timestamp || Math.floor(Date.now() / 1000),
+      timestamp: transaction.block && transaction.block.timestamp,
       isCoinbase: transaction.isCoinbase,
       valueOut: transaction.outputSatoshis,
       size: (await this._transaction.toRawTransaction(transaction)).toBuffer().length,

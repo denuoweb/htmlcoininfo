@@ -240,12 +240,6 @@ class TransactionService extends BaseService {
     await this._db.updateServiceTip(this.name, this._tip)
   }
 
-  // async onReorg(_, block) {
-  //   await Transaction.deleteMany({'block.height': block.height})
-  //   await Utxo.deleteMany({createHeight: block.height})
-  //   await Utxo.updateMany({useHeight: block.height}, {$set: {useHeight: null}})
-  // }
-
   async _processTransaction(tx, block) {
     let inputs = []
     for (let index = 0; index < tx.inputs.length; ++index) {

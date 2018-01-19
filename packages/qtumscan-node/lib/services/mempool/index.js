@@ -111,7 +111,6 @@ class MempoolService extends BaseService {
   }
 
   async _onTransaction(tx) {
-    console.log(tx.id);
     let inputs = []
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
