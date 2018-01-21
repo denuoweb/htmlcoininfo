@@ -1,10 +1,10 @@
 const assert = require('assert')
 const LRU = require('lru-cache')
 const qtumscan = require('qtumscan-lib')
-const BaseService = require('../../service')
-const Block = require('../../models/block')
-const Transaction = require('../../models/transaction')
-const Utxo = require('../../models/utxo')
+const BaseService = require('../service')
+const Block = require('../models/block')
+const Transaction = require('../models/transaction')
+const Utxo = require('../models/utxo')
 
 class TransactionService extends BaseService {
   constructor(options) {

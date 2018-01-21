@@ -1,8 +1,8 @@
 const BN = require('bn.js')
 const qtumscan = require('qtumscan-lib')
-const BaseService = require('../../service')
-const Transaction = require('../../models/transaction')
-const Utxo = require('../../models/utxo')
+const BaseService = require('../service')
+const Transaction = require('../models/transaction')
+const Utxo = require('../models/utxo')
 const {Base58Check} = qtumscan.encoding
 const {Contract, tokenABI} = qtumscan.contract
 const Address = qtumscan.Address

@@ -1,17 +1,17 @@
 const assert = require('assert')
 const LRU = require('lru-cache')
 const qtumscan = require('qtumscan-lib')
-const BaseService = require('../../service')
-const Block = require('../../models/block')
-const Header = require('../../models/header')
-const Transaction = require('../../models/transaction')
-const utils = require('../../utils')
+const BaseService = require('../service')
+const Block = require('../models/block')
+const Header = require('../models/header')
+const Transaction = require('../models/transaction')
+const utils = require('../utils')
 const {
   getTarget, getDifficulty, revHex, convertSecondsToHumanReadable,
   AsyncQueue,
   IndeterminateProgressBar
 } = utils
-const {QTUM_GENESIS_HASH, QTUM_GENESIS_BLOCK_HEX} = require('../../constants')
+const {QTUM_GENESIS_HASH, QTUM_GENESIS_BLOCK_HEX} = require('../constants')
 
 class BlockService extends BaseService {
   constructor(options) {
@@ -424,7 +424,6 @@ class BlockService extends BaseService {
       let block = await Block.findOne({hash})
       assert(block, 'Block Service: block not found in index.')
       block = await block.toRawBlock()
-      console.log(block);
       block.height = height
       block.header.time = block.header.timestamp = block.timestamp
       blocks.push(block)
