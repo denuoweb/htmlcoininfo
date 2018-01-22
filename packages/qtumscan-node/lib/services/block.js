@@ -309,19 +309,17 @@ class BlockService extends BaseService {
     }
   }
 
-  onReorg(_, block) {
-    return Block.remove({hash: block.hash})
+  async onReorg(_, block) {
+    await Block.remove({hash: block.hash})
   }
 
   async _onReorg(commonAncestorHash, block) {
-    let operations = []
     for (let service of this.node.services.values()) {
       if (service.onReorg) {
         this.node.log.info('Block Service: Reorging', service.name, 'service.')
         await service.onReorg(commonAncestorHash, block)
       }
     }
-    return operations
   }
 
   _removeAllSubscriptions() {

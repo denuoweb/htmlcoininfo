@@ -47,8 +47,7 @@ class DB extends BaseService {
 
   async start() {
     this._connection = await mongoose.connect(
-      'mongodb://localhost/' + {mainnet: 'qtumscan', testnet: 'qtumscan-testnet'}[this._network],
-      {useMongoClient: true}
+      'mongodb://localhost/' + {mainnet: 'qtumscan', testnet: 'qtumscan-testnet'}[this._network]
     )
   }
 
