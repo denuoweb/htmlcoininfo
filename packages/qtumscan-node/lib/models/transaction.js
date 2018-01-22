@@ -1,5 +1,4 @@
 const mongoose = require('mongoose')
-const qtumscan = require('qtumscan-lib')
 const {Schema} = mongoose
 
 const transactionSchema = new Schema({
@@ -16,6 +15,7 @@ const transactionSchema = new Schema({
     hash: {type: String, default: '0'.repeat(64)},
     height: {type: Number, default: 0xffffffff}
   },
+  index: Number,
   isStake: {type: Boolean, default: false},
   receipts: [{
     gasUsed: Number,
@@ -27,37 +27,6 @@ const transactionSchema = new Schema({
     }]
   }]
 })
-
-transactionSchema.methods.toRawTransaction = async function() {
-  let Utxo = this.model('Utxo')
-  let inputs = await Promise.all(this.inputs.map(async input => {
-    let utxo = await Utxo.findById(input)
-    return {
-      prevTxId: utxo.output.transactionId,
-      outputIndex: utxo.output.index,
-      sequenceNumber: utxo.input.sequence,
-      script: utxo.toRawScript(utxo.input.script)
-    }
-  }))
-  let outputs = await Promise.all(this.outputs.map(async output => {
-    let utxo = await Utxo.findById(output)
-    return {
-      satoshis: utxo.satoshis,
-      script: utxo.toRawScript(utxo.output.script)
-    }
-  }))
-  return new qtumscan.Transaction({
-    version: this.version,
-    dummy: this.dummy,
-    flags: this.flags,
-    inputs,
-    outputs,
-    witnessStack: this.witnessStack.map(
-      witness => witness.map(item => Buffer.from(item, 'hex'))
-    ),
-    nLockTime: this.nLockTime
-  })
-}
 
 transactionSchema.methods.isCoinbase = async function() {
   if (this.inputs.length === 1) {

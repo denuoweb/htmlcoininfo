@@ -1,8 +1,6 @@
 const assert = require('assert')
 const LRU = require('lru-cache')
-const qtumscan = require('qtumscan-lib')
 const BaseService = require('../service')
-const Block = require('../models/block')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
 
@@ -46,45 +44,6 @@ class TransactionService extends BaseService {
     }
   }
 
-  async toRawTransaction(transaction) {
-    let inputs = await Promise.all(transaction.inputs.map(async input => {
-      let utxo = await Utxo.findById(input)
-      return {
-        prevTxId: utxo.output.transactionId,
-        outputIndex: utxo.output.index,
-        sequenceNumber: utxo.input.sequence,
-        script: utxo.toRawScript(utxo.input.script)
-      }
-    }))
-    let outputs = await Promise.all(transaction.outputs.map(async output => {
-      let utxo = await Utxo.findById(output)
-      return {
-        satoshis: utxo.satoshis,
-        script: utxo.toRawScript(utxo.output.script)
-      }
-    }))
-    return new qtumscan.Transaction({
-      version: transaction.version,
-      dummy: transaction.dummy,
-      flags: transaction.flags,
-      inputs,
-      outputs,
-      witnessStack: transaction.witnessStack.map(
-        witness => witness.map(item => Buffer.from(item, 'hex'))
-      ),
-      nLockTime: transaction.nLockTime
-    })
-  }
-
-  toRawScript(script) {
-    return new qtumscan.Script({
-      chunks: script.map(chunk => ({
-        buf: chunk.buffer && Buffer.from(chunk.buffer, 'hex'),
-        opcodenum: chunk.opcode
-      }))
-    })
-  }
-
   async setTxMetaInfo(tx, options) {
     tx.outputSatoshis = 0
     for (let output of tx.outputs) {
@@ -105,7 +64,7 @@ class TransactionService extends BaseService {
   }
 
   async _getTransaction(txid) {
-    let list = await Transaction.aggregate(
+    let list = await Transaction.aggregate([
       {$match: {id: txid}},
       {$unwind: '$inputs'},
       {
@@ -203,7 +162,7 @@ class TransactionService extends BaseService {
         }
       },
       {$addFields: {block: {$arrayElemAt: ['$block', 0]}}}
-    )
+    ])
     return list[0]
   }
 
@@ -232,15 +191,15 @@ class TransactionService extends BaseService {
     if (this.node.stopping) {
       return
     }
-    for (let tx of block.transactions) {
-      await this._processTransaction(tx, block)
+    for (let i = 0; i < block.transactions; ++i) {
+      await this._processTransaction(block.transactions[i], i, block)
     }
     this._tip.height = block.height
     this._tip.hash = block.hash
     await this._db.updateServiceTip(this.name, this._tip)
   }
 
-  async _processTransaction(tx, block) {
+  async _processTransaction(tx, indexInBlock, block) {
     let inputs = []
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
@@ -297,6 +256,7 @@ class TransactionService extends BaseService {
     if (transaction) {
       transaction.block.hash = block.hash
       transaction.block.height = block.height
+      transaction.index = indexInBlock
     } else {
       transaction = new Transaction({
         id: tx.id,
@@ -312,6 +272,7 @@ class TransactionService extends BaseService {
           hash: block.hash,
           height: block.height,
         },
+        index: indexInBlock,
         isStake: tx.outputs[0].script.chunks.length === 0
       })
     }

@@ -1,4 +1,5 @@
 const qtumscan = require('qtumscan-lib')
+const {toRawTransaction, toRawScript} = require('qtumscan-node/lib/utils')
 const {ErrorResponse} = require('../components/utils')
 const BufferUtil = qtumscan.util.buffer
 const {sha256ripemd160} = qtumscan.crypto.Hash
@@ -54,19 +55,19 @@ class TransactionController {
       timestamp: transaction.block && transaction.block.timestamp,
       isCoinbase: transaction.isCoinbase,
       valueOut: transaction.outputSatoshis,
-      size: (await this._transaction.toRawTransaction(transaction)).toBuffer().length,
+      size: (await toRawTransaction(transaction)).toBuffer().length,
       tokenTransfers: []
     }
 
     if (transaction.isCoinbase) {
       transformed.vin = [{
-        coinbase: this._transaction.toRawScript(transaction.inputs[0].script).toBuffer().toString('hex'),
+        coinbase: toRawScript(transaction.inputs[0].script).toBuffer().toString('hex'),
         sequence: transaction.inputs[0].sequence,
         n: 0
       }]
     } else {
-      transformed.vin = await Promise.all(transaction.inputs.map((input, index) => {
-        let rawScript = this._transaction.toRawScript(input.script)
+      transformed.vin = transaction.inputs.map((input, index) => {
+        let rawScript = toRawScript(input.script)
         return {
           txid: input.prevTxId,
           vout: input.outputIndex,
@@ -79,12 +80,12 @@ class TransactionController {
             asm: rawScript.toString()
           }
         }
-      }))
+      })
       transformed.valueIn = transaction.inputSatoshis
       transformed.fees = transaction.feeSatoshis
     }
     transformed.vout = transaction.outputs.map((output, index) => {
-      let rawScript = this._transaction.toRawScript(output.script)
+      let rawScript = toRawScript(output.script)
       let address = rawScript.toAddress(this._network)
       let type
       if (address) {
@@ -152,7 +153,7 @@ class TransactionController {
         ctx.throw(404)
       }
       ctx.rawTransaction = {
-        rawtx: (await this._transaction.toRawTransaction(transaction)).toBuffer().toString('hex')
+        rawtx: (await toRawTransaction(transaction)).toBuffer().toString('hex')
       }
       await next()
     } catch (err) {

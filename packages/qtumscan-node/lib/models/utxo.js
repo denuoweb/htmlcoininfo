@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
 const qtumscan = require('qtumscan-lib')
-const {revHex} = require('../utils')
+const utils = require('../utils')
 const {Schema} = mongoose
 const {sha256ripemd160} = qtumscan.crypto.Hash
 
@@ -22,13 +22,6 @@ const utxoSchema = new Schema({
   useHeight: {type: Number, index: true}
 })
 
-utxoSchema.methods.toRawScript = script => new qtumscan.Script({
-  chunks: script.map(chunk => ({
-    buf: chunk.buffer && Buffer.from(chunk.buffer, 'hex'),
-    opcodenum: chunk.opcode
-  }))
-})
-
 exports = module.exports = mongoose.model('Utxo', utxoSchema)
 
 exports.transformScript = function(script) {
@@ -44,7 +37,7 @@ exports.getAddress = function(tx, index) {
     let indexBuffer = Buffer.alloc(4)
     indexBuffer.writeUInt32LE(index)
     return sha256ripemd160(
-      Buffer.concat([Buffer.from(revHex(tx.hash), 'hex'), indexBuffer])
+      Buffer.concat([Buffer.from(utils.revHex(tx.hash), 'hex'), indexBuffer])
     ).toString('hex')
   } else if (script.isContractCall()) {
     return script.chunks[4].buf.toString('hex')

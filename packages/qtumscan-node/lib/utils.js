@@ -1,7 +1,10 @@
 const assert = require('assert')
 const BN = require('bn.js')
-const {Address} = require('qtumscan-lib')
-const {DB_PREFIX} = require('./constants')
+const mongoose = require('mongoose')
+const qtumscan = require('qtumscan-lib')
+const Block = require('./models/block')
+const Transaction = require('./models/transaction')
+const Utxo = require('./models/utxo')
 
 exports.parseParamsWithJSON = function(paramsArg) {
   return paramsArg.map(paramArg => {
@@ -12,32 +15,6 @@ exports.parseParamsWithJSON = function(paramsArg) {
     }
   })
 }
-
-exports.encodeTip = function(tip, name) {
-  let key = Buffer.concat([DB_PREFIX, Buffer.from('tip-' + name)])
-  let heightBuffer = Buffer.alloc(4)
-  heightBuffer.writeUInt32BE(tip.height)
-  let value = Buffer.concat([heightBuffer, Buffer.from(tip.hash, 'hex')])
-  return {key, value}
-}
-
-async function getInputAddress(item, transactionService, network) {
-  let address
-  if (item.script.isPublicKeyIn() || item.script.isWitnessIn()) {
-    let prevTransaction = await transactionService.getTransaction(item.prevTxId)
-    address = getOutputAddress(prevTransaction.outputs[item.outputIndex], transactionService, network)
-  } else {
-    address = item.script.toAddress(network)
-  }
-  return address && address.toString()
-}
-exports.getInputAddress = getInputAddress
-
-function getOutputAddress(item, transactionService, network) {
-  let address = item.script.toAddress(network)
-  return address && address.toString()
-}
-exports.getOutputAddress = getOutputAddress
 
 exports.fromCompact = function(compact) {
   if (compact === 0) {
@@ -164,3 +141,94 @@ class IndeterminateProgressBar {
   }
 }
 exports.IndeterminateProgressBar = IndeterminateProgressBar
+
+async function toRawBlock(block) {
+  let list = await Transaction.find({id: {$in: block.transactions}})
+  let map = new Map(list.map(tx => [tx.id, tx]))
+  let transactions = await Promise.all(block.transactions.map(
+    async id => toRawTransaction(map.get(id), true)
+  ))
+  return new qtumscan.Block({
+    header: {
+      hash: block.hash,
+      version: block.version,
+      prevHash: block.prevHash,
+      merkleRoot: block.merkleRoot,
+      timestamp: block.timestamp,
+      bits: block.bits,
+      nonce: block.nonce,
+      hashStateRoot: block.hashStateRoot,
+      hashUTXORoot: block.hashUTXORoot,
+      prevOutStakeHash: block.prevOutStakeHash,
+      prevOutStakeN: block.prevOutStakeN,
+      vchBlockSig: block.vchBlockSig
+    },
+    transactions
+  })
+}
+exports.toRawBlock = toRawBlock
+
+async function toRawTransaction(transaction, raw) {
+  let inputs, outputs
+  if (raw) {
+    let inputList = await Utxo.find({_id: {$in: transaction.inputs}})
+    let inputMap = {}
+    for (let utxo of inputList) {
+      inputMap[utxo._id] = utxo
+    }
+    inputs = transaction.inputs.map(_id => {
+      let utxo = inputMap[_id]
+      return {
+        prevTxId: utxo.output.transactionId,
+        outputIndex: utxo.output.index,
+        sequenceNumber: utxo.input.sequence,
+        script: toRawScript(utxo.input.script)
+      }
+    })
+    let outputList = await Utxo.find({_id: {$in: transaction.outputs}})
+    let outputMap = {}
+    for (let utxo of outputList) {
+      outputMap[utxo._id] = utxo
+    }
+    outputs = transaction.outputs.map(_id => {
+      let utxo = outputMap[_id]
+      return {
+        satoshis: utxo.satoshis,
+        script: toRawScript(utxo.output.script)
+      }
+    })
+  } else {
+    inputs = transaction.inputs.map(input => ({
+      prevTxId: input.prevTxId,
+      outputIndex: input.outputIndex,
+      sequenceNumber: input.sequence,
+      script: toRawScript(input.script)
+    }))
+    outputs = transaction.outputs.map(output => ({
+      satoshis: output.satoshis,
+      script: toRawScript(output.script)
+    }))
+  }
+  return new qtumscan.Transaction({
+    version: transaction.version,
+    dummy: transaction.dummy,
+    flags: transaction.flags,
+    inputs,
+    outputs,
+    witnessStack: transaction.witnessStack.map(
+      witness => witness.map(item => Buffer.from(item, 'hex'))
+    ),
+    nLockTime: transaction.nLockTime
+  })
+}
+exports.toRawTransaction = toRawTransaction
+
+function toRawScript(script) {
+  return new qtumscan.Script({
+    chunks: script.map(chunk => ({
+      buf: chunk.buffer && Buffer.from(chunk.buffer, 'hex'),
+      opcodenum: chunk.opcode
+    }))
+  })
+}
+exports.toRawScript = toRawScript

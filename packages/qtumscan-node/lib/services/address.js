@@ -103,7 +103,7 @@ class AddressService extends BaseService {
   }
 
   async getAddressUnspentOutputs(address, {listUsed = false} = {}) {
-    let utxoList = await Utxo.aggregate(
+    let utxoList = await Utxo.aggregate([
       {$match: {address, ...(listUsed ? {} : {useHeight: null})}},
       {
         $project: {
@@ -135,7 +135,7 @@ class AddressService extends BaseService {
           isStake: '$transaction.isStake'
         }
       }
-    )
+    ])
     let results = []
     for (let utxo of utxoList) {
       let confirmations = Math.max(this._block.getTip().height - utxo.height + 1, 0)
@@ -212,7 +212,7 @@ class AddressService extends BaseService {
     if (!height) {
       height = this._block.getTip().height + 1
     }
-    return Utxo.aggregate(
+    return Utxo.aggregate([
       {
         $match: {
           satoshis: {$ne: 0},
@@ -233,7 +233,7 @@ class AddressService extends BaseService {
       {$match: {balance: {$gte: minBalance}}},
       {$sort: {balance: -1}},
       {$project: {_id: false, address: '$_id', balance: '$balance'}}
-    )
+    ])
   }
 }
 

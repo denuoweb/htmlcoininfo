@@ -4,12 +4,11 @@ const qtumscan = require('qtumscan-lib')
 const BaseService = require('../service')
 const Block = require('../models/block')
 const Header = require('../models/header')
-const Transaction = require('../models/transaction')
 const utils = require('../utils')
 const {
   getTarget, getDifficulty, revHex, convertSecondsToHumanReadable,
-  AsyncQueue,
-  IndeterminateProgressBar
+  AsyncQueue, IndeterminateProgressBar,
+  toRawBlock
 } = utils
 const {QTUM_GENESIS_HASH, QTUM_GENESIS_BLOCK_HEX} = require('../constants')
 
@@ -79,7 +78,6 @@ class BlockService extends BaseService {
     return [
       ['getInfo', this.getInfo.bind(this), 0],
       ['getBlock', this.getBlock.bind(this), 1],
-      ['getRawBlock', this.getRawBlock.bind(this), 1],
       ['getBlockOverview', this.getBlockOverview.bind(this), 1],
       ['getBestBlockHash', this.getBestBlockHash.bind(this), 0],
       ['syncPercentage', this.syncPercentage.bind(this), 0],
@@ -131,30 +129,6 @@ class BlockService extends BaseService {
     return block
   }
 
-  async toRawBlock(block) {
-    let transactions = await Promise.all(block.transactions.map(async id => {
-      let transaction = await Transaction.findOne({id})
-      return transaction.toRawTransaction()
-    }))
-    return new qtumscan.Block({
-      header: {
-        hash: block.hash,
-        version: block.version,
-        prevHash: block.prevHash,
-        merkleRoot: block.merkleRoot,
-        timestamp: block.timestamp,
-        bits: block.bits,
-        nonce: block.nonce,
-        hashStateRoot: block.hashStateRoot,
-        hashUTXORoot: block.hashUTXORoot,
-        prevOutStakeHash: block.prevOutStakeHash,
-        prevOutStakeN: block.prevOutStakeN,
-        vchBlockSig: block.vchBlockSig
-      },
-      transactions
-    })
-  }
-
   async getBlockOverview(hash) {
     let block = await Block.findOne({hash})
     if (!block) {
@@ -181,13 +155,6 @@ class BlockService extends BaseService {
       vchBlockSig: block.vchBlockSig,
       chainwork: block.chainwork,
       txids: block.transactions
-    }
-  }
-
-  async getRawBlock(hash) {
-    let block = await this.getBlock(hash)
-    if (block) {
-      return block.toBuffer().toString('hex')
     }
   }
 
@@ -421,7 +388,7 @@ class BlockService extends BaseService {
     for (let i = 0; i < this._recentBlockHashes.length && hash !== commonHeader.hash; ++i) {
       let block = await Block.findOne({hash})
       assert(block, 'Block Service: block not found in index.')
-      block = await block.toRawBlock()
+      block = await toRawBlock(block)
       block.height = height
       block.header.time = block.header.timestamp = block.timestamp
       blocks.push(block)
