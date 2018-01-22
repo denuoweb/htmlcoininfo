@@ -1,1 +1,1 @@
-# qtumscan
+# qtuminfo

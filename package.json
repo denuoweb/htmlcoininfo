@@ -1,28 +1,28 @@
 {
-  "name": "qtumscan",
+  "name": "qtuminfo",
   "private": true,
   "version": "0.0.1",
   "description": "",
   "scripts": {
     "lerna": "lerna",
-    "qtumscan-node": "node packages/qtumscan-node/bin/qtumscan-node"
+    "qtuminfo-node": "node packages/qtuminfo-node/bin/qtuminfo-node"
   },
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qtumproject/qtumscan.git"
+    "url": "git+https://github.com/qtumproject/qtuminfo.git"
   },
   "keywords": [
     "qtum",
-    "qtumscan",
+    "qtuminfo",
     "qtum explorer"
   ],
   "author": "QTUM <foundation@qtum.org>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/qtumproject/qtumscan/issues"
+    "url": "https://github.com/qtumproject/qtuminfo/issues"
   },
-  "homepage": "https://github.com/qtumproject/qtumscan#readme",
+  "homepage": "https://github.com/qtumproject/qtuminfo#readme",
   "devDependencies": {
     "lerna": "^2.5.1"
   }

@@ -1,7 +1,0 @@
-#!/usr/bin/env node
-
-const qtumscan = require('../lib/cli/qtumscan')
-
-process.on('unhandledRejection', reason => console.error(reason))
-
-qtumscan()
