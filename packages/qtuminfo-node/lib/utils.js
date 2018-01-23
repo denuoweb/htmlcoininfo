@@ -143,11 +143,84 @@ class IndeterminateProgressBar {
 exports.IndeterminateProgressBar = IndeterminateProgressBar
 
 async function toRawBlock(block) {
-  let list = await Transaction.find({id: {$in: block.transactions}})
+  let list = await Transaction.aggregate([
+    {$match: {id: {$in: block.transactions}}},
+    {$unwind: '$inputs'},
+    {
+      $lookup: {
+        from: 'utxos',
+        localField: 'inputs',
+        foreignField: '_id',
+        as: 'input'
+      }
+    },
+    {
+      $group: {
+        _id: '$_id',
+        id: {$first: '$id'},
+        version: {$first: '$version'},
+        dummy: {$first: '$dummy'},
+        flags: {$first: '$flags'},
+        inputs: {
+          $push: {
+            prevTxId: {$arrayElemAt: ['$input.output.transactionId', 0]},
+            outputIndex: {$arrayElemAt: ['$input.output.index', 0]},
+            script: {
+              $map: {
+                input: {$arrayElemAt: ['$input.input.script', 0]},
+                as: 'chunk',
+                in: {
+                  opcode: '$$chunk.opcode',
+                  buffer: '$$chunk.buffer'
+                }
+              }
+            },
+            sequence: {$arrayElemAt: ['$input.input.sequence', 0]}
+          }
+        },
+        outputs: {$first: '$outputs'},
+        witnessStack: {$first: '$witnessStack'},
+        nLockTime: {$first: '$nLockTime'}
+      }
+    },
+    {$unwind: '$outputs'},
+    {
+      $lookup: {
+        from: 'utxos',
+        localField: 'outputs',
+        foreignField: '_id',
+        as: 'output'
+      }
+    },
+    {
+      $group: {
+        _id: '$_id',
+        id: {$first: '$id'},
+        version: {$first: '$version'},
+        dummy: {$first: '$dummy'},
+        flags: {$first: '$flags'},
+        inputs: {$first: '$inputs'},
+        outputs: {
+          $push: {
+            satoshis: {$arrayElemAt: ['$output.satoshis', 0]},
+            script: {
+              $map: {
+                input: {$arrayElemAt: ['$output.output.script', 0]},
+                as: 'chunk',
+                in: {
+                  opcode: '$$chunk.opcode',
+                  buffer: '$$chunk.buffer'
+                }
+              }
+            }
+          }
+        },
+        witnessStack: {$first: '$witnessStack'},
+        nLockTime: {$first: '$nLockTime'}
+      }
+    }
+  ])
   let map = new Map(list.map(tx => [tx.id, tx]))
-  let transactions = await Promise.all(block.transactions.map(
-    async id => toRawTransaction(map.get(id), true)
-  ))
   return new qtuminfo.Block({
     header: {
       hash: block.hash,
@@ -163,60 +236,28 @@ async function toRawBlock(block) {
       prevOutStakeN: block.prevOutStakeN,
       vchBlockSig: block.vchBlockSig
     },
-    transactions
+    transactions: block.transactions.map(id => toRawTransaction(map.get(id)))
   })
 }
 exports.toRawBlock = toRawBlock
 
-async function toRawTransaction(transaction, raw) {
-  let inputs, outputs
-  if (raw) {
-    let inputList = await Utxo.find({_id: {$in: transaction.inputs}})
-    let inputMap = {}
-    for (let utxo of inputList) {
-      inputMap[utxo._id] = utxo
-    }
-    inputs = transaction.inputs.map(_id => {
-      let utxo = inputMap[_id]
-      return {
-        prevTxId: utxo.output.transactionId,
-        outputIndex: utxo.output.index,
-        sequenceNumber: utxo.input.sequence,
-        script: toRawScript(utxo.input.script)
-      }
-    })
-    let outputList = await Utxo.find({_id: {$in: transaction.outputs}})
-    let outputMap = {}
-    for (let utxo of outputList) {
-      outputMap[utxo._id] = utxo
-    }
-    outputs = transaction.outputs.map(_id => {
-      let utxo = outputMap[_id]
-      return {
-        satoshis: utxo.satoshis,
-        script: toRawScript(utxo.output.script)
-      }
-    })
-  } else {
-    inputs = transaction.inputs.map(input => ({
-      prevTxId: input.prevTxId,
-      outputIndex: input.outputIndex,
-      sequenceNumber: input.sequence,
-      script: toRawScript(input.script)
-    }))
-    outputs = transaction.outputs.map(output => ({
-      satoshis: output.satoshis,
-      script: toRawScript(output.script)
-    }))
-  }
+function toRawTransaction(transaction, raw) {
   return new qtuminfo.Transaction({
     version: transaction.version,
     dummy: transaction.dummy,
     flags: transaction.flags,
-    inputs,
-    outputs,
+    inputs: transaction.inputs.map(input => ({
+      prevTxId: input.prevTxId,
+      outputIndex: input.outputIndex,
+      sequenceNumber: input.sequence,
+      script: toRawScript(input.script)
+    })),
+    outputs: transaction.outputs.map(output => ({
+      satoshis: output.satoshis,
+      script: toRawScript(output.script)
+    })),
     witnessStack: transaction.witnessStack.map(
-      witness => witness.map(item => Buffer.from(item, 'hex'))
+      witness => witness.map(item => Buffer.from(item.buffer))
     ),
     nLockTime: transaction.nLockTime
   })
@@ -226,8 +267,8 @@ exports.toRawTransaction = toRawTransaction
 function toRawScript(script) {
   return new qtuminfo.Script({
     chunks: script.map(chunk => ({
-      buf: chunk.buffer && Buffer.from(chunk.buffer, 'hex'),
-      opcodenum: chunk.opcode
+      opcodenum: chunk.opcode,
+      buf: chunk.buffer && Buffer.from(chunk.buffer.buffer)
     }))
   })
 }

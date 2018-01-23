@@ -3,6 +3,7 @@ const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
+const {toRawScript} = require('../utils')
 const {Base58Check} = qtuminfo.encoding
 const {Contract, tokenABI} = qtuminfo.contract
 const Address = qtuminfo.Address
@@ -53,41 +54,19 @@ class AddressService extends BaseService {
     let totalSent = new BN(0)
     let unconfirmedBalance = new BN(0)
     let stakingBalance = new BN(0)
-    let txidMap = new Map()
     for (let utxo of utxos) {
       let value = new BN(utxo.satoshis)
-      let inputItem
-      if (txidMap.has(utxo.txid)) {
-        inputItem = txidMap.get(utxo.txid)
-        inputItem.received += utxo.satoshis
-      } else {
-        inputItem = {received: utxo.satoshis, sent: 0}
-        txidMap.set(utxo.txid, inputItem)
-      }
+      totalReceived.iadd(value)
       if (utxo.outputTxId) {
-        let outputItem
-        if (txidMap.has(utxo.outputTxId)) {
-          outputItem = txidMap.get(utxo.outputTxId)
-          outputItem.sent += utxo.satoshis
-        } else {
-          outputItem = {received: 0, sent: utxo.satoshis}
-          txidMap.set(utxo.outputTxId, outputItem)
-        }
+        totalSent.iadd(value)
       } else {
         balance.iadd(value)
         if (utxo.confirmations === 0) {
-          unconfirmedBalance.iadd(new BN(value))
+          unconfirmedBalance.iadd(value)
         }
       }
       if (utxo.staking) {
-        stakingBalance.iadd(new BN(value))
-      }
-    }
-    for (let {received, sent} of txidMap.values()) {
-      if (received > sent) {
-        totalReceived.iadd(new BN(received - sent))
-      } else {
-        totalSent.iadd(new BN(sent - received))
+        stakingBalance.iadd(value)
       }
     }
     return {
@@ -104,34 +83,27 @@ class AddressService extends BaseService {
 
   async getAddressUnspentOutputs(address, {listUsed = false} = {}) {
     let utxoList = await Utxo.aggregate([
-      {$match: {address, ...(listUsed ? {} : {useHeight: null})}},
-      {
-        $project: {
-          satoshis: '$satoshis',
-          output: {
-            transactionId: '$output.transactionId',
-            index: '$output.index'
-          },
-          input: {transactionId: '$input.transactionId'},
-          createHeight: '$createHeight'
-        }
-      },
-      {$sort: {createHeight: -1}},
+      {$match: {address, ...(listUsed ? {} : {'input.height': null})}},
       {
         $lookup: {
-          from: 'Transaction',
+          from: 'transactions',
           localField: 'output.transactionId',
           foreignField: 'id',
           as: 'transaction'
         }
       },
+      {$unwind: '$transaction'},
+      {$sort: {'output.height': 1, 'transaction.index': 1, 'output.index': 1}},
       {
         $project: {
           satoshis: '$satoshis',
           outputTxId: '$output.transactionId',
           outputIndex: '$output.index',
+          outputScript: '$output.script',
           inputTxId: '$input.transactionId',
-          height: '$createHeight',
+          inputScript: '$input.script',
+          height: '$output.height',
+          index: '$transaction.index',
           isStake: '$transaction.isStake'
         }
       }
@@ -145,6 +117,8 @@ class AddressService extends BaseService {
         satoshis: utxo.satoshis,
         height: utxo.height,
         outputTxId: utxo.inputTxId === '0'.repeat(64) ? null : utxo.inputTxId,
+        scriptPubKey: toRawScript(utxo.outputScript).toBuffer().toString('hex'),
+        scriptSig: toRawScript(utxo.inputScript).toBuffer().toString('hex'),
         confirmations,
         staking: utxo.isStake && confirmations < 500
       })
@@ -165,47 +139,102 @@ class AddressService extends BaseService {
     let hexAddresses = addresses.map(
       address => '0'.repeat(24) + Base58Check.decode(address).slice(1).toString('hex')
     )
-    let utxoList = await Utxo.find(
-      {address: {$in: addresses}},
-      ['output.transactionId', 'input.transactionId', 'createHeight', 'useHeight']
-    )
-    let contractList = await Transaction.find(
+    let utxoList = await Utxo.aggregate([
+      {$match: {address: {$in: addresses}}},
+      {$project: {id: ['$output.transactionId', '$input.transactionId']}},
+      {$unwind: '$id'},
+      {$match: {id: {$ne: '0'.repeat(64)}}},
+      {$group: {_id: '$id'}},
       {
-        $or: [
-          {
-            'receipts.logs.topics.0': TOKEN_EVENTS.Transfer,
-            $or: [
-              {'receipts.logs.topics.1': {$in: hexAddresses}},
-              {'receipts.logs.topics.2': {$in: hexAddresses}}
-            ]
-          },
-          {
-            'receipts.logs.topics.0': TOKEN_EVENTS.Mint,
-            'receipts.logs.topics.1': {$in: hexAddresses}
-          },
-          {
-            'receipts.logs.topics.0': TOKEN_EVENTS.Burn,
-            'receipts.logs.topics.1': {$in: hexAddresses}
-          }
-        ]
+        $lookup: {
+          from: 'transactions',
+          localField: '_id',
+          foreignField: 'id',
+          as: 'transaction'
+        }
       },
-      ['id', 'block.height']
-    )
-    let results = new Set()
-    for (let utxo of utxoList) {
-      results.add(utxo.output.transactionId + ' ' + utxo.createHeight)
-      if (utxo.useHeight != null) {
-        results.add(utxo.input.transactionId + ' ' + utxo.useHeight)
+      {$unwind: '$transaction'},
+      {
+        $project: {
+          txid: '$_id',
+          height: '$transaction.block.height',
+          txIndex: '$transaction.index'
+        }
+      },
+      {$sort: {height: -1, txIndex: -1}}
+    ])
+    let contractList = await Transaction.aggregate([
+      {
+        $match: {
+          $or: [
+            {
+              'receipts.logs.topics.0': TOKEN_EVENTS.Transfer,
+              $or: [
+                {'receipts.logs.topics.1': {$in: hexAddresses}},
+                {'receipts.logs.topics.2': {$in: hexAddresses}}
+              ]
+            },
+            {
+              'receipts.logs.topics.0': TOKEN_EVENTS.Mint,
+              'receipts.logs.topics.1': {$in: hexAddresses}
+            },
+            {
+              'receipts.logs.topics.0': TOKEN_EVENTS.Burn,
+              'receipts.logs.topics.1': {$in: hexAddresses}
+            }
+          ]
+        }
+      },
+      {
+        $project: {
+          txid: '$id',
+          height: '$block.height',
+          txIndex: '$index'
+        }
+      },
+      {$sort: {height: -1, txIndex: -1}}
+    ])
+    let i = 0, j = 0
+    let last = {height: 0xffffffff, txIndex: 0xffffffff}
+    let results = []
+    function compare(x, y) {
+      if (x.height !== y.height) {
+        return x.height - y.height
+      } else {
+        return x.txIndex - y.txIndex
       }
     }
-    for (let tx of contractList) {
-      results.add(tx.id + ' ' + tx.block.height)
+    while (i < utxoList.length && j < contractList.length) {
+      let item
+      let comparison = compare(utxoList[i], contractList[j])
+      if (comparison > 0) {
+        item = utxoList[i++]
+      } else if (comparison < 0) {
+        item = contractList[j++]
+      } else {
+        item = utxoList[i++]
+        ++j
+      }
+      if (compare(item, last) < 0) {
+        last = item
+        results.push(item.txid)
+      }
     }
-    return [...results].map(s => {
-      let [txid, height] = s.split(' ')
-      height = Number.parseInt(height)
-      return {txid, height}
-    }).sort((x, y) => y.height - x.height).map(tx => tx.txid)
+    while (i < utxoList.length) {
+      if (compare(utxoList[i], last) < 0) {
+        last = utxoList[i]
+        results.push(utxoList[i].txid)
+      }
+      ++i
+    }
+    while (j < contractList.length) {
+      if (compare(contractList[j], last) < 0) {
+        last = contractList[j]
+        results.push(contractList[j].txid)
+      }
+      ++j
+    }
+    return results
   }
 
   snapshot(height, minBalance = 0) {
@@ -217,10 +246,10 @@ class AddressService extends BaseService {
         $match: {
           satoshis: {$ne: 0},
           address: {$ne: null},
-          createHeight: {$lte: height},
+          'output.height': {$lte: height},
           $or: [
-            {useHeight: null},
-            {useHeight: {$gt: height}}
+            {'input.height': null},
+            {'input.height': {$gt: height}}
           ]
         }
       },

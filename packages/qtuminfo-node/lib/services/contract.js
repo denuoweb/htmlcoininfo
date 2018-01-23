@@ -77,35 +77,13 @@ class ContractService extends BaseService {
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
-    let txidMap = new Map()
     for (let utxo of utxos) {
       let value = new BN(utxo.satoshis)
-      let inputItem
-      if (txidMap.has(utxo.txid)) {
-        inputItem = txidMap.get(utxo.txid)
-        inputItem.received += utxo.satoshis
-      } else {
-        inputItem = {received: utxo.satoshis, sent: 0}
-        txidMap.set(utxo.txid, inputItem)
-      }
-      if (utxo.outputTxid) {
-        let outputItem
-        if (txidMap.has(utxo.outputTxid)) {
-          outputItem = txidMap.get(utxo.outputTxid)
-          outputItem.sent += utxo.satoshis
-        } else {
-          outputItem = {received: 0, sent: utxo.satoshis}
-          txidMap.set(utxo.outputTxid, outputItem)
-        }
+      totalReceived.iadd(value)
+      if (utxo.outputTxId) {
+        totalSent.iadd(value)
       } else {
         balance.iadd(value)
-      }
-    }
-    for (let {received, sent} of txidMap.values()) {
-      if (received > sent) {
-        totalReceived.iadd(new BN(received - sent))
-      } else {
-        totalSent.iadd(new BN(sent - received))
       }
     }
     return {
@@ -145,14 +123,14 @@ class ContractService extends BaseService {
             token,
             from: null,
             to: this._fromHexAddress(topics[1].slice(24)),
-            amount: ContractService._uint256toBN(data.slice(64)).toString()
+            amount: ContractService._uint256toBN(data.slice(-64)).toString()
           })
         } else if (topics[0] === TOKEN_EVENTS.Burn) {
           list.push({
             token,
             from: this._fromHexAddress(topics[1].slice(24)),
             to: null,
-            amount: ContractService._uint256toBN(data.slice(64)).toString()
+            amount: ContractService._uint256toBN(data.slice(-64)).toString()
           })
         }
       }
@@ -322,36 +300,93 @@ class ContractService extends BaseService {
   }
 
   async _getContractTxidHistory(address) {
-    let contract = await Contract.findOne({address}, ['createTransactionId', 'createHeight'])
-    let utxoList = await Utxo.find(
-      {address},
-      ['output.transactionId', 'input.transactionId', 'createHeight', 'useHeight']
-    )
-    let contractList = await Transaction.find(
+    let contract = await Contract.findOne({address}, 'createTransactionId')
+    let utxoList = await Utxo.aggregate([
+      {$match: {address}},
+      {$project: {id: ['$output.transactionId', '$input.transactionId']}},
+      {$unwind: '$id'},
+      {$match: {id: {$ne: '0'.repeat(64)}}},
+      {$group: {_id: '$id'}},
       {
-        $or: [
-          {'receipts.contractAddress': address},
-          {'receipts.logs.address': address}
-        ]
+        $lookup: {
+          from: 'transactions',
+          localField: '_id',
+          foreignField: 'id',
+          as: 'transaction'
+        }
       },
-      ['id', 'block.height']
-    )
-    let results = new Set()
-    results.add(contract.createTransactionId + ' ' + (contract.createHeight || 0))
-    for (let utxo of utxoList) {
-      results.add(utxo.output.transactionId + ' ' + utxo.createHeight)
-      if (utxo.useHeight != null) {
-        results.add(utxo.input.transactionId + ' ' + utxo.useHeight)
+      {$unwind: '$transaction'},
+      {
+        $project: {
+          txid: '$_id',
+          height: '$transaction.block.height',
+          txIndex: '$transaction.index'
+        }
+      },
+      {$sort: {height: -1, txIndex: -1}}
+    ])
+    let contractList = await Transaction.aggregate([
+      {
+        $match: {
+          $or: [
+            {'receipts.contractAddress': address},
+            {'receipts.logs.address': address}
+          ]
+        }
+      },
+      {
+        $project: {
+          txid: '$id',
+          height: '$block.height',
+          txIndex: '$index'
+        }
+      },
+      {$sort: {height: -1, txIndex: -1}}
+    ])
+    let i = 0, j = 0
+    let last = {height: 0xffffffff, txIndex: 0xffffffff}
+    let results = []
+    function compare(x, y) {
+      if (x.height !== y.height) {
+        return x.height - y.height
+      } else {
+        return x.txIndex - y.txIndex
       }
     }
-    for (let tx of contractList) {
-      results.add(tx.id + ' ' + tx.block.height)
+    while (i < utxoList.length && j < contractList.length) {
+      let item
+      let comparison = compare(utxoList[i], contractList[j])
+      if (comparison > 0) {
+        item = utxoList[i++]
+      } else if (comparison < 0) {
+        item = contractList[j++]
+      } else {
+        item = utxoList[i++]
+        ++j
+      }
+      if (compare(item, last) < 0) {
+        last = item
+        results.push(item.txid)
+      }
     }
-    return [...results].map(s => {
-      let [txid, height] = s.split(' ')
-      height = Number.parseInt(height)
-      return {txid, height}
-    }).sort((x, y) => y.height - x.height).map(tx => tx.txid)
+    while (i < utxoList.length) {
+      if (compare(utxoList[i], last) < 0) {
+        last = utxoList[i]
+        results.push(utxoList[i].txid)
+      }
+      ++i
+    }
+    while (j < contractList.length) {
+      if (compare(contractList[j], last) < 0) {
+        last = contractList[j]
+        results.push(contractList[j].txid)
+      }
+      ++j
+    }
+    if (contract.createTransactionId !== results[results.length - 1]) {
+      results.push(contract.createTransactionId)
+    }
+    return results
   }
 }
 

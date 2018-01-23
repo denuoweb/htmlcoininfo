@@ -1,5 +1,4 @@
 const assert = require('assert')
-const LRU = require('lru-cache')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
@@ -9,7 +8,6 @@ class TransactionService extends BaseService {
     super(options)
     this._block = this.node.services.get('block')
     this._db = this.node.services.get('db')
-    this._header = this.node.services.get('header')
     this._network = this.node.network
     if (this._network === 'livenet') {
       this._network = 'mainnet'
@@ -17,34 +15,28 @@ class TransactionService extends BaseService {
       this._network = 'testnet'
     }
     this._tip = null
-    this._cacheTx = LRU(1000)
   }
 
   static get dependencies() {
-    return ['block', 'db', 'header']
+    return ['block', 'db']
   }
 
   get APIMethods() {
     return [
       ['getTransaction', this.getTransaction.bind(this), 1],
-      ['setTxMetaInfo', this.setTxMetaInfo.bind(this), 2]
+      ['setTxMetaInfo', this.setTxMetaInfo.bind(this), 1]
     ]
   }
 
   async getTransaction(txid, options) {
-    let cacheTx = this._cacheTx.get(txid)
-    if (cacheTx) {
-      return cacheTx
-    }
     let tx = await this._getTransaction(txid)
     if (tx) {
       await this.setTxMetaInfo(tx, options)
-      this._cacheTx.set(txid, tx)
       return tx
     }
   }
 
-  async setTxMetaInfo(tx, options) {
+  async setTxMetaInfo(tx) {
     tx.outputSatoshis = 0
     for (let output of tx.outputs) {
       tx.outputSatoshis += output.satoshis
@@ -174,15 +166,15 @@ class TransactionService extends BaseService {
       await this._db.updateServiceTip(this._tip)
     }
     await Transaction.deleteMany({'block.height': {$gt: blockTip.height}})
-    await Utxo.deleteMany({createHeight: {$gt: blockTip.height}})
+    await Utxo.deleteMany({'output.height': {$gt: blockTip.height}})
     await Utxo.updateMany(
-      {useHeight: {$gt: blockTip.height}},
+      {'input.height': {$gt: blockTip.height}},
       {
+        'input.height': null,
         'input.transactionId': '0'.repeat(64),
         'input.index': null,
         'input.script': [],
-        'input.sequence': null,
-        useHeight: null
+        'input.sequence': null
       }
     )
   }
@@ -206,25 +198,25 @@ class TransactionService extends BaseService {
       let utxo
       if (Buffer.compare(input.prevTxId, Buffer.alloc(32)) === 0) {
         utxo = new Utxo({
+          output: {height: block.height},
           input: {
+            height: block.height,
             transactionId: tx.id,
             index,
             script: Utxo.transformScript(input.script),
             sequence: input.sequenceNumber
-          },
-          createHeight: block.height,
-          useHeight: block.height
+          }
         })
       } else {
         utxo = await Utxo.findOne({
           'output.transactionId': input.prevTxId.toString('hex'),
           'output.index': input.outputIndex
         })
+        utxo.input.height = block.height
         utxo.input.transactionId = tx.id
         utxo.input.index = index
         utxo.input.script = Utxo.transformScript(input.script)
         utxo.input.sequence = input.sequenceNumber
-        utxo.useHeight = block.height
       }
       await utxo.save()
       inputs.push(utxo._id)
@@ -235,17 +227,17 @@ class TransactionService extends BaseService {
       let output = tx.outputs[index]
       let utxo = await Utxo.findOne({'output.transactionId': tx.id, 'output.index': index})
       if (utxo) {
-        utxo.createHeight = block.height
+        utxo.output.height = block.height
       } else {
         utxo = new Utxo({
           satoshis: output.satoshis,
           output: {
+            height: block.height,
             transactionId: tx.id,
             index,
             script: Utxo.transformScript(output.script)
           },
-          address: Utxo.getAddress(tx, index),
-          createHeight: block.height
+          address: Utxo.getAddress(tx, index)
         })
       }
       await utxo.save()
@@ -266,7 +258,7 @@ class TransactionService extends BaseService {
         flags: tx.flags,
         inputs,
         outputs,
-        witnessStack: tx.witnessStack.map(witness => witness.map(item => item.toString('hex'))),
+        witnessStack: tx.witnessStack,
         nLockTime: tx.nLockTime,
         block: {
           hash: block.hash,

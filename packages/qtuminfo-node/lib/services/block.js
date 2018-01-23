@@ -478,6 +478,7 @@ class BlockService extends BaseService {
           await service.onBlock(block)
         }
       }
+      await this.__onBlock(block)
       this._recentBlockHashes.set(block.hash, revHex(block.prevBlock))
       await this._setTip({hash: block.hash, height: block.height})
       this._processingBlock = false
@@ -516,7 +517,7 @@ class BlockService extends BaseService {
     }
   }
 
-  async onBlock(block) {
+  async __onBlock(block) {
     let header
     do {
       header = await Header.findOne({hash: block.hash})

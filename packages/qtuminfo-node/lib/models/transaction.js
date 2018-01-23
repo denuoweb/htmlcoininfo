@@ -9,7 +9,7 @@ const transactionSchema = new Schema({
   flags: Number,
   inputs: [Schema.Types.ObjectId],
   outputs: [Schema.Types.ObjectId],
-  witnessStack: [[String]],
+  witnessStack: [[Buffer]],
   nLockTime: Number,
   block: {
     hash: {type: String, default: '0'.repeat(64)},
@@ -27,15 +27,5 @@ const transactionSchema = new Schema({
     }]
   }]
 })
-
-transactionSchema.methods.isCoinbase = async function() {
-  if (this.inputs.length === 1) {
-    let Utxo = this.model('Utxo')
-    let utxo = await Utxo.findById(this.inputs[0])
-    return utxo.output.transactionId === '0'.repeat(64) && utxo.output.index === 0xffffffff
-  } else {
-    return false
-  }
-}
 
 module.exports = mongoose.model('Transaction', transactionSchema)

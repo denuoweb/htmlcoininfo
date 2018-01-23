@@ -47,8 +47,8 @@ class MempoolService extends BaseService {
 
   async onReorg(_, block) {
     await Transaction.updateMany({'block.height': block.height}, {$set: {block: {height: 0xffffffff}}})
-    await Utxo.updateMany({createHeight: block.height}, {$set: {createHeight: 0xffffffff}})
-    await Utxo.updateMany({useHeight: block.height}, {$set: {useHeight: 0xffffffff}})
+    await Utxo.updateMany({'output.height': block.height}, {$set: {'output.height': 0xffffffff}})
+    await Utxo.updateMany({'input.height': block.height}, {$set: {'input.height': 0xffffffff}})
     await Utxo.deleteMany({
       $or: [
         {'output.transactionId': {$in: [block.transactions[0].id, block.transactions[1].id]}},
@@ -93,15 +93,15 @@ class MempoolService extends BaseService {
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
       let utxo = inputUtxos[index]
-      if (utxo.useHeight) {
+      if (utxo.input && utxo.input.height != null) {
         let transaction = await Transaction.findOne({id: utxo.input.transactionId})
         await transaction.remove()
       }
+      utxo.input.height = 0xffffffff
       utxo.input.transactionId = tx.id
       utxo.input.index = index
       utxo.input.script = Utxo.transformScript(input.script)
       utxo.input.sequence = input.sequenceNumber
-      utxo.useHeight = 0xffffffff
       await utxo.save()
       inputs.push(utxo._id)
     }
@@ -112,12 +112,12 @@ class MempoolService extends BaseService {
       let utxo = new Utxo({
         satoshis: output.satoshis,
         output: {
+          height: 0xffffffff,
           transactionId: tx.id,
           index,
           script: Utxo.transformScript(output.script)
         },
-        address: Utxo.getAddress(tx, index),
-        createHeight: 0xffffffff
+        address: Utxo.getAddress(tx, index)
       })
       await utxo.save()
       outputs.push(utxo._id)

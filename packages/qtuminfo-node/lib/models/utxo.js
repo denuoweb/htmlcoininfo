@@ -7,19 +7,19 @@ const {sha256ripemd160} = qtuminfo.crypto.Hash
 const utxoSchema = new Schema({
   satoshis: {type: Number, default: 0},
   output: {
+    height: {type: Number, default: 0xffffffff, index: true},
     transactionId: {type: String, default: '0'.repeat(64), index: true},
     index: {type: Number, default: 0xffffffff, index: true},
-    script: [{opcode: Number, buffer: String}]
+    script: [{opcode: Number, buffer: Buffer}]
   },
   input: {
+    height: {type: Number, index: true},
     transactionId: {type: String, default: '0'.repeat(64), index: true},
     index: {type: Number, index: true},
-    script: [{opcode: Number, buffer: String}],
+    script: [{opcode: Number, buffer: Buffer}],
     sequence: Number
   },
-  address: {type: String, index: true},
-  createHeight: {type: Number, default: 0xffffffff, index: true},
-  useHeight: {type: Number, index: true}
+  address: {type: String, index: true}
 })
 
 exports = module.exports = mongoose.model('Utxo', utxoSchema)
@@ -27,7 +27,7 @@ exports = module.exports = mongoose.model('Utxo', utxoSchema)
 exports.transformScript = function(script) {
   return script.chunks.map(chunk => ({
     opcode: chunk.opcodenum,
-    buffer: chunk.buf && chunk.buf.toString('hex')
+    buffer: chunk.buf
   }))
 }
 
