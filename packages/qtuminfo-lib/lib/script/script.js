@@ -22,6 +22,8 @@ const types = {
   MULTISIG_OUT: 'Pay to multisig',
   MULTISIG_IN: 'Spend from multisig',
   DATA_OUT: 'Data push',
+  WITNESS_V0_KEYHASH: 'Pay to witness public key hash',
+  WITNESS_V0_SCRIPTHASH: 'Pay to witness script hash',
   WITNESS_IN: 'Send from segwit',
   CONTRACT_CREATE: 'Contract create',
   CONTRACT_CALL: 'Contract call'
@@ -32,6 +34,8 @@ const outputIdentifiers = {
   MULTISIG_OUT: 'isMultisigOut',
   SCRIPTHASH_OUT: 'isScriptHashOut',
   DATA_OUT: 'isDataOut',
+  WITNESS_V0_KEYHASH: 'isWitnessKeyHashOut',
+  WITNESS_V0_SCRIPTHASH: 'isWitnessScriptHashOut',
   CONTRACT_CREATE: 'isContractCreate',
   CONTRACT_CALL: 'isContractCall'
 }
@@ -342,6 +346,16 @@ class Script {
       ))
   }
 
+  isWitnessKeyHashOut() {
+    return this.chunks.length === 2 && this.chunks[0].opcodenum === Opcode.OP_0
+      && this.chunks[1].buf && this.chunks[1].buf.length === 20
+  }
+
+  isWitnessScriptHashOut() {
+    return this.chunks.length === 2 && this.chunks[0].opcodenum === Opcode.OP_0
+      && this.chunks[1].buf && this.chunks[1].buf.length === 32
+  }
+
   isWitnessIn() {
     return this.chunks.length === 1 && this.chunks[0].opcodenum <= 0x16
       && this.chunks[0].length >= 2 && this.chunks[0].length <= 40
@@ -360,7 +374,8 @@ class Script {
   }
 
   getData() {
-    if (this.isDataOut() || this.isScriptHashOut()) {
+    if (this.isDataOut() || this.isScriptHashOut()
+      || this.isWitnessKeyHashOut() || this.isWitnessScriptHashOut()) {
       return this.chunks[1] ? this.chunks[1].buf : Buffer.alloc(0)
     } else if (this.isPublicKeyHashOut()) {
       return this.chunks[2].buf
@@ -680,6 +695,16 @@ class Script {
       return {
         hashBuffer: sha256ripemd160(this.getData()),
         type: Address.PayToPublicKey
+      }
+    } else if (this.isWitnessKeyHashOut()) {
+      return {
+        hashBuffer: this.getData(),
+        type: Address.PayToWitnessKeyHash
+      }
+    } else if (this.isWitnessScriptHashOut()) {
+      return {
+        hashBuffer: sha256ripemd160(this.getData()),
+        type: Address.PayToWitnessScriptHash
       }
     }
   }

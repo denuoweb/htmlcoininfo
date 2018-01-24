@@ -66,8 +66,13 @@ function Address(data, network, type) {
     throw new TypeError('Second argument must be "livenet" or "testnet".');
   }
 
-  if (type && (type !== Address.PayToPublicKeyHash && type !== Address.PayToScriptHash)) {
-    throw new TypeError('Third argument must be "pubkeyhash" or "scripthash".');
+  if (type && ![
+    Address.PayToPublicKeyHash, Address.PayToScriptHash,
+    Address.PayToWitnessKeyHash, Address.PayToWitnessScriptHash
+  ].includes(type)) {
+    throw new TypeError(
+      'Third argument must be "pubkeyhash", "scripthash", "witness_v0_keyhash", or "witness_v0_scripthash".'
+    );
   }
 
   var info = this._classifyArguments(data, network, type);
@@ -118,6 +123,10 @@ Address.PayToPublicKey = 'pubkey';
 Address.PayToPublicKeyHash = 'pubkeyhash';
 /** @static */
 Address.PayToScriptHash = 'scripthash';
+/** @static */
+Address.PayToWitnessKeyHash = 'witness_v0_keyhash';
+/** @static */
+Address.PayToWitnessScriptHash = 'witness_v0_scripthash';
 /** @static */
 Address.ContractCreate = 'create';
 /** @static */

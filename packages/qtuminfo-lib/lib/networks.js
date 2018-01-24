@@ -8,9 +8,9 @@ class Network {
   constructor(options) {
     this.name = options.name
     this.alias = options.alias
-    this.pubkey = this.pubkeyhash = options.pubkeyhash
+    this.pubkey = this.pubkeyhash = this.witness_v0_keyhash = options.pubkeyhash
     this.privatekey = options.privatekey
-    this.scripthash = options.scripthash
+    this.scripthash = this.witness_v0_scripthash = options.scripthash
     this.xpubkey = options.xpubkey
     this.xprivkey = options.xprivkey
     if (options.networkMagic) {
