@@ -6,7 +6,6 @@ const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
 const Contract = require('../models/contract')
 const {getInputAddress} = require('../utils')
-const BufferUtil = qtuminfo.util.buffer
 const {sha256ripemd160} = qtuminfo.crypto.Hash
 const {Base58Check} = qtuminfo.encoding
 const Address = qtuminfo.Address
@@ -173,7 +172,7 @@ class ContractService extends BaseService {
     let blockTip = this._block.getTip()
     if (this._tip.height > blockTip.height) {
       this._tip = blockTip
-      await this._db.updateServiceTip(this._tip)
+      await this._db.updateServiceTip(this.name, this._tip)
     }
     for (let x of ['80', '81', '82', '83', '84']) {
       let dgpAddress = '0'.repeat(38) + x
@@ -218,7 +217,7 @@ class ContractService extends BaseService {
     let indexBuffer = Buffer.alloc(4)
     indexBuffer.writeUInt32LE(index)
     return sha256ripemd160(Buffer.concat([
-      BufferUtil.reverse(Buffer.from(tx.hash, 'hex')),
+      Buffer.from(tx.id, 'hex').reverse(),
       indexBuffer
     ])).toString('hex')
   }
@@ -300,93 +299,20 @@ class ContractService extends BaseService {
   }
 
   async _getContractTxidHistory(address) {
-    let contract = await Contract.findOne({address}, 'createTransactionId')
-    let utxoList = await Utxo.aggregate([
-      {$match: {address}},
-      {$project: {id: ['$output.transactionId', '$input.transactionId']}},
-      {$unwind: '$id'},
-      {$match: {id: {$ne: '0'.repeat(64)}}},
-      {$group: {_id: '$id'}},
-      {
-        $lookup: {
-          from: 'transactions',
-          localField: '_id',
-          foreignField: 'id',
-          as: 'transaction'
-        }
-      },
-      {$unwind: '$transaction'},
-      {
-        $project: {
-          txid: '$_id',
-          height: '$transaction.block.height',
-          txIndex: '$transaction.index'
-        }
-      },
-      {$sort: {height: -1, txIndex: -1}}
-    ])
-    let contractList = await Transaction.aggregate([
+    let list = await Transaction.aggregate([
       {
         $match: {
           $or: [
+            {addresses: address},
             {'receipts.contractAddress': address},
             {'receipts.logs.address': address}
           ]
         }
       },
-      {
-        $project: {
-          txid: '$id',
-          height: '$block.height',
-          txIndex: '$index'
-        }
-      },
-      {$sort: {height: -1, txIndex: -1}}
+      {$sort: {'block.height': -1, index: -1}},
+      {$project: {id: true}}
     ])
-    let i = 0, j = 0
-    let last = {height: 0xffffffff, txIndex: 0xffffffff}
-    let results = []
-    function compare(x, y) {
-      if (x.height !== y.height) {
-        return x.height - y.height
-      } else {
-        return x.txIndex - y.txIndex
-      }
-    }
-    while (i < utxoList.length && j < contractList.length) {
-      let item
-      let comparison = compare(utxoList[i], contractList[j])
-      if (comparison > 0) {
-        item = utxoList[i++]
-      } else if (comparison < 0) {
-        item = contractList[j++]
-      } else {
-        item = utxoList[i++]
-        ++j
-      }
-      if (compare(item, last) < 0) {
-        last = item
-        results.push(item.txid)
-      }
-    }
-    while (i < utxoList.length) {
-      if (compare(utxoList[i], last) < 0) {
-        last = utxoList[i]
-        results.push(utxoList[i].txid)
-      }
-      ++i
-    }
-    while (j < contractList.length) {
-      if (compare(contractList[j], last) < 0) {
-        last = contractList[j]
-        results.push(contractList[j].txid)
-      }
-      ++j
-    }
-    if (contract.createTransactionId !== results[results.length - 1]) {
-      results.push(contract.createTransactionId)
-    }
-    return results
+    return list.map(tx => tx.id)
   }
 }
 

@@ -6,7 +6,7 @@ const Block = require('../models/block')
 const Header = require('../models/header')
 const utils = require('../utils')
 const {
-  getTarget, getDifficulty, revHex, convertSecondsToHumanReadable,
+  getTarget, getDifficulty, convertSecondsToHumanReadable,
   AsyncQueue, IndeterminateProgressBar,
   toRawBlock
 } = utils
@@ -262,7 +262,7 @@ class BlockService extends BaseService {
   }
 
   _detectReorg(block) {
-    return revHex(block.prevBlock) !== this._tip.hash
+    return Buffer.from(block.prevBlock, 'hex').reverse().toString('hex') !== this._tip.hash
   }
 
   async _getHash(blockArg) {
@@ -392,7 +392,7 @@ class BlockService extends BaseService {
       block.height = height
       block.header.time = block.header.timestamp = block.timestamp
       blocks.push(block)
-      hash = revHex(block.prevBlock)
+      hash = Buffer.from(block.prevBlock, 'hex').reverse().toString('hex')
       --height
     }
     return blocks
@@ -479,7 +479,10 @@ class BlockService extends BaseService {
         }
       }
       await this.__onBlock(block)
-      this._recentBlockHashes.set(block.hash, revHex(block.prevBlock))
+      this._recentBlockHashes.set(
+        block.hash,
+        Buffer.from(block.prevBlock, 'hex').reverse().toString('hex')
+      )
       await this._setTip({hash: block.hash, height: block.height})
       this._processingBlock = false
       for (let subscription of this._subscriptions.block) {

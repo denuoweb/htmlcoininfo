@@ -66,14 +66,6 @@ exports.getDifficulty = function(target) {
   return n === 0 ? d : Math.floor(d / n)
 }
 
-exports.revHex = function(data) {
-  let buffer = []
-  for (let i = 0; i < data.length; i += 2) {
-    buffer.push(data.slice(i, i + 2))
-  }
-  return buffer.reverse().join('')
-}
-
 exports.convertSecondsToHumanReadable = function(seconds) {
   assert(Number.isInteger(seconds))
   let result = ''

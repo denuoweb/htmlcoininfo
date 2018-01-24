@@ -1,7 +1,5 @@
 const assert = require('assert')
-const qtuminfo = require('qtuminfo-lib')
 const Message = require('../message')
-const BufferUtil = qtuminfo.util.buffer
 const BloomFilter = require('../../bloomfilter')
 
 class FilterloadMessage extends Message {

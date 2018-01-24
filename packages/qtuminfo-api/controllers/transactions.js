@@ -1,8 +1,5 @@
-const qtuminfo = require('qtuminfo-lib')
 const {toRawTransaction, toRawScript} = require('qtuminfo-node/lib/utils')
 const {ErrorResponse} = require('../components/utils')
-const BufferUtil = qtuminfo.util.buffer
-const {sha256ripemd160} = qtuminfo.crypto.Hash
 
 class TransactionController {
   constructor(node) {

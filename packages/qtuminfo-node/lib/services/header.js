@@ -3,7 +3,7 @@ const BN = require('bn.js')
 const BaseService = require('../service')
 const Header = require('../models/header')
 const {QTUM_GENESIS_HASH, QTUM_GENESIS_NONCE} = require('../constants')
-const {fromCompact, getTarget, double256, getDifficulty, revHex, AsyncQueue} = require('../utils')
+const {fromCompact, getTarget, double256, getDifficulty, AsyncQueue} = require('../utils')
 
 const MAX_CHAINWORK = new BN(1).ushln(256)
 const STARTING_CHAINWORK = '0'.repeat(56) + '0001'.repeat(2)
@@ -146,7 +146,7 @@ class HeaderService extends BaseService {
       } else {
         this.node.log.debug(
           `Header Service: completed processing block: ${block.hash},`,
-          'prev hash:', revHex(block.header.prevHash.toString('hex'))
+          'prev hash:', Buffer.from(block.header.prevHash).reverse().toString('hex')
         )
       }
     })
@@ -292,7 +292,7 @@ class HeaderService extends BaseService {
   }
 
   _detectReorg(block) {
-    return revHex(block.prevBlock) !== this._lastHeader.hash
+    return Buffer.from(block.prevBlock, 'hex').reverse().toString('hex') !== this._lastHeader.hash
   }
 
   async _handleReorg(block) {

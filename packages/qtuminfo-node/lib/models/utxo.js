@@ -1,6 +1,5 @@
 const mongoose = require('mongoose')
 const qtuminfo = require('qtuminfo-lib')
-const utils = require('../utils')
 const {Schema} = mongoose
 const {sha256ripemd160} = qtuminfo.crypto.Hash
 
@@ -37,7 +36,7 @@ exports.getAddress = function(tx, index) {
     let indexBuffer = Buffer.alloc(4)
     indexBuffer.writeUInt32LE(index)
     return sha256ripemd160(
-      Buffer.concat([Buffer.from(utils.revHex(tx.hash), 'hex'), indexBuffer])
+      Buffer.concat([Buffer.from(tx.id, 'hex').reverse(), indexBuffer])
     ).toString('hex')
   } else if (script.isContractCall()) {
     return script.chunks[4].buf.toString('hex')

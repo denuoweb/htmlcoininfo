@@ -77,6 +77,7 @@ class MempoolService extends BaseService {
   }
 
   async _onTransaction(tx) {
+    let addresses = new Set()
     let inputUtxos = []
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
@@ -121,6 +122,9 @@ class MempoolService extends BaseService {
       })
       await utxo.save()
       outputs.push(utxo._id)
+      if (utxo.address) {
+        addresses.add(utxo.address)
+      }
     }
 
     await new Transaction({
@@ -134,6 +138,7 @@ class MempoolService extends BaseService {
       witnessStack: tx.witnessStack.map(witness => witness.map(item => item.toString('hex'))),
       nLockTime: tx.nLockTime,
       block: {height: 0xffffffff},
+      addresses: [...addresses],
       isStake: tx.outputs[0].script.chunks.length === 0
     }).save()
 

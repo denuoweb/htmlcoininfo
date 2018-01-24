@@ -92,8 +92,6 @@ class AddressService extends BaseService {
           as: 'transaction'
         }
       },
-      {$unwind: '$transaction'},
-      {$sort: {'output.height': 1, 'transaction.index': 1, 'output.index': 1}},
       {
         $project: {
           satoshis: '$satoshis',
@@ -103,11 +101,12 @@ class AddressService extends BaseService {
           inputTxId: '$input.transactionId',
           inputScript: '$input.script',
           height: '$output.height',
-          index: '$transaction.index',
-          isStake: '$transaction.isStake'
+          index: '$transaction.0.index',
+          isStake: '$transaction.0.isStake'
         }
-      }
-    ])
+      },
+      {$sort: {height: 1, index: 1, outputIndex: 1}}
+    ]).allowDiskUse(true)
     let results = []
     for (let utxo of utxoList) {
       let confirmations = Math.max(this._block.getTip().height - utxo.height + 1, 0)
@@ -139,102 +138,24 @@ class AddressService extends BaseService {
     let hexAddresses = addresses.map(
       address => '0'.repeat(24) + Base58Check.decode(address).slice(1).toString('hex')
     )
-    let utxoList = await Utxo.aggregate([
-      {$match: {address: {$in: addresses}}},
-      {$project: {id: ['$output.transactionId', '$input.transactionId']}},
-      {$unwind: '$id'},
-      {$match: {id: {$ne: '0'.repeat(64)}}},
-      {$group: {_id: '$id'}},
-      {
-        $lookup: {
-          from: 'transactions',
-          localField: '_id',
-          foreignField: 'id',
-          as: 'transaction'
-        }
-      },
-      {$unwind: '$transaction'},
-      {
-        $project: {
-          txid: '$_id',
-          height: '$transaction.block.height',
-          txIndex: '$transaction.index'
-        }
-      },
-      {$sort: {height: -1, txIndex: -1}}
-    ])
-    let contractList = await Transaction.aggregate([
+    let list = await Transaction.aggregate([
       {
         $match: {
           $or: [
+            {addresses: {$in: addresses}},
             {
-              'receipts.logs.topics.0': TOKEN_EVENTS.Transfer,
-              $or: [
-                {'receipts.logs.topics.1': {$in: hexAddresses}},
-                {'receipts.logs.topics.2': {$in: hexAddresses}}
-              ]
-            },
-            {
-              'receipts.logs.topics.0': TOKEN_EVENTS.Mint,
-              'receipts.logs.topics.1': {$in: hexAddresses}
-            },
-            {
-              'receipts.logs.topics.0': TOKEN_EVENTS.Burn,
-              'receipts.logs.topics.1': {$in: hexAddresses}
+              'receipts.logs.topics.0': {
+                $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
+              },
+              'receipts.logs.topics': {$in: hexAddresses},
             }
           ]
         }
       },
-      {
-        $project: {
-          txid: '$id',
-          height: '$block.height',
-          txIndex: '$index'
-        }
-      },
-      {$sort: {height: -1, txIndex: -1}}
+      {$sort: {'block.height': -1, index: -1}},
+      {$project: {id: true}}
     ])
-    let i = 0, j = 0
-    let last = {height: 0xffffffff, txIndex: 0xffffffff}
-    let results = []
-    function compare(x, y) {
-      if (x.height !== y.height) {
-        return x.height - y.height
-      } else {
-        return x.txIndex - y.txIndex
-      }
-    }
-    while (i < utxoList.length && j < contractList.length) {
-      let item
-      let comparison = compare(utxoList[i], contractList[j])
-      if (comparison > 0) {
-        item = utxoList[i++]
-      } else if (comparison < 0) {
-        item = contractList[j++]
-      } else {
-        item = utxoList[i++]
-        ++j
-      }
-      if (compare(item, last) < 0) {
-        last = item
-        results.push(item.txid)
-      }
-    }
-    while (i < utxoList.length) {
-      if (compare(utxoList[i], last) < 0) {
-        last = utxoList[i]
-        results.push(utxoList[i].txid)
-      }
-      ++i
-    }
-    while (j < contractList.length) {
-      if (compare(contractList[j], last) < 0) {
-        last = contractList[j]
-        results.push(contractList[j].txid)
-      }
-      ++j
-    }
-    return results
+    return list.map(tx => tx.id)
   }
 
   snapshot(height, minBalance = 0) {

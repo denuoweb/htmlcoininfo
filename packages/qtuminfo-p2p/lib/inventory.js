@@ -1,5 +1,4 @@
 const qtuminfo = require('qtuminfo-lib')
-const BufferUtil = qtuminfo.util.buffer
 const {BufferReader, BufferWriter} = qtuminfo.encoding
 
 const TYPE = {
@@ -23,8 +22,7 @@ class Inventory {
   static forItem(type, hash) {
     assert(hash)
     if (typeof hash === 'string') {
-      hash = Buffer.from(hash, 'hex')
-      hash = BufferUtil.reverse(hash)
+      hash = Buffer.from(hash, 'hex').reverse()
     }
     return new Inventory({type, hash})
   }

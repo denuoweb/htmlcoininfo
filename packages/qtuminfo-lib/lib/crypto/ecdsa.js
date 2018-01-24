@@ -5,7 +5,6 @@ const Signature = require('./signature')
 const PublicKey = require('../publickey')
 const Random = require('./random')
 const {sha256hmac} = require('./hash')
-const BufferUtil = require('../util/buffer')
 
 class ECDSA {
   constructor(obj) {
@@ -64,7 +63,7 @@ class ECDSA {
     let v = Buffer.alloc(32, 0x01)
     let k = Buffer.alloc(32, 0x00)
     let x = this.privkey.bn.toBuffer({size: 32})
-    let hashbuf = this.endian === 'little' ? BufferUtil.reverse(this.hashbuf) : this.hashbuf
+    let hashbuf = this.endian === 'little' ? Buffer.from(this.hashbuf).reverse() : this.hashbuf
     k = sha256hmac(Buffer.concat([v, Buffer.from([0x00]), x, hashbuf]), k)
     v = sha256hmac(v, k)
     k = sha256hmac(Buffer.concat([v, Buffer.from([0x01]), x, hashbuf]), k)

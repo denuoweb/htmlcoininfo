@@ -4,7 +4,6 @@ const BN = require('../crypto/bn')
 const {sha256sha256} = require('../crypto/hash')
 const BufferReader = require('../encoding/bufferreader')
 const BufferWriter = require('../encoding/bufferwriter')
-const BufferUtil = require('../util/buffer')
 
 const GENESIS_BITS = 0x1d00ffff
 const START_OF_HEADER = 8
@@ -39,23 +38,23 @@ class BlockHeader {
   static _fromObject(data) {
     assert(data, 'data is required')
     let {prevHash, merkleRoot, vchBlockSig, prevOutStakeHash, hashStateRoot, hashUTXORoot} = data
-    if (typeof data.prevHash === 'string') {
-      prevHash = BufferUtil.reverse(Buffer.from(data.prevHash, 'hex'))
+    if (typeof prevHash === 'string') {
+      prevHash = Buffer.from(prevHash, 'hex').reverse()
     }
-    if (typeof data.merkleRoot === 'string') {
-      merkleRoot = BufferUtil.reverse(Buffer.from(data.merkleRoot, 'hex'))
+    if (typeof merkleRoot === 'string') {
+      merkleRoot = Buffer.from(merkleRoot, 'hex').reverse()
     }
-    if (typeof data.vchBlockSig === 'string') {
-      vchBlockSig = BufferUtil.reverse(Buffer.from(data.vchBlockSig, 'hex'))
+    if (typeof vchBlockSig === 'string') {
+      vchBlockSig = Buffer.from(vchBlockSig, 'hex').reverse()
     }
-    if (typeof data.prevOutStakeHash === 'string') {
-      prevOutStakeHash = BufferUtil.reverse(Buffer.from(data.prevOutStakeHash, 'hex'))
+    if (typeof prevOutStakeHash === 'string') {
+      prevOutStakeHash = Buffer.from(prevOutStakeHash, 'hex').reverse()
     }
-    if (typeof data.hashStateRoot === 'string') {
-      hashStateRoot = BufferUtil.reverse(Buffer.from(data.hashStateRoot, 'hex'))
+    if (typeof hashStateRoot === 'string') {
+      hashStateRoot = Buffer.from(hashStateRoot, 'hex').reverse()
     }
-    if (typeof data.hashUTXORoot === 'string') {
-      hashUTXORoot = BufferUtil.reverse(Buffer.from(data.hashUTXORoot, 'hex'))
+    if (typeof hashUTXORoot === 'string') {
+      hashUTXORoot = Buffer.from(hashUTXORoot, 'hex').reverse()
     }
 
     return {
@@ -132,14 +131,14 @@ class BlockHeader {
     return {
       hash: this.hash,
       version: this.version,
-      prevHash: BufferUtil.reverse(this.prevHash).toString('hex'),
-      merkleRoot: BufferUtil.reverse(this.merkleRoot).toString('hex'),
+      prevHash: Buffer.from(this.prevHash).reverse().toString('hex'),
+      merkleRoot: Buffer.from(this.merkleRoot).reverse().toString('hex'),
       timestamp: this.timestamp,
       bits: this.bits,
       nonce: this.nonce,
-      hashStateRoot: BufferUtil.reverse(this.hashStateRoot).toString('hex'),
-      hashUTXORoot: BufferUtil.reverse(this.hashUTXORoot).toString('hex'),
-      prevOutStakeHash: BufferUtil.reverse(this.prevOutStakeHash).toString('hex'),
+      hashStateRoot: Buffer.from(this.hashStateRoot).reverse().toString('hex'),
+      hashUTXORoot: Buffer.from(this.hashUTXORoot).reverse().toString('hex'),
+      prevOutStakeHash: Buffer.from(this.prevOutStakeHash).reverse().toString('hex'),
       prevOutStakeN: this.prevOutStakeN,
       vchBlockSig: this.vchBlockSig.toString('hex')
     }

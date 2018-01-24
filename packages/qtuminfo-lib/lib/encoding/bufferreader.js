@@ -1,6 +1,5 @@
 const assert = require('assert')
 const {isObject, isString} = require('util')
-const BufferUtil = require('../util/buffer')
 const BN = require('../crypto/bn')
 
 class BufferReader {
@@ -192,7 +191,7 @@ class BufferReader {
     }
     let buf = this.buf.slice(this.pos, this.pos + length)
     this.pos += length
-    return BufferUtil.reverse(buf)
+    return Buffer.from(buf).reverse()
   }
 }
 

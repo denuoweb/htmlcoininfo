@@ -64,14 +64,6 @@ exports.bufferToHex = function(buffer) {
   return buffer.toString('hex')
 }
 
-exports.reverse = function(param) {
-  let result = Buffer.alloc(param.length)
-  for (let i = 0; i < param.length; ++i) {
-    result[i] = param[param.length - 1 - i]
-  }
-  return result
-}
-
 exports.hexToBuffer = function(string) {
   assert(/^[0-9A-fa-f]*$/.test(string))
   return Buffer.from(string, 'hex')

@@ -5,7 +5,6 @@ const {sha256sha256} = require('../crypto/hash')
 const BufferReader = require('../encoding/bufferreader')
 const BufferWriter = require('../encoding/bufferwriter')
 const Transaction = require('../transaction')
-const BufferUtil = require('../util/buffer')
 
 class MerkleBlock {
   constructor(arg) {
@@ -141,7 +140,7 @@ class MerkleBlock {
       'Invalid tx given, tx must be a "string" or "Transaction"'
     )
     if (tx instanceof Transaction) {
-      tx = BufferUtil.reverse(Buffer.from(tx.id, 'hex')).toString('hex')
+      tx = Buffer.from(tx.id, 'hex').reverse().toString('hex')
     }
     let txs = []
     let height = this._calcTreeHeight()

@@ -1,6 +1,5 @@
 const assert = require('assert')
 const qtuminfo = require('qtuminfo-lib')
-const BufferUtil = qtuminfo.util.buffer
 
 function checkInventory(arg) {
   assert(
@@ -67,7 +66,7 @@ function sanitizeStartStop(obj) {
   if (starts) {
     for (let i = 0; i < starts.length; ++i) {
       if (typeof starts[i] === 'string') {
-        starts[i] = BufferUtil.reverse(Buffer.from(starts[i], 'hex'))
+        starts[i] = Buffer.from(starts[i], 'hex').reverse()
       }
       if (starts[i].length !== 32) {
         throw new Error(`Invalid hash ${i} length: ${starts[i].length}`)
@@ -78,7 +77,7 @@ function sanitizeStartStop(obj) {
   }
 
   if (typeof stop === 'string') {
-    stop = BufferUtil.reverse(Buffer.from(stop, 'hex'))
+    stop = Buffer.from(stop, 'hex').reverse()
   }
   if (!stop) {
     stop = Buffer.alloc(32)

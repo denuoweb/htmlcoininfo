@@ -1,4 +1,5 @@
 const assert = require('assert')
+const Block = require('../models/block')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
@@ -163,7 +164,7 @@ class TransactionService extends BaseService {
     let blockTip = this._block.getTip()
     if (this._tip.height > blockTip.height) {
       this._tip = blockTip
-      await this._db.updateServiceTip(this._tip)
+      await this._db.updateServiceTip(this.name, this._tip)
     }
     await Transaction.deleteMany({'block.height': {$gt: blockTip.height}})
     await Utxo.deleteMany({'output.height': {$gt: blockTip.height}})
@@ -192,6 +193,7 @@ class TransactionService extends BaseService {
   }
 
   async _processTransaction(tx, indexInBlock, block) {
+    let addresses = new Set()
     let inputs = []
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
@@ -220,6 +222,9 @@ class TransactionService extends BaseService {
       }
       await utxo.save()
       inputs.push(utxo._id)
+      if (utxo.address) {
+        addresses.add(utxo.address)
+      }
     }
 
     let outputs = []
@@ -242,6 +247,9 @@ class TransactionService extends BaseService {
       }
       await utxo.save()
       outputs.push(utxo._id)
+      if (utxo.address) {
+        addresses.add(utxo.address)
+      }
     }
 
     let transaction = await Transaction.findOne({id: tx.id})
@@ -265,6 +273,7 @@ class TransactionService extends BaseService {
           height: block.height,
         },
         index: indexInBlock,
+        addresses: [...addresses],
         isStake: tx.outputs[0].script.chunks.length === 0
       })
     }

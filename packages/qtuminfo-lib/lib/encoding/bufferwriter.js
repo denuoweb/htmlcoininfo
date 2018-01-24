@@ -1,6 +1,5 @@
 const assert = require('assert')
 const BN = require('bn.js')
-const BufferUtil = require('../util/buffer')
 
 class BufferWriter {
   constructor(obj) {
@@ -37,7 +36,7 @@ class BufferWriter {
 
   writeReverse(buf) {
     assert(Buffer.isBuffer(buf))
-    this.bufs.push(BufferUtil.reverse(buf))
+    this.bufs.push(Buffer.from(buf).reverse())
     return this
   }
 

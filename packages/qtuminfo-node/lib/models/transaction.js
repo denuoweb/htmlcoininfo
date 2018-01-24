@@ -17,6 +17,7 @@ const transactionSchema = new Schema({
   },
   index: Number,
   isStake: {type: Boolean, default: false},
+  addresses: [{type: String, index: true}],
   receipts: [{
     gasUsed: Number,
     contractAddress: {type: String, index: true},

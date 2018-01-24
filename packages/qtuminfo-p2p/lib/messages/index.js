@@ -1,6 +1,5 @@
 const assert = require('assert')
 const qtuminfo = require('qtuminfo-lib')
-const BufferUtil = qtuminfo.util.buffer
 const {sha256sha256} = qtuminfo.crypto.Hash
 
 const MINIMUM_LENGTH = 20
