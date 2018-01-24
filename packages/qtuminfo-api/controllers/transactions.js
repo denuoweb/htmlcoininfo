@@ -41,6 +41,9 @@ class TransactionController {
 
   async transformTransaction(transaction, options = {}) {
     let confirmations = 'block' in transaction ? this._block.getTip().height - transaction.block.height + 1 : 0
+    let rawTransaction = toRawTransaction(transaction)
+    let transactionBuffer = rawTransaction.toBuffer()
+    let transactionHashBuffer = rawTransaction.toHashBuffer()
     let transformed = {
       txid: transaction.id,
       hash: transaction.hash,
@@ -52,7 +55,8 @@ class TransactionController {
       timestamp: transaction.block && transaction.block.timestamp,
       isCoinbase: transaction.isCoinbase,
       valueOut: transaction.outputSatoshis,
-      size: (await toRawTransaction(transaction)).toBuffer().length,
+      size: transactionBuffer.length,
+      weight: transactionBuffer.length + transactionHashBuffer.length * 3,
       tokenTransfers: []
     }
 
