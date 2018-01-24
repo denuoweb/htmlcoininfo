@@ -91,7 +91,7 @@ class QtuminfoAPI extends BaseService {
 
     class Log extends Writable {
       _write(chunk, encoding, callback) {
-        that.node.log.info(chunk.slice(0, chunk.length - 1))
+        that.node.log.info(chunk.slice(0, chunk.length - 1).toString())
         callback()
       }
     }
