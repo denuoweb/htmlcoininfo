@@ -46,6 +46,7 @@ class MempoolService extends BaseService {
   }
 
   async onReorg(_, block) {
+    await Transaction.deleteMany({'block.height': block.height, index: {$in: [0, 1]}})
     await Transaction.updateMany({'block.height': block.height}, {$set: {block: {height: 0xffffffff}}})
     await Utxo.updateMany({'output.height': block.height}, {$set: {'output.height': 0xffffffff}})
     await Utxo.updateMany({'input.height': block.height}, {$set: {'input.height': 0xffffffff}})
