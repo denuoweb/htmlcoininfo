@@ -72,14 +72,15 @@ class ContractService extends BaseService {
 
   async getContractSummary(address, options = {}) {
     let {totalCount, transactions} = options.noTxList ? {} : await this.getContractHistory(address, options)
-    let utxos = await this._address.getAddressUnspentOutputs(address, {listUsed: true})
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
-    for (let utxo of utxos) {
+    let cursor = Utxo.find({address}, ['satoshis', 'input.transactionId']).cursor()
+    let utxo
+    while (utxo = await cursor.next()) {
       let value = new BN(utxo.satoshis)
       totalReceived.iadd(value)
-      if (utxo.outputTxId) {
+      if (utxo.input.transactionId) {
         totalSent.iadd(value)
       } else {
         balance.iadd(value)

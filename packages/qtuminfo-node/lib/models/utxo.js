@@ -13,12 +13,13 @@ const utxoSchema = new Schema({
   },
   input: {
     height: {type: Number, index: true},
-    transactionId: {type: String, default: '0'.repeat(64), index: true},
+    transactionId: {type: String, index: true},
     index: {type: Number, index: true},
     script: [{opcode: Number, buffer: Buffer}],
     sequence: Number
   },
-  address: {type: String, index: true}
+  address: {type: String, index: true},
+  isStake: Boolean
 })
 
 exports = module.exports = mongoose.model('Utxo', utxoSchema)

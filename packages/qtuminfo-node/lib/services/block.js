@@ -277,7 +277,7 @@ class BlockService extends BaseService {
   }
 
   async onReorg(_, block) {
-    await Block.remove({hash: block.hash})
+    await Block.remove({height: block.height})
   }
 
   async _onReorg(commonAncestorHash, block) {
@@ -428,7 +428,7 @@ class BlockService extends BaseService {
       if (process.stdout.isTTY) {
         bar.tick()
       }
-      let ops = await this._onReorg(commonAncestorHeader.hash, block)
+      await this._onReorg(commonAncestorHeader.hash, block)
       ++blockCount
       this._recentBlockHashes.del(block.hash)
     }

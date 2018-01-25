@@ -118,7 +118,8 @@ class MempoolService extends BaseService {
           index,
           script: Utxo.transformScript(output.script)
         },
-        address: Utxo.getAddress(tx, index)
+        address: Utxo.getAddress(tx, index),
+        isStake: tx.outputs[0].script.chunks.length === 0
       })
       await utxo.save()
       outputs.push(utxo._id)
@@ -138,8 +139,7 @@ class MempoolService extends BaseService {
       witnessStack: tx.witnessStack.map(witness => witness.map(item => item.toString('hex'))),
       nLockTime: tx.nLockTime,
       block: {height: 0xffffffff},
-      addresses: [...addresses],
-      isStake: tx.outputs[0].script.chunks.length === 0
+      addresses: [...addresses]
     }).save()
 
     for (let transaction of this._subscriptions.transaction) {

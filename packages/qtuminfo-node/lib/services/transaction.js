@@ -1,5 +1,4 @@
 const assert = require('assert')
-const Block = require('../models/block')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
@@ -100,7 +99,6 @@ class TransactionService extends BaseService {
           witnessStack: {$first: '$witnessStack'},
           nLockTime: {$first: '$nLockTime'},
           block: {$first: '$block'},
-          isStake: {$first: '$isStake'},
           receipts: {$first: '$receipts'}
         }
       },
@@ -142,7 +140,6 @@ class TransactionService extends BaseService {
           witnessStack: {$first: '$witnessStack'},
           nLockTime: {$first: '$nLockTime'},
           block: {$first: '$block'},
-          isStake: {$first: '$isStake'},
           receipts: {$first: '$receipts'}
         }
       },
@@ -172,7 +169,7 @@ class TransactionService extends BaseService {
       {'input.height': {$gt: blockTip.height}},
       {
         'input.height': null,
-        'input.transactionId': '0'.repeat(64),
+        'input.transactionId': null,
         'input.index': null,
         'input.script': [],
         'input.sequence': null
@@ -207,7 +204,8 @@ class TransactionService extends BaseService {
             index,
             script: Utxo.transformScript(input.script),
             sequence: input.sequenceNumber
-          }
+          },
+          isStake: tx.outputs[0].script.chunks.length === 0
         })
       } else {
         utxo = await Utxo.findOne({
@@ -242,7 +240,8 @@ class TransactionService extends BaseService {
             index,
             script: Utxo.transformScript(output.script)
           },
-          address: Utxo.getAddress(tx, index)
+          address: Utxo.getAddress(tx, index),
+          isStake: tx.outputs[0].script.chunks.length === 0
         })
       }
       await utxo.save()
@@ -273,8 +272,7 @@ class TransactionService extends BaseService {
           height: block.height,
         },
         index: indexInBlock,
-        addresses: [...addresses],
-        isStake: tx.outputs[0].script.chunks.length === 0
+        addresses: [...addresses]
       })
     }
     await transaction.save()

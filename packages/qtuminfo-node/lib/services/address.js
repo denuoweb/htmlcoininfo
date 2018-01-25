@@ -48,16 +48,21 @@ class AddressService extends BaseService {
 
   async getAddressSummary(address, options = {}) {
     let {totalCount, transactions} = options.noTxList ? {} : await this.getAddressHistory(address, options)
-    let utxos = await this.getAddressUnspentOutputs(address, {listUsed: true})
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
     let unconfirmedBalance = new BN(0)
     let stakingBalance = new BN(0)
-    for (let utxo of utxos) {
+    let cursor = Utxo.find(
+      {address},
+      ['satoshis', 'output.height', 'input.transactionId', 'isStake']
+    ).cursor()
+    let utxo
+    while (utxo = await cursor.next()) {
       let value = new BN(utxo.satoshis)
+      let confirmations = Math.max(this._block.getTip().height - utxo.output.height + 1, 0)
       totalReceived.iadd(value)
-      if (utxo.outputTxId) {
+      if (utxo.input.transactionId) {
         totalSent.iadd(value)
       } else {
         balance.iadd(value)
@@ -65,7 +70,7 @@ class AddressService extends BaseService {
           unconfirmedBalance.iadd(value)
         }
       }
-      if (utxo.staking) {
+      if (utxo.isStake && confirmations < 500) {
         stakingBalance.iadd(value)
       }
     }
@@ -81,48 +86,22 @@ class AddressService extends BaseService {
     }
   }
 
-  async getAddressUnspentOutputs(address, {listUsed = false} = {}) {
-    let utxoList = await Utxo.aggregate([
-      {$match: {address, ...(listUsed ? {} : {'input.height': null})}},
-      {
-        $lookup: {
-          from: 'transactions',
-          localField: 'output.transactionId',
-          foreignField: 'id',
-          as: 'transaction'
-        }
-      },
-      {
-        $project: {
-          satoshis: '$satoshis',
-          outputTxId: '$output.transactionId',
-          outputIndex: '$output.index',
-          outputScript: '$output.script',
-          inputTxId: '$input.transactionId',
-          inputScript: '$input.script',
-          height: '$output.height',
-          index: '$transaction.0.index',
-          isStake: '$transaction.0.isStake'
-        }
-      },
-      {$sort: {height: 1, index: 1, outputIndex: 1}}
-    ]).allowDiskUse(true)
-    let results = []
-    for (let utxo of utxoList) {
-      let confirmations = Math.max(this._block.getTip().height - utxo.height + 1, 0)
-      results.push({
-        txid: utxo.outputTxId,
-        vout: utxo.outputIndex,
+  async getAddressUnspentOutputs(address) {
+    let utxoList = await Utxo.find({address, 'input.height': null})
+    return utxoList.map(utxo => {
+      let confirmations = Math.max(this._block.getTip().height - utxo.output.height + 1, 0)
+      return {
+        txid: utxo.output.transactionId,
+        vout: utxo.output.index,
         satoshis: utxo.satoshis,
-        height: utxo.height,
-        outputTxId: utxo.inputTxId === '0'.repeat(64) ? null : utxo.inputTxId,
-        scriptPubKey: toRawScript(utxo.outputScript).toBuffer().toString('hex'),
-        scriptSig: toRawScript(utxo.inputScript).toBuffer().toString('hex'),
+        height: utxo.output.height,
+        outputTxId: utxo.input.transactionId,
+        scriptPubKey: toRawScript(utxo.output.script).toBuffer().toString('hex'),
+        scriptSig: toRawScript(utxo.input.script).toBuffer().toString('hex'),
         confirmations,
         staking: utxo.isStake && confirmations < 500
-      })
-    }
-    return results
+      }
+    })
   }
 
   get APIMethods() {
