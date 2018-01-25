@@ -31,7 +31,7 @@ exports.transformScript = function(script) {
   }))
 }
 
-exports.getAddress = function(tx, index) {
+exports.getAddress = function(tx, index, network) {
   let script = tx.outputs[index].script
   if (script.isContractCreate()) {
     let indexBuffer = Buffer.alloc(4)
@@ -42,7 +42,7 @@ exports.getAddress = function(tx, index) {
   } else if (script.isContractCall()) {
     return script.chunks[4].buf.toString('hex')
   } else {
-    let address = script.toAddress()
+    let address = script.toAddress(network)
     return address && address.toString()
   }
 }

@@ -240,7 +240,7 @@ class TransactionService extends BaseService {
             index,
             script: Utxo.transformScript(output.script)
           },
-          address: Utxo.getAddress(tx, index),
+          address: Utxo.getAddress(tx, index, this._network),
           isStake: tx.outputs[0].script.chunks.length === 0
         })
       }
