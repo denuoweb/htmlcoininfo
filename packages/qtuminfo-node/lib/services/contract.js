@@ -148,7 +148,42 @@ class ContractService extends BaseService {
 
   async getAllQRC20TokenBalances(address) {
     let hexAddress = Base58Check.decode(address).slice(1).toString('hex')
-    let tokens = await this.listQRC20Tokens()
+    let tokens = await Transaction.aggregate([
+      {
+        $match: {
+          'receipts.logs.topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint]},
+          'receipts.logs.topics': '0'.repeat(24) + hexAddress,
+        }
+      },
+      {$unwind: '$receipts'},
+      {
+        $match: {
+          'receipts.logs.topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint]},
+          'receipts.logs.topics': '0'.repeat(24) + hexAddress,
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          contract: {$addToSet: '$receipts.contractAddress'}
+        }
+      },
+      {$unwind: '$contract'},
+      {
+        $lookup: {
+          from: 'contracts',
+          localField: 'contract',
+          foreignField: 'address',
+          as: 'contract'
+        }
+      },
+      {$unwind: '$contract'},
+      {$match: {'contract.type': 'qrc20'}},
+      {$project: {address: '$contract.address', qrc20: '$contract.qrc20'}}
+    ])
+    let tokenCreated = await Contract.find({owner: address, type: 'qrc20'})
+    let tokenSet = new Set(tokens.map(token => token.address))
+    tokens.push(tokenCreated.filter(token => !tokenSet.has(token.address)))
     let list = []
     for (let token of tokens) {
       try {
