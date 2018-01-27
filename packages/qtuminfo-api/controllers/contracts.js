@@ -35,7 +35,9 @@ class ContractsController {
       summary.owner = ctx.contract.owner
       summary.txid = ctx.contract.createTransactionId
       summary.type = ctx.contract.type
-      summary.qrc20 = ctx.contract.qrc20
+      if (ctx.contract.type === 'qrc20') {
+        summary.qrc20 = ctx.contract.qrc20
+      }
       ctx.body = summary
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
