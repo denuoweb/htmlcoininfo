@@ -33,6 +33,14 @@
   },
   {
     "type": "function",
+    "name": "version",
+    "inputs": [],
+    "outputs": [
+      {"name": "version", "type": "string"}
+    ]
+  },
+  {
+    "type": "function",
     "name": "balanceOf",
     "inputs": [
       {"name": "_owner", "type": "address"}

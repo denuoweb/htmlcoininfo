@@ -11,7 +11,8 @@ const contractSchema = new Schema({
     name: String,
     symbol: String,
     decimals: Number,
-    totalSupply: String
+    totalSupply: String,
+    version: String
   }
 })
 

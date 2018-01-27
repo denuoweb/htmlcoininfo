@@ -109,13 +109,14 @@ class ContractService extends BaseService {
           name: token.qrc20.name,
           symbol: token.qrc20.symbol,
           decimals: token.qrc20.decimals,
-          totalSupply: token.qrc20.totalSupply
+          totalSupply: token.qrc20.totalSupply,
+          version: token.qrc20.version
         }
         if (topics[0] === TOKEN_EVENTS.Transfer) {
           list.push({
             token,
             from: topics[1] === '0'.repeat(64) ? null : this._fromHexAddress(topics[1].slice(24)),
-            to: this._fromHexAddress(topics[2].slice(24)),
+            to: topics[2] === '0'.repeat(64) ? null : this._fromHexAddress(topics[2].slice(24)),
             amount: ContractService._uint256toBN(data).toString()
           })
         } else if (topics[0] === TOKEN_EVENTS.Mint) {
@@ -183,22 +184,28 @@ class ContractService extends BaseService {
     ])
     let tokenCreated = await Contract.find({owner: address, type: 'qrc20'})
     let tokenSet = new Set(tokens.map(token => token.address))
-    tokens.push(tokenCreated.filter(token => !tokenSet.has(token.address)))
+    tokens.push(...tokenCreated.filter(token => !tokenSet.has(token.address)))
+    let results = await this._batchCallMethods(tokens.map(token => ({
+      address: token.address,
+      abi: tokenAbi,
+      method: 'balanceOf',
+      args: [hexAddress]
+    })))
     let list = []
-    for (let token of tokens) {
-      try {
-        let {balance} = await this._callMethod(token.address, tokenAbi, 'balanceOf', '0x' + hexAddress)
-        if (!balance.isZero()) {
-          list.push({
-            address: token.address,
-            name: token.qrc20.name,
-            symbol: token.qrc20.symbol,
-            decimals: token.qrc20.decimals,
-            totalSupply: token.qrc20.totalSupply,
-            balance: balance.toString()
-          })
-        }
-      } catch (err) {}
+    for (let i = 0; i < tokens.length; ++i) {
+      let token = tokens[i]
+      let {balance} = await results[i]
+      if (!balance.isZero()) {
+        list.push({
+          address: token.address,
+          name: token.qrc20.name,
+          symbol: token.qrc20.symbol,
+          decimals: token.qrc20.decimals,
+          totalSupply: token.qrc20.totalSupply,
+          version: token.qrc20.version,
+          balance: balance.toString()
+        })
+      }
     }
     return list
   }
@@ -212,7 +219,7 @@ class ContractService extends BaseService {
     }
     for (let x of ['80', '81', '82', '83', '84']) {
       let dgpAddress = '0'.repeat(38) + x
-      await Contract.findOneAndUpdate({address: dgpAddress}, {$set: {type: 'dgp'}}, {upsert: true})
+      await Contract.findOneAndUpdate({address: dgpAddress}, {type: 'dgp'}, {upsert: true})
     }
     await Contract.deleteMany({createHeight: {$gt: blockTip.height}})
   }
@@ -264,37 +271,64 @@ class ContractService extends BaseService {
     }
     let contract = new Contract({address, owner, createTransactionId: tx.id, createHeight: block.height})
     try {
-      let {totalSupply} = await this._callMethod(address, tokenAbi, 'totalSupply')
+      let [{totalSupply}, {balance}] = await Promise.all(await this._batchCallMethods([
+        {address, abi: tokenAbi, method: 'totalSupply'},
+        {address, abi: tokenAbi, method: 'balanceOf', args: ['0'.repeat(40)]}
+      ]))
       contract.qrc20.totalSupply = totalSupply.toString()
       contract.type = 'qrc20'
-      await Promise.all([
-        this._callMethod(address, tokenAbi, 'name').then(
-          ({name}) => contract.qrc20.name = name,
-          () => {}
-        ),
-        this._callMethod(address, tokenAbi, 'symbol').then(
-          ({symbol}) => contract.qrc20.symbol = symbol,
-          () => {}
-        ),
-        this._callMethod(address, tokenAbi, 'decimals').then(
-          ({decimals}) => contract.qrc20.decimals = decimals.toNumber(),
-          () => {}
-        )
+      let [nameResult, symbolResult, decimalsResult, versionResult] = await this._batchCallMethods([
+        {address, abi: tokenAbi, method: 'name'},
+        {address, abi: tokenAbi, method: 'symbol'},
+        {address, abi: tokenAbi, method: 'decimals'},
+        {address, abi: tokenAbi, method: 'version'}
       ])
+      try {
+        contract.qrc20.name = (await nameResult).name
+      } catch (err) {}
+      try {
+        contract.qrc20.symbol = (await symbolResult).symbol
+      } catch (err) {}
+      try {
+        contract.qrc20.decimals = (await decimalsResult).decimals
+      } catch (err) {}
+      try {
+        contract.qrc20.version = (await versionResult).version
+      } catch (err) {}
     } catch (err) {}
     await contract.save()
   }
 
-  async _callMethod(address, contract, method, ...args) {
+  async _callMethod(address, abi, method, ...args) {
     let {executionResult} = await this._client.callContract(
       address,
-      contract.encodeMethod(method, ...args).slice(2)
+      abi.encodeMethod(method, ...args.map(arg => '0x' + arg)).slice(2)
     )
     if (executionResult.excepted === 'None') {
-      return contract.decodeMethod(method, '0x' + executionResult.output)
+      return abi.decodeMethod(method, '0x' + executionResult.output)
     } else {
       throw executionResult.excepted
     }
+  }
+
+  async _batchCallMethods(callList) {
+    let results = await this._client.batch(() => {
+      for (let {address, abi, method, args = []} of callList) {
+        this._client.callContract(
+          address,
+          abi.encodeMethod(method, ...args.map(arg => '0x' + arg)).slice(2)
+        )
+      }
+    })
+    return results.map(async (result, index) => {
+      let {abi, method} = callList[index]
+      let {executionResult} = await result
+      if (executionResult.excepted === 'None') {
+        return abi.decodeMethod(method, '0x' + executionResult.output)
+      } else {
+        throw executionResult.excepted
+      }
+    })
   }
 
   static _uint256toBN(data) {
@@ -306,31 +340,47 @@ class ContractService extends BaseService {
   }
 
   async _processReceipts(block) {
-    let list = await this._client.searchLogs(block.height, block.height)
-    for (let {transactionHash, gasUsed, contractAddress, log} of list) {
+    let blockReceipts = await Promise.all(await this._client.batch(() => {
+      for (let tx of block.transactions) {
+        this._client.getTransactionReceipt(tx.id)
+      }
+    }))
+
+    let totalSupplyChanges = new Set()
+    for (let i = 0; i < block.transactions.length; ++i) {
+      let tx = block.transactions[i]
       await Transaction.findOneAndUpdate(
-        {$or: [{id: transactionHash}, {hash: transactionHash}]},
-        {$push: {receipts: {gasUsed, contractAddress, logs: log}}}
-      )
-      for (let {address, topics, data} of log) {
-        if (address !== contractAddress) {
-          let transaction = block.transactions.find(
-            tx => tx.id === transactionHash || tx.hash === transactionHash
-          )
-          if (!(await Contract.findOne({address}))) {
-            await this._createContract(transaction, block, address, contractAddress)
-          }
+        {id: tx.id},
+        {
+          receipts: blockReceipts[i].map(receipt => ({
+            gasUsed: receipt.gasUsed,
+            contractAddress: receipt.contractAddress,
+            logs: receipt.log
+          }))
         }
-        if ([TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn].includes(topics[0])) {
-          let contract = await Contract.findOne({address, type: 'qrc20'})
-          if (!contract) {
-            continue
+      )
+      for (let {transactionHash, gasUsed, contractAddress, log} of blockReceipts[i]) {
+        for (let {address, topics, data} of log) {
+          if (address !== contractAddress) {
+            let transaction = block.transactions.find(tx => tx.id === transactionHash)
+            if (!await Contract.findOne({address})) {
+              await this._createContract(transaction, block, address, contractAddress)
+            }
           }
-          let {totalSupply} = await this._callMethod(address, tokenAbi, 'totalSupply')
-          contract.totalSupply = totalSupply.toString()
-          await contract.save()
+          if ([TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn].includes(topics[0])) {
+            totalSupplyChanges.add(address)
+          }
         }
       }
+    }
+    for (let address of totalSupplyChanges) {
+      let contract = await Contract.findOne({address, type: 'qrc20'})
+      if (!contract) {
+        continue
+      }
+      let {totalSupply} = await this._callMethod(address, tokenAbi, 'totalSupply')
+      contract.totalSupply = totalSupply.toString()
+      await contract.save()
     }
   }
 
