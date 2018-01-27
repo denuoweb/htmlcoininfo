@@ -44,8 +44,8 @@ class RpcClient {
 
     return new Promise((resolve, reject) => {
       let req = this.protocol.request(options, res => {
-        let buffer = ''
-        res.on('data', data => buffer += data)
+        let buffer = []
+        res.on('data', data => buffer.push(data))
         res.on('end', () => {
           if (res.statusCode === 401) {
             reject(new Error(errorMessage + 'Connection Rejected: 401 Unauthorized'))
@@ -57,11 +57,21 @@ class RpcClient {
             reject(exceededError)
           } else {
             try {
-              let parsedBuffer = JSON.parse(buffer)
-              if (parsedBuffer.error) {
-                reject(parsedBuffer.error)
+              let parsedBuffer = JSON.parse(Buffer.concat(buffer).toString())
+              if (Array.isArray(parsedBuffer)) {
+                resolve(parsedBuffer.map(result => {
+                  if (result.error) {
+                    return Promise.reject(result.error)
+                  } else {
+                    return Promise.resolve(result.result)
+                  }
+                }))
               } else {
-                resolve(parsedBuffer.result)
+                if (parsedBuffer.error) {
+                  reject(parsedBuffer.error)
+                } else {
+                  resolve(parsedBuffer.result)
+                }
               }
             } catch (err) {
               this.log.error(err.stack)
@@ -84,8 +94,11 @@ class RpcClient {
   async batch(batchCallback) {
     this.batchedCalls = []
     batchCallback()
-    await this.rpc(this.batchedCalls)
-    this.batchedCalls = null
+    try {
+      return await this.rpc(this.batchedCalls)
+    } finally {
+      this.batchedCalls = null
+    }
   }
 }
 
