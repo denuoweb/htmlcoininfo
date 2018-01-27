@@ -340,26 +340,38 @@ class ContractService extends BaseService {
   }
 
   async _processReceipts(block) {
-    let blockReceipts = await Promise.all(await this._client.batch(() => {
-      for (let tx of block.transactions) {
-        this._client.getTransactionReceipt(tx.id)
-      }
-    }))
-
-    let totalSupplyChanges = new Set()
+    let receiptIndices = []
     for (let i = 0; i < block.transactions.length; ++i) {
       let tx = block.transactions[i]
+      for (let output of tx.outputs) {
+        if (output.script.isContractCreate() || output.script.isContractCall()) {
+          receiptIndices.push(i)
+          break
+        }
+      }
+    }
+    if (receiptIndices.length === 0) {
+      return
+    }
+    let blockReceipts = await Promise.all(await this._client.batch(() => {
+      for (let index of receiptIndices) {
+        this._client.getTransactionReceipt(block.transactions[index].id)
+      }
+    }))
+    let totalSupplyChanges = new Set()
+    for (let index = 0; index < receiptIndices.length; ++index) {
+      let tx = block.transactions[receiptIndices[index]]
       await Transaction.findOneAndUpdate(
         {id: tx.id},
         {
-          receipts: blockReceipts[i].map(receipt => ({
+          receipts: blockReceipts[index].map(receipt => ({
             gasUsed: receipt.gasUsed,
             contractAddress: receipt.contractAddress,
             logs: receipt.log
           }))
         }
       )
-      for (let {transactionHash, gasUsed, contractAddress, log} of blockReceipts[i]) {
+      for (let {transactionHash, gasUsed, contractAddress, log} of blockReceipts[index]) {
         for (let {address, topics, data} of log) {
           if (address !== contractAddress) {
             let transaction = block.transactions.find(tx => tx.id === transactionHash)
