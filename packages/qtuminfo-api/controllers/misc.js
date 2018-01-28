@@ -44,6 +44,11 @@ class MiscController {
         return
       }
     }
+    let token = await this._contract.searchQRC20Token(id)
+    if (token) {
+      ctx.body = {type: 'contract', id: token.address}
+      return
+    }
     ctx.throw(404)
   }
 }

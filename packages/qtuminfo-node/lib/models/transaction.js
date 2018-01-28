@@ -13,7 +13,7 @@ const transactionSchema = new Schema({
   nLockTime: Number,
   block: {
     hash: {type: String, default: '0'.repeat(64)},
-    height: {type: Number, default: 0xffffffff}
+    height: {type: Number, default: 0xffffffff, index: true}
   },
   index: Number,
   addresses: [{type: String, index: true}],

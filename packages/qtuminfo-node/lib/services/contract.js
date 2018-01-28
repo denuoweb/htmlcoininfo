@@ -54,7 +54,8 @@ class ContractService extends BaseService {
       ['getTokenTransfers', this.getTokenTransfers, 2],
       ['listContracts', this.listContracts.bind(this), 0],
       ['listQRC20Tokens', this.listQRC20Tokens.bind(this), 0],
-      ['getAllQRC20TokenBalances', this.getAllQRC20TokenBalances.bind(this), 1]
+      ['getAllQRC20TokenBalances', this.getAllQRC20TokenBalances.bind(this), 1],
+      ['searchQRC20Token', this.searchQRC20Token.bind(this), 1]
     ]
   }
 
@@ -208,6 +209,34 @@ class ContractService extends BaseService {
       }
     }
     return list
+  }
+
+  async searchQRC20Token(name) {
+    let tokens = await Contract.find(
+      {$text: {$search: name}},
+      {score: {$meta: 'textScore'}}
+    ).sort({score: {$meta: 'textScore'}})
+    if (tokens.length === 0) {
+      return
+    }
+    let index = tokens.findIndex(token => token.score < tokens[0].score)
+    if (index >= 0) {
+      tokens = tokens.slice(0, index)
+    }
+    let bestToken = {token: null, transactions: 0}
+    for (let token of tokens) {
+      let count = await Transaction.count({
+        $or: [
+          {addresses: token.address},
+          {'receipts.contractAddress': token.address},
+          {'receipts.logs.address': token.address}
+        ]
+      })
+      if (count > bestToken.transactions) {
+        bestToken = {token, transactions: count}
+      }
+    }
+    return bestToken.token
   }
 
   async start() {

@@ -151,7 +151,7 @@ class TransactionService extends BaseService {
           as: 'block'
         }
       },
-      {$addFields: {block: {$arrayElemAt: ['$block', 0]}}}
+      {$unwind: '$block'}
     ])
     return list[0]
   }
