@@ -441,7 +441,7 @@ class ContractService extends BaseService {
         continue
       }
       let {totalSupply} = await this._callMethod(address, tokenAbi, 'totalSupply')
-      contract.totalSupply = totalSupply.toString()
+      contract.qrc20.totalSupply = totalSupply.toString()
       await contract.save()
     }
   }
