@@ -64,10 +64,31 @@ class ContractService extends BaseService {
   }
 
   async getContractHistory(address, {from = 0, to = 0xffffffff} = {}) {
-    let list = await this._getContractTxidHistory(address)
+    let [{count, list}] = await Transaction.aggregate([
+      {
+        $match: {
+          $or: [
+            {addresses: address},
+            {'receipts.contractAddress': address},
+            {'receipts.logs.address': address}
+          ]
+        }
+      },
+      {
+        $facet: {
+          count: [{$group: {_id: null, count: {$sum: 1}}}],
+          list: [
+            {$sort: {'block.height': -1, index: -1}},
+            {$project: {id: true}},
+            {$skip: from},
+            {$limit: to - from}
+          ]
+        }
+      }
+    ])
     return {
-      totalCount: list.length,
-      transactions: list.slice(from, to)
+      totalCount: count[0].count,
+      transactions: list.map(tx => tx.id)
     }
   }
 
@@ -423,23 +444,6 @@ class ContractService extends BaseService {
       contract.totalSupply = totalSupply.toString()
       await contract.save()
     }
-  }
-
-  async _getContractTxidHistory(address) {
-    let list = await Transaction.aggregate([
-      {
-        $match: {
-          $or: [
-            {addresses: address},
-            {'receipts.contractAddress': address},
-            {'receipts.logs.address': address}
-          ]
-        }
-      },
-      {$sort: {'block.height': -1, index: -1}},
-      {$project: {id: true}}
-    ])
-    return list.map(tx => tx.id)
   }
 }
 

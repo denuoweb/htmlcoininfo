@@ -39,10 +39,38 @@ class AddressService extends BaseService {
     if (typeof addresses === 'string') {
       addresses = [addresses]
     }
-    let list = await this._getAddressTxidHistory(addresses)
+    let hexAddresses = addresses.map(
+      address => '0'.repeat(24) + Base58Check.decode(address).slice(1).toString('hex')
+    )
+    let [{count, list}] = await Transaction.aggregate([
+      {
+        $match: {
+          $or: [
+            {addresses: {$in: addresses}},
+            {
+              'receipts.logs.topics.0': {
+                $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
+              },
+              'receipts.logs.topics': {$in: hexAddresses},
+            }
+          ]
+        }
+      },
+      {
+        $facet: {
+          count: [{$group: {_id: null, count: {$sum: 1}}}],
+          list: [
+            {$sort: {'block.height': -1, index: -1}},
+            {$project: {id: true}},
+            {$skip: from},
+            {$limit: to - from}
+          ]
+        }
+      }
+    ])
     return {
-      totalCount: list.length,
-      transactions: list.slice(from, to)
+      totalCount: count[0].count,
+      transactions: list.map(tx => tx.id)
     }
   }
 
@@ -111,30 +139,6 @@ class AddressService extends BaseService {
       ['getAddressUnspentOutputs', this.getAddressUnspentOutputs.bind(this), 1],
       ['snapshot', this.snapshot.bind(this), 2]
     ]
-  }
-
-  async _getAddressTxidHistory(addresses) {
-    let hexAddresses = addresses.map(
-      address => '0'.repeat(24) + Base58Check.decode(address).slice(1).toString('hex')
-    )
-    let list = await Transaction.aggregate([
-      {
-        $match: {
-          $or: [
-            {addresses: {$in: addresses}},
-            {
-              'receipts.logs.topics.0': {
-                $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
-              },
-              'receipts.logs.topics': {$in: hexAddresses},
-            }
-          ]
-        }
-      },
-      {$sort: {'block.height': -1, index: -1}},
-      {$project: {id: true}}
-    ])
-    return list.map(tx => tx.id)
   }
 
   snapshot(height, minBalance = 0) {
