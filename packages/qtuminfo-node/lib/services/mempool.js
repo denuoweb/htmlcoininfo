@@ -106,6 +106,9 @@ class MempoolService extends BaseService {
       utxo.input.sequence = input.sequenceNumber
       await utxo.save()
       inputs.push(utxo._id)
+      if (utxo.address) {
+        addresses.add(utxo.address)
+      }
     }
 
     let outputs = []
