@@ -190,7 +190,8 @@ class TransactionService extends BaseService {
   }
 
   async _processTransaction(tx, indexInBlock, block) {
-    let addresses = new Set()
+    let inputAddresses = new Set()
+    let outputAddresses = new Set()
     let inputs = []
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
@@ -221,7 +222,7 @@ class TransactionService extends BaseService {
       await utxo.save()
       inputs.push(utxo._id)
       if (utxo.address) {
-        addresses.add(utxo.address)
+        inputAddresses.add(utxo.address)
       }
     }
 
@@ -247,7 +248,7 @@ class TransactionService extends BaseService {
       await utxo.save()
       outputs.push(utxo._id)
       if (utxo.address) {
-        addresses.add(utxo.address)
+        outputAddresses.add(utxo.address)
       }
     }
 
@@ -272,7 +273,8 @@ class TransactionService extends BaseService {
           height: block.height,
         },
         index: indexInBlock,
-        addresses: [...addresses]
+        inputAddresses: [...inputAddresses],
+        outputAddresses: [...outputAddresses]
       })
     }
     await transaction.save()

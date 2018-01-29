@@ -68,7 +68,8 @@ class ContractService extends BaseService {
       {
         $match: {
           $or: [
-            {addresses: address},
+            {inputAddresses: address},
+            {outputAddresses: address},
             {'receipts.contractAddress': address},
             {'receipts.logs.address': address}
           ]
@@ -248,7 +249,8 @@ class ContractService extends BaseService {
     for (let token of tokens) {
       let count = await Transaction.count({
         $or: [
-          {addresses: token.address},
+          {inputAddresses: token.address},
+          {outputAddresses: token.address},
           {'receipts.contractAddress': token.address},
           {'receipts.logs.address': token.address}
         ]

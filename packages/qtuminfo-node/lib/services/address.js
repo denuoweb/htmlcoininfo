@@ -46,7 +46,8 @@ class AddressService extends BaseService {
       {
         $match: {
           $or: [
-            {addresses: {$in: addresses}},
+            {inputAddresses: {$in: addresses}},
+            {outputAddresses: {$in: addresses}},
             {
               'receipts.logs.topics.0': {
                 $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]

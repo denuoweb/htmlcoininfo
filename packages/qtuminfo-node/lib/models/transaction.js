@@ -16,7 +16,8 @@ const transactionSchema = new Schema({
     height: {type: Number, default: 0xffffffff, index: true}
   },
   index: Number,
-  addresses: [{type: String, index: true}],
+  inputAddresses: [{type: String, index: true}],
+  outputAddresses: [{type: String, index: true}],
   receipts: [{
     gasUsed: Number,
     contractAddress: {type: String, index: true},
