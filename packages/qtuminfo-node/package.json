@@ -35,7 +35,7 @@
     "liftoff": "^2.3.0",
     "lru-cache": "^4.1.1",
     "mkdirp": "^0.5.1",
-    "mongoose": "^5.0.1",
+    "mongoose": "^5.0.2",
     "qtuminfo-lib": "^0.0.1",
     "qtuminfo-p2p": "^0.0.1",
     "qtuminfo-rpc": "^0.0.1",
