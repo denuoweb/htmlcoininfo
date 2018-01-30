@@ -70,7 +70,7 @@ class AddressService extends BaseService {
       }
     ])
     return {
-      totalCount: count[0].count,
+      totalCount: count.length && count[0].count,
       transactions: list.map(tx => tx.id)
     }
   }
