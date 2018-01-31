@@ -31,13 +31,13 @@ class MempoolService extends BaseService {
   }
 
   subscribe(name, emitter) {
-    let subscriptions = this.subscriptions[name]
+    let subscriptions = this._subscriptions[name]
     subscriptions.push(emitter)
     this.log.info(emitter.remoteAddress, 'subscribe:', 'mempool/' + name, 'total:', subscriptions.length)
   }
 
   unsubscribe(name, emitter) {
-    let subscriptions = this.subscriptions[name]
+    let subscriptions = this._subscriptions[name]
     let index = subscriptions.indexOf(emitter)
     if (index >= 0) {
       subscriptions.splice(index, 1)
@@ -149,7 +149,7 @@ class MempoolService extends BaseService {
     }).save()
 
     for (let transaction of this._subscriptions.transaction) {
-      transaction.emit('mempool/transaction')
+      transaction.emit('mempool/transaction', tx)
     }
   }
 }

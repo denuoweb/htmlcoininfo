@@ -122,7 +122,7 @@ class TransactionController {
     for (let output of transaction.outputs) {
       valueOut += output.satoshis
       if (output.script) {
-        let address = getAddress(output, this._network)
+        let address = output.script.toAddress(this._network)
         if (address) {
           vout.push({[address]: output.satoshis})
         }

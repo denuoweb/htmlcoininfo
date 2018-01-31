@@ -72,11 +72,10 @@ class QtuminfoAPI extends BaseService {
   }
 
   async start() {
-    if (!this._subscribed) {
+    if (this._subscribed) {
       return
     }
     this._subscribed = true
-
     if (!this._bus) {
       this._bus = this.node.openBus({remoteAddress: 'localhost-qtuminfo-api'})
     }
@@ -88,14 +87,12 @@ class QtuminfoAPI extends BaseService {
 
   createLogInfoStream() {
     const that = this
-
     class Log extends Writable {
       _write(chunk, encoding, callback) {
         that.node.log.info(chunk.slice(0, chunk.length - 1).toString())
         callback()
       }
     }
-
     return new Log()
   }
 
@@ -256,7 +253,6 @@ class QtuminfoAPI extends BaseService {
 
   transactionEventHandler(tx) {
     let result = this.transactionController.transformInvTransaction(tx)
-
     for (let event of this.subscriptions.inv) {
       event.emit('tx', result)
     }
