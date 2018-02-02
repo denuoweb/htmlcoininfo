@@ -478,7 +478,7 @@ class BlockService extends BaseService {
           await service.onBlock(block)
         }
       }
-      await this.__onBlock(block)
+      let blockObject = await this.__onBlock(block)
       this._recentBlockHashes.set(
         block.hash,
         Buffer.from(block.prevBlock, 'hex').reverse().toString('hex')
@@ -486,7 +486,7 @@ class BlockService extends BaseService {
       await this._setTip({hash: block.hash, height: block.height})
       this._processingBlock = false
       for (let subscription of this._subscriptions.block) {
-        subscription.emit('block/block', block)
+        subscription.emit('block/block', blockObject)
       }
     } catch (err) {
       this._processingBlock = false
