@@ -97,7 +97,7 @@ class QtuminfoAPI extends BaseService {
   }
 
   getRemoteAddress(req) {
-    return req.headers['cf-connecting-ip'] || req.socket.remoteAddress
+    return req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress
   }
 
   _getRateLimiter() {
