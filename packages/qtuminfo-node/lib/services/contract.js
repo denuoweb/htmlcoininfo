@@ -447,6 +447,38 @@ class ContractService extends BaseService {
       await contract.save()
     }
   }
+
+  async qrc20TokenSnapshot(address) {
+    let addressResults = await Transaction.aggregate([
+      {$match: {'receipts.logs.address': address}},
+      {$project: {_id: false, receipts: '$receipts'}},
+      {$unwind: '$receipts'},
+      {$unwind: '$receipts.logs'},
+      {
+        $match: {
+          'receipts.logs.address': address,
+          'receipts.logs.topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]}
+        }
+      },
+      {$project: {address: {$slice: ['$receipts.logs.topics', 1, 2]}}},
+      {$unwind: '$address'},
+      {$project: {address: {$substr: ['$address', 24, 40]}}},
+      {$group: {_id: null, addresses: {$addToSet: '$address'}}}
+    ])
+    let addresses = addressResults.length ? addressResults[0].addresses : []
+    let balances = await Promise.all(await this._batchCallMethods(addresses.map(item => ({
+      address, abi: tokenAbi, method: 'balanceOf', args: [item]
+    }))))
+    let results = []
+    for (let i = 0; i < addresses.length; ++i) {
+      results.push({address: this._fromHexAddress(addresses[i]), balance: balances[i].balance})
+    }
+    results = results.filter(x => !x.balance.isZero()).sort((x, y) => y.balance.cmp(x.balance))
+    for (let result of results) {
+      result.balance = result.balance.toString()
+    }
+    return results
+  }
 }
 
 module.exports = ContractService
