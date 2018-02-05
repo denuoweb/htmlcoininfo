@@ -115,36 +115,6 @@ class TransactionController {
     return transformed
   }
 
-  transformInvTransaction(transaction) {
-    let valueOut = 0
-    let vout = []
-
-    for (let output of transaction.outputs) {
-      valueOut += output.satoshis
-      if (output.script) {
-        let address = output.script.toAddress(this._network)
-        if (address) {
-          vout.push({[address]: output.satoshis})
-        }
-      }
-    }
-
-    let isRBF = false
-    for (let input of transaction.inputs) {
-      if (input.sequenceNumber < 0xfffffffe) {
-        isRBF = true
-        break
-      }
-    }
-
-    return {
-      txid: transaction.id,
-      valueOut,
-      vout,
-      isRBF,
-    }
-  }
-
   async rawTransaction(ctx, next) {
     let txid = ctx.params.txid
 

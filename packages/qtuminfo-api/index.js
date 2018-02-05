@@ -16,8 +16,6 @@ class QtuminfoAPI extends BaseService {
   constructor(options) {
     super(options)
 
-    this.subscriptions = {inv: []}
-
     this.enableCache = options.enableCache
     this.cacheShortSeconds = options.cacheShortSeconds
     this.cacheLongSeconds = options.cacheLongSeconds
@@ -69,20 +67,6 @@ class QtuminfoAPI extends BaseService {
 
   get routePrefix() {
     return this._routePrefix
-  }
-
-  async start() {
-    if (this._subscribed) {
-      return
-    }
-    this._subscribed = true
-    if (!this._bus) {
-      this._bus = this.node.openBus({remoteAddress: 'localhost-qtuminfo-api'})
-    }
-    this._bus.on('mempool/transaction', this.transactionEventHandler.bind(this))
-    this._bus.subscribe('mempool/transaction')
-    this._bus.on('block/block', this.blockEventHandler.bind(this))
-    this._bus.subscribe('block/block')
   }
 
   createLogInfoStream() {
@@ -234,43 +218,6 @@ class QtuminfoAPI extends BaseService {
     )
 
     app.use(router.routes()).use(router.allowedMethods())
-  }
-
-  get publishEvents() {
-    return [{
-      name: 'inv',
-      subscribe: emitter => this.subscribe(emitter),
-      unsubscribe: emitter => this.unsubscribe(emitter),
-      extraEvents: ['block', 'tx']
-    }]
-  }
-
-  blockEventHandler(hashBuffer) {
-    for (let event of this.subscriptions.inv) {
-      event.emit('block', hashBuffer.toString('hex'))
-    }
-  }
-
-  transactionEventHandler(tx) {
-    let result = this.transactionController.transformInvTransaction(tx)
-    for (let event of this.subscriptions.inv) {
-      event.emit('tx', result)
-    }
-  }
-
-  subscribe(emitter, room) {
-    let emitters = this.subscriptions[room]
-    if (!emitters.includes(emitter)) {
-      emitters.push(emitter)
-    }
-  }
-
-  unsubscribe(emitter, room) {
-    let emitters = this.subscriptions[room]
-    let index = emitters.indexOf(emitter)
-    if (index !== -1) {
-      emitters.splice(index, 1)
-    }
   }
 }
 
