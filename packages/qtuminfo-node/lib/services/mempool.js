@@ -1,6 +1,7 @@
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
+const {toRawScript} = require('../utils')
 
 class MempoolService extends BaseService {
   constructor(options) {
@@ -113,6 +114,7 @@ class MempoolService extends BaseService {
     }
 
     let outputs = []
+    let outputUtxos = []
     for (let index = 0; index < tx.outputs.length; ++index) {
       let output = tx.outputs[index]
       let utxo = new Utxo({
@@ -128,12 +130,13 @@ class MempoolService extends BaseService {
       })
       await utxo.save()
       outputs.push(utxo._id)
+      outputUtxos.push(utxo)
       if (utxo.address) {
         outputAddresses.add(utxo.address)
       }
     }
 
-    await new Transaction({
+    let transaction = new Transaction({
       id: tx.id,
       hash: tx.hash,
       version: tx.version,
@@ -146,10 +149,23 @@ class MempoolService extends BaseService {
       block: {height: 0xffffffff},
       inputAddresses: [...inputAddresses],
       outputAddresses: [...outputAddresses],
-    }).save()
+    })
+    await transaction.save()
 
-    for (let transaction of this._subscriptions.transaction) {
-      transaction.emit('mempool/transaction', tx)
+    let txBuffer = tx.toBuffer()
+    let txHashBuffer = tx.toHashBuffer()
+    let inputSatoshis = inputUtxos.map(utxo => utxo.satoshis).reduce((x, y) => x + y)
+    let outputSatoshis = outputUtxos.map(utxo => utxo.satoshis).reduce((x, y) => x + y)
+    let transformed = {
+      id: transaction.id,
+      size: txBuffer.length,
+      weight: txBuffer.length + txHashBuffer.length * 3,
+      valueIn: inputSatoshis,
+      valueOut: outputSatoshis,
+      fees: inputSatoshis - outputSatoshis
+    }
+    for (let subscription of this._subscriptions.transaction) {
+      subscription.emit('mempool/transaction', transformed)
     }
   }
 }

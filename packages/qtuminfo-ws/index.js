@@ -79,7 +79,15 @@ class QtuminfoWS extends BaseService {
     }
   }
 
-  transactionEventHandler(tx) {
+  transactionEventHandler(transaction) {
+    for (let client of this._server.clients) {
+      if (client.subscriptions.has('transaction')) {
+        client.send(JSON.stringify({
+          type: 'transaction',
+          data: transaction
+        }))
+      }
+    }
   }
 
   async transformBlock(block) {
