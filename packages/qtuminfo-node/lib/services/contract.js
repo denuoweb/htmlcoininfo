@@ -93,8 +93,25 @@ class ContractService extends BaseService {
     }
   }
 
+  async getContractTransactionCount(address) {
+    let result = await Transaction.aggregate([
+      {
+        $match: {
+          $or: [
+            {inputAddresses: address},
+            {outputAddresses: address},
+            {'receipts.contractAddress': address},
+            {'receipts.logs.address': address}
+          ]
+        }
+      },
+      {$group: {_id: null, count: {$sum: 1}}}
+    ])
+    return result.length && result[0].count
+  }
+
   async getContractSummary(address, options = {}) {
-    let {totalCount, transactions} = options.noTxList ? {} : await this.getContractHistory(address, options)
+    let totalCount = await this.getContractTransactionCount(address)
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)

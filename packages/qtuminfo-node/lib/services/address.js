@@ -62,9 +62,9 @@ class AddressService extends BaseService {
           count: [{$group: {_id: null, count: {$sum: 1}}}],
           list: [
             {$sort: {'block.height': -1, index: -1}},
-            {$project: {id: true}},
             {$skip: from},
-            {$limit: to - from}
+            {$limit: to - from},
+            {$project: {id: true}}
           ]
         }
       }
@@ -75,8 +75,35 @@ class AddressService extends BaseService {
     }
   }
 
+  async getAddressTransactionCount(addresses) {
+    if (typeof addresses === 'string') {
+      addresses = [addresses]
+    }
+    let hexAddresses = addresses.map(
+      address => '0'.repeat(24) + Base58Check.decode(address).slice(1).toString('hex')
+    )
+    let result = await Transaction.aggregate([
+      {
+        $match: {
+          $or: [
+            {inputAddresses: {$in: addresses}},
+            {outputAddresses: {$in: addresses}},
+            {
+              'receipts.logs.topics.0': {
+                $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
+              },
+              'receipts.logs.topics': {$in: hexAddresses},
+            }
+          ]
+        }
+      },
+      {$group: {_id: null, count: {$sum: 1}}}
+    ])
+    return result.length && result[0].count
+  }
+
   async getAddressSummary(address, options = {}) {
-    let {totalCount, transactions} = options.noTxList ? {} : await this.getAddressHistory(address, options)
+    let totalCount = await this.getAddressTransactionCount(address)
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
@@ -106,7 +133,6 @@ class AddressService extends BaseService {
     return {
       address,
       totalCount,
-      transactions,
       balance: balance.toString(),
       totalReceived: totalReceived.toString(),
       totalSent: totalSent.toString(),
