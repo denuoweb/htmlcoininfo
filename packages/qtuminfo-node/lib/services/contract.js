@@ -129,7 +129,6 @@ class ContractService extends BaseService {
     return {
       address,
       totalCount,
-      transactions,
       balance: balance.toString(),
       totalReceived: totalReceived.toString(),
       totalSent: totalSent.toString()
