@@ -154,21 +154,21 @@ class ContractService extends BaseService {
         if (topics[0] === TOKEN_EVENTS.Transfer) {
           list.push({
             token,
-            from: topics[1] === '0'.repeat(64) ? null : this._fromHexAddress(topics[1].slice(24)),
-            to: topics[2] === '0'.repeat(64) ? null : this._fromHexAddress(topics[2].slice(24)),
+            from: topics[1] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[1].slice(24)),
+            to: topics[2] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[2].slice(24)),
             amount: ContractService._uint256toBN(data).toString()
           })
         } else if (topics[0] === TOKEN_EVENTS.Mint) {
           list.push({
             token,
             from: null,
-            to: this._fromHexAddress(topics[1].slice(24)),
+            to: await this._fromHexAddress(topics[1].slice(24)),
             amount: ContractService._uint256toBN(data.slice(-64)).toString()
           })
         } else if (topics[0] === TOKEN_EVENTS.Burn) {
           list.push({
             token,
-            from: this._fromHexAddress(topics[1].slice(24)),
+            from: await this._fromHexAddress(topics[1].slice(24)),
             to: null,
             amount: ContractService._uint256toBN(data.slice(-64)).toString()
           })
@@ -403,8 +403,13 @@ class ContractService extends BaseService {
     return new BN(data.replace(/^0+/, '') || '0', 16)
   }
 
-  _fromHexAddress(data) {
-    return new Address(Buffer.from(data, 'hex'), this._network).toString()
+  async _fromHexAddress(data) {
+    let contract = await Contract.findOne({address: data})
+    if (contract) {
+      return data
+    } else {
+      return new Address(Buffer.from(data, 'hex'), this._network).toString()
+    }
   }
 
   async _processReceipts(block) {
@@ -487,9 +492,11 @@ class ContractService extends BaseService {
     }))))
     let results = []
     for (let i = 0; i < addresses.length; ++i) {
-      results.push({address: this._fromHexAddress(addresses[i]), balance: balances[i].balance})
+      if (!balances[i].balance.isZero()) {
+        results.push({address: await this._fromHexAddress(addresses[i]), balance: balances[i].balance})
+      }
     }
-    results = results.filter(x => !x.balance.isZero()).sort((x, y) => y.balance.cmp(x.balance))
+    results.sort((x, y) => y.balance.cmp(x.balance))
     for (let result of results) {
       result.balance = result.balance.toString()
     }
