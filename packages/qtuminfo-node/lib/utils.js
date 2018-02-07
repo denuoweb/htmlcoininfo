@@ -260,7 +260,7 @@ function toRawScript(script) {
   return new qtuminfo.Script({
     chunks: script.map(chunk => ({
       opcodenum: chunk.opcode,
-      buf: chunk.buffer && Buffer.from(chunk.buffer.buffer)
+      buf: chunk.buffer && (Buffer.isBuffer(chunk.buffer) ? chunk.buffer : Buffer.from(chunk.buffer.buffer))
     }))
   })
 }

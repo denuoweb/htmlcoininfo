@@ -90,47 +90,16 @@ class AddressController {
 
   async utxo(ctx) {
     try {
-      let utxos = await this._address.getAddressUnspentOutputs(ctx.address)
-      ctx.body = utxos.map(this.transformUtxo.bind(this))
+      ctx.body = await this._address.getAddressUnspentOutputs(ctx.address)
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
   }
 
-  transformUtxo(utxoArg) {
-    let utxo = {
-      address: utxoArg.address,
-      txid: utxoArg.txid,
-      vout: utxoArg.vout,
-      scriptPubKey: utxoArg.scriptPubKey,
-      satoshis: utxoArg.satoshis
-    }
-    if (utxoArg.height) {
-      utxo.height = utxoArg.height
-      utxo.confirmations = this._block.getTip().height - utxoArg.height + 1
-    } else {
-      utxo.confirmations = 0
-    }
-    if (utxoArg.timestamp) {
-      utxo.timestamp = utxoArg.timestamp
-    }
-    return utxo
-  }
-
   async multiutxo(ctx) {
-    let addresses = []
-    for (let address of ctx.addresses) {
-      if (!addresses.includes(address)) {
-        addresses.push(address)
-      }
-    }
+    let addresses = [...new Set(ctx.addresses)]
     try {
-      let result = []
-      await Promise.all(addresses.map(async address => {
-        let utxos = await this._address.getAddressUnspentOutputs(address)
-        result.push(...utxos.map(this.transformUtxo.bind(this)))
-      }))
-      ctx.body = result
+      ctx.body = await this._address.getAddressUnspentOutputs(addresses)
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }

@@ -141,22 +141,21 @@ class AddressService extends BaseService {
     }
   }
 
-  async getAddressUnspentOutputs(address) {
-    let utxoList = await Utxo.find({address, 'input.height': null})
-    return utxoList.map(utxo => {
-      let confirmations = Math.max(this._block.getTip().height - utxo.output.height + 1, 0)
-      return {
-        txid: utxo.output.transactionId,
-        vout: utxo.output.index,
-        satoshis: utxo.satoshis,
-        height: utxo.output.height,
-        outputTxId: utxo.input.transactionId,
-        scriptPubKey: toRawScript(utxo.output.script).toBuffer().toString('hex'),
-        scriptSig: toRawScript(utxo.input.script).toBuffer().toString('hex'),
-        confirmations,
-        staking: utxo.isStake && confirmations < 500
-      }
-    })
+  async getAddressUnspentOutputs(addresses) {
+    if (!Array.isArray(addresses)) {
+      addresses = [addresses]
+    }
+    let utxoList = await Utxo.find({address: {$in: addresses}, 'input.height': null})
+    return utxoList.map(utxo => ({
+      address: utxo.address,
+      txid: utxo.output.transactionId,
+      vout: utxo.output.index,
+      scriptPubKey: toRawScript(utxo.output.script).toBuffer().toString('hex'),
+      satoshis: utxo.satoshis,
+      isStake: utxo.isStake,
+      height: utxo.output.height,
+      confirmations: Math.max(this._block.getTip().height - utxo.output.height + 1, 0)
+    }))
   }
 
   get APIMethods() {
