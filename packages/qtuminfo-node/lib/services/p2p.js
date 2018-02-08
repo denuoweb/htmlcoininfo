@@ -91,14 +91,14 @@ class P2P extends BaseService {
 
   async sendTransaction(tx) {
     let transaction = new Transaction().fromBuffer(tx, 'hex')
-    let hash = transaction.hash
-    this.node.log.info('P2P Service: sending transcation:', hash)
-    this._outgoingTxs.set(hash, transaction)
-    let inv = Inventory.forTransaction(hash)
-    let txMessage = this.messages.Inventory(inv)
+    let id = transaction.id
+    this.node.log.info('P2P Service: sending transcation:', id)
+    this._outgoingTxs.set(id, transaction)
+    let inv = Inventory.forTransaction(id)
+    let txMessage = this.messages.Inventory([inv])
     this._peer.sendMessage(txMessage)
     this._onPeerTx(this._peer, {transaction})
-    return hash
+    return id
   }
 
   async start() {

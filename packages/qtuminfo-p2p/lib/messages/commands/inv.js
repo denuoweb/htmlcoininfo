@@ -1,6 +1,6 @@
 const qtuminfo = require('qtuminfo-lib')
 const Message = require('../message')
-const {checkInventory} = require('../utils')
+const {checkInventory, writeInventory} = require('../utils')
 const {BufferReader, BufferWriter} = qtuminfo.encoding
 
 class InvMessage extends Message {

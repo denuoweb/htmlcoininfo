@@ -1,3 +1,4 @@
+const assert = require('assert')
 const qtuminfo = require('qtuminfo-lib')
 const {BufferReader, BufferWriter} = qtuminfo.encoding
 

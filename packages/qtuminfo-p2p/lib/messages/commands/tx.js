@@ -7,7 +7,7 @@ class TransactionMessage extends Message {
     super('tx', options)
     this.Transaction = options.Transaction
     assert(
-      arg === undefined || args instanceof this.Transaction,
+      arg === undefined || arg instanceof this.Transaction,
       'An instance of Transaction or undefined is expected'
     )
     this.transaction = arg || new this.Transaction()
