@@ -96,6 +96,8 @@ class TransactionService extends BaseService {
             }
           },
           outputs: {$first: '$outputs'},
+          inputAddresses: {$first: 'inputAddresses'},
+          outputAddresses: {$first: 'outputAddresses'},
           witnessStack: {$first: '$witnessStack'},
           nLockTime: {$first: '$nLockTime'},
           block: {$first: '$block'},
@@ -137,6 +139,8 @@ class TransactionService extends BaseService {
               address: {$arrayElemAt: ['$output.address', 0]}
             }
           },
+          inputAddresses: {$first: 'inputAddresses'},
+          outputAddresses: {$first: 'outputAddresses'},
           witnessStack: {$first: '$witnessStack'},
           nLockTime: {$first: '$nLockTime'},
           block: {$first: '$block'},

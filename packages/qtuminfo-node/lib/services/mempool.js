@@ -23,29 +23,6 @@ class MempoolService extends BaseService {
     return ['db', 'p2p']
   }
 
-  get publishEvents() {
-    return [{
-      name: 'mempool/transaction',
-      subscribe: this.subscribe.bind(this, 'transaction'),
-      unsubscribe: this.unsubscribe.bind(this, 'transaction')
-    }]
-  }
-
-  subscribe(name, emitter) {
-    let subscriptions = this._subscriptions[name]
-    subscriptions.push(emitter)
-    this.log.info(emitter.remoteAddress, 'subscribe:', 'mempool/' + name, 'total:', subscriptions.length)
-  }
-
-  unsubscribe(name, emitter) {
-    let subscriptions = this._subscriptions[name]
-    let index = subscriptions.indexOf(emitter)
-    if (index >= 0) {
-      subscriptions.splice(index, 1)
-      this.log.info(emitter.remoteAddress, 'unsubscribe:', 'mempool/' + name, 'total:', subscriptions.length)
-    }
-  }
-
   async onReorg(_, block) {
     await Transaction.deleteMany({'block.height': block.height, index: {$in: [0, 1]}})
     await Transaction.updateMany({'block.height': block.height}, {block: {height: 0xffffffff}})

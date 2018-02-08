@@ -36,25 +36,6 @@ class HeaderService extends BaseService {
     return ['db', 'p2p']
   }
 
-  subscribe(name, emitter) {
-    let subscription = this.subscriptions[name]
-    subscription.push(emitter)
-    this.node.log.info(
-      emitter.remoteAddress,
-      'subscribe:', 'header/' + name,
-      'total:', subscription.length
-    )
-  }
-
-  unsubscribe(name, emitter) {
-    let subscription = this.subscriptions[name]
-    let index = subscription.indexOf(emitter)
-    if (index >= 0) {
-      subscription.splice(index, 1)
-      this.node.log.info(emitter.remoteAddress, 'unsubscribe:', 'header/' + name, 'total:', subscription.length)
-    }
-  }
-
   get APIMethods() {
     return [
       ['getBestHeight', this.getBestHeight.bind(this), 0],
@@ -129,14 +110,6 @@ class HeaderService extends BaseService {
     this.node.log.info('Header Service: subscribed to p2p headers.')
     this._bus.on('p2p/headers', this._onHeaders.bind(this))
     this._bus.subscribe('p2p/headers')
-  }
-
-  get publishEvents() {
-    return [{
-      name: 'header/block',
-      subscribe: this.subscribe.bind(this, 'block'),
-      unsubscribe: this.unsubscribe.bind(this, 'block')
-    }]
   }
 
   _queueBlock(block) {

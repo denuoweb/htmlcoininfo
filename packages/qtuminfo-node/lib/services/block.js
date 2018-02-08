@@ -4,6 +4,7 @@ const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Block = require('../models/block')
 const Header = require('../models/header')
+const Transaciton = require('../models/transaction')
 const utils = require('../utils')
 const {
   getTarget, getDifficulty, convertSecondsToHumanReadable,
@@ -15,7 +16,7 @@ const {QTUM_GENESIS_HASH, QTUM_GENESIS_BLOCK_HEX} = require('../constants')
 class BlockService extends BaseService {
   constructor(options) {
     super(options)
-    this._subscriptions = {block: []}
+    this._subscriptions = {block: [], transaction: [], address: []}
     this._tip = null
     this._db = this.node.services.get('db')
     this._p2p = this.node.services.get('p2p')
@@ -43,37 +44,6 @@ class BlockService extends BaseService {
     return ['db', 'header', 'mempool', 'p2p']
   }
 
-  subscribe(name, emitter) {
-    let subscription = this._subscriptions[name]
-    subscription.push(emitter)
-    this.node.log.info(
-      emitter.remoteAddress,
-      'subscribe:', 'block/' + name,
-      'total:', subscription.length
-    )
-  }
-
-  unsubscribe(name, emitter) {
-    let subscription = this._subscriptions[name]
-    let index = subscription.indexOf(emitter)
-    if (index >= 0) {
-      subscription.splice(index, 1)
-      this.node.log.info(
-        emitter.remoteAddress,
-        'subscribe:', 'block/' + name,
-        'total:', subscription.length
-      )
-    }
-  }
-
-  get publishEvents() {
-    return [{
-      name: 'block/block',
-      subscribe: this.subscribe.bind(this, 'block'),
-      unsubscribe: this.unsubscribe.bind(this, 'block')
-    }]
-  }
-
   get APIMethods() {
     return [
       ['getInfo', this.getInfo.bind(this), 0],
@@ -91,7 +61,7 @@ class BlockService extends BaseService {
       connections: this._p2p.getNumberOfPeers(),
       timeoffset: 0,
       proxy: '',
-      testnet: this._network !== 'livenet',
+      testnet: this._network !== 'mainnet',
       errors: '',
       network: this._network,
       relayFee: 0,
@@ -487,6 +457,34 @@ class BlockService extends BaseService {
       this._processingBlock = false
       for (let subscription of this._subscriptions.block) {
         subscription.emit('block/block', blockObject)
+      }
+      let addresses = new Set()
+      for (let tx of block.transactions) {
+        let transaction = await this.node.services.get('transaction').getTransaction(tx.id)
+        let tokenTransfers = await this.node.services.get('contract').getTokenTransfers(transaction)
+        transaction.tokenTransfers = tokenTransfers
+        for (let subscription of this._subscriptions.transaction) {
+          subscription.emit('block/transaction', transaction)
+        }
+        for (let address of transaction.inputAddresses) {
+          addresses.add(address)
+        }
+        for (let address of transaction.outputAddresses) {
+          addresses.add(address)
+        }
+        for (let {from, to} of tokenTransfers) {
+          if (from) {
+            addresses.add(from)
+          }
+          if (to) {
+            addresses.add(to)
+          }
+        }
+      }
+      for (let subscription of this._subscriptions.address) {
+        for (let address of addresses) {
+          subscription.emit('block/address', address)
+        }
       }
     } catch (err) {
       this._processingBlock = false

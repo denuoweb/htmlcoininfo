@@ -28,10 +28,14 @@ class QtuminfoWS extends BaseService {
     if (!this._bus) {
       this._bus = this.node.openBus({remoteAddress: 'localhost-qtuminfo-ws'})
     }
-    this._bus.on('mempool/transaction', this.transactionEventHandler.bind(this))
+    this._bus.on('mempool/transaction', this.mempoolTransactionEventHandler.bind(this))
     this._bus.subscribe('mempool/transaction')
     this._bus.on('block/block', this.blockEventHandler.bind(this))
     this._bus.subscribe('block/block')
+    this._bus.on('block/transaction', this.transactionEventHandler.bind(this))
+    this._bus.subscribe('block/transaction')
+    this._bus.on('block/address', this.addressEventHandler.bind(this))
+    this._bus.subscribe('block/address')
 
     this._server = new WebSocket.Server({port: this._options.port})
     this._server.on('connection', (ws, req) => {
@@ -46,7 +50,7 @@ class QtuminfoWS extends BaseService {
             if (message.type === 'subscribe') {
               ws.subscriptions.add(message.data)
             } else if (message.type === 'unsubscribe') {
-              ws.subscriptions.remove(message.data)
+              ws.subscriptions.delete(message.data)
             }
           } catch (err) {}
         }
@@ -64,11 +68,25 @@ class QtuminfoWS extends BaseService {
     return req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress
   }
 
+  mempoolTransactionEventHandler(transaction) {
+    for (let client of this._server.clients) {
+      if (client.subscriptions.has('mempool/transaction')) {
+        client.send(JSON.stringify({
+          type: 'mempool/transaction',
+          data: transaction
+        }))
+      }
+    }
+  }
+
   async blockEventHandler(block) {
     let transformedBlock = await this.transformBlock(block)
     for (let client of this._server.clients) {
       if (client.subscriptions.has('height')) {
-        client.send(JSON.stringify({type: 'height', data: block.height}))
+        client.send(JSON.stringify({
+          type: 'height',
+          data: block.height
+        }))
       }
       if (client.subscriptions.has('block')) {
         client.send(JSON.stringify({
@@ -81,10 +99,21 @@ class QtuminfoWS extends BaseService {
 
   transactionEventHandler(transaction) {
     for (let client of this._server.clients) {
-      if (client.subscriptions.has('transaction')) {
+      if (client.subscriptions.has('transaction/' + transaction.id)) {
         client.send(JSON.stringify({
-          type: 'transaction',
+          type: 'transaction/' + transaction.id,
           data: transaction
+        }))
+      }
+    }
+  }
+
+  addressEventHandler(address) {
+    for (let client of this._server.clients) {
+      if (client.subscriptions.has('address')) {
+        client.send(JSON.stringify({
+          type: 'address',
+          data: address
         }))
       }
     }

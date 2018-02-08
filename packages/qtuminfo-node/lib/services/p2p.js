@@ -33,26 +33,6 @@ class P2P extends BaseService {
     ]
   }
 
-  get publishEvents() {
-    return [
-      {
-        name: 'p2p/transaction',
-        subscribe: this.subscribe.bind(this, 'transaction'),
-        unsubscribe: this.unsubscribe.bind(this, 'transaction')
-      },
-      {
-        name: 'p2p/block',
-        subscribe: this.subscribe.bind(this, 'block'),
-        unsubscribe: this.unsubscribe.bind(this, 'block')
-      },
-      {
-        name: 'p2p/headers',
-        subscribe: this.subscribe.bind(this, 'headers'),
-        unsubscribe: this.unsubscribe.bind(this, 'headers')
-      }
-    ]
-  }
-
   getNumberOfPeers() {
     return this._pool.numberConnected
   }
@@ -110,21 +90,6 @@ class P2P extends BaseService {
   _disconnectPool() {
     this.node.log.info('P2P Service: disconnecting pool and peers. SIGINT issued, system shutdown initiated')
     this._pool.disconnect()
-  }
-
-  subscribe(name, emitter) {
-    let subscriptions = this.subscriptions[name]
-    subscriptions.push(emitter)
-    this.node.log.info(emitter.remoteAddress, 'subscribe:', 'p2p/' + name, 'total:', subscriptions.length)
-  }
-
-  unsubscribe(name, emitter) {
-    let subscriptions = this.subscriptions[name]
-    let index = subscriptions.indexOf(emitter)
-    if (index >= 0) {
-      subscriptions.splice(index, 1)
-      this.node.log.info(emitter.remoteAddress, 'unsubscribe:', 'p2p/' + name, 'total:', subscriptions.length)
-    }
   }
 
   _addPeer(peer) {
@@ -219,7 +184,7 @@ class P2P extends BaseService {
   }
 
   _initPubSub() {
-    this.subscriptions = {
+    this._subscriptions = {
       block: [],
       headers: [],
       transaction: []
@@ -229,7 +194,7 @@ class P2P extends BaseService {
   _onPeerBlock(peer, message) {
     this._blockCache.set(message.block.hash, message.block)
     this.emit(message.block.hash, message.block)
-    this._broadcast(this.subscriptions.block, 'p2p/block', message.block)
+    this._broadcast(this._subscriptions.block, 'p2p/block', message.block)
   }
 
   _onPeerDisconnect(peer, addr) {
@@ -249,7 +214,7 @@ class P2P extends BaseService {
   }
 
   _onPeerHeaders(peer, message) {
-    this._broadcast(this.subscriptions.headers, 'p2p/headers', message.headers)
+    this._broadcast(this._subscriptions.headers, 'p2p/headers', message.headers)
   }
 
   _onPeerInventory(peer, message) {
@@ -308,7 +273,7 @@ class P2P extends BaseService {
   }
 
   _onPeerTx(peer, message) {
-    this._broadcast(this.subscriptions.transaction, 'p2p/transaction', message.transaction)
+    this._broadcast(this._subscriptions.transaction, 'p2p/transaction', message.transaction)
   }
 
   _removePeer(peer) {
