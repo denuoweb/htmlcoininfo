@@ -97,10 +97,7 @@ class MempoolService extends BaseService {
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
       let utxo = inputUtxos[index]
-      if (utxo.input && utxo.input.height != null) {
-        let transaction = await Transaction.findOne({id: utxo.input.transactionId})
-        await transaction.remove()
-      }
+      await Transaction.remove({id: utxo.input.transactionId})
       utxo.input.height = 0xffffffff
       utxo.input.transactionId = tx.id
       utxo.input.index = index
