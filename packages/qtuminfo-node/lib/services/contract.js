@@ -1,6 +1,5 @@
 const BN = require('bn.js')
 const qtuminfo = require('qtuminfo-lib')
-const QtuminfoRPC = require('qtuminfo-rpc')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
@@ -27,14 +26,7 @@ class ContractService extends BaseService {
     this._block = this.node.services.get('block')
     this._db = this.node.services.get('db')
     this._network = this.node.network
-    this._config = options.rpc || {
-      user: 'qtum',
-      pass: 'qtumpassword',
-      host: 'localhost',
-      protocol: 'http',
-      port: ['testnet', 'regtest'].includes(this._network) ? 13889 : 3889
-    }
-    this._client = new QtuminfoRPC(this._config)
+    this._client = this._db.getRpcClient()
     if (this._network === 'livenet') {
       this._network = 'mainnet'
     } else if (this._network === 'regtest') {
