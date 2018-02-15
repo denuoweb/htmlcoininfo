@@ -183,6 +183,7 @@ class ContractService extends BaseService {
       ? address
       : Base58Check.decode(address).slice(1).toString('hex')
     let tokens = await Transaction.aggregate([
+      {$project: {receipts: '$receipts'}},
       {
         $match: {
           'receipts.logs.topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint]},
@@ -190,6 +191,7 @@ class ContractService extends BaseService {
         }
       },
       {$unwind: '$receipts'},
+      {$unwind: '$receipts.logs'},
       {
         $match: {
           'receipts.logs.topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint]},
@@ -199,7 +201,7 @@ class ContractService extends BaseService {
       {
         $group: {
           _id: null,
-          contract: {$addToSet: '$receipts.contractAddress'}
+          contract: {$addToSet: '$receipts.logs.address'}
         }
       },
       {$unwind: '$contract'},
