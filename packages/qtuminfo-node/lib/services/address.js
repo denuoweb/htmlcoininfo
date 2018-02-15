@@ -1,8 +1,10 @@
 const BN = require('bn.js')
+const {CronJob} = require('cron')
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
+const Snapshot = require('../models/snapshot')
 const {toRawScript} = require('../utils')
 const {Base58Check} = qtuminfo.encoding
 const {Contract, tokenABI} = qtuminfo.contract
@@ -193,6 +195,29 @@ class AddressService extends BaseService {
       {$sort: {balance: -1}},
       {$project: {_id: false, address: '$_id', balance: '$balance'}}
     ])
+  }
+
+  async cronSnapshot() {
+    let list = await this.snapshot()
+    await Snapshot.deleteMany({contract: '0'.repeat(40)})
+    await Snapshot.create(list.slice(0, 10000).map(({address, balance}, index) => ({address, balance, index})))
+  }
+
+  getRichList() {
+    return Snapshot.aggregate([
+      {$match: {contract: '0'.repeat(40)}},
+      {$sort: {index: 1}},
+      {$limit: 100},
+      {$project: {_id: false, address: '$address', balance: '$balance'}}
+    ])
+  }
+
+  async start() {
+    new CronJob({
+      cronTime: '0 0 * * * *',
+      onTick: this.cronSnapshot.bind(this),
+      start: true
+    })
   }
 }
 

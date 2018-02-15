@@ -118,6 +118,7 @@ class QtuminfoAPI extends BaseService {
     let misc = this.miscController
     router.get('/info', misc.info.bind(misc))
     router.get('/search/:id', misc.classify.bind(misc))
+    router.get('/misc/rich-list', misc.richList.bind(misc))
 
     let blocks = this.blockController
     router.get('/blocks', this.cacheShort(), blocks.list.bind(blocks))

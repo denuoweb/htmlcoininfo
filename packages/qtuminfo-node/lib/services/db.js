@@ -5,8 +5,6 @@ const BaseService = require('../service')
 const {QTUM_GENESIS_HASH} = require('../constants')
 const Info = require('../models/info')
 
-mongoose.Promise = Promise
-
 class DB extends BaseService {
   constructor(options = {}) {
     super(options)
@@ -60,7 +58,13 @@ class DB extends BaseService {
   }
 
   async start() {
-    this._connection = await mongoose.connect(this._options.mongodb || 'mongodb://localhost/qtuminfo')
+    this._connection = await mongoose.connect(
+      this._options.mongodb || 'mongodb://localhost/qtuminfo',
+      {
+        promiseLibrary: Promise,
+        poolSize: 20
+      }
+    )
   }
 
   async stop() {

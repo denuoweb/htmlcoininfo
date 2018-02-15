@@ -52,6 +52,10 @@ class MiscController {
     }
     ctx.throw(404)
   }
+
+  async richList(ctx) {
+    ctx.body = await this._address.getRichList()
+  }
 }
 
 module.exports = MiscController
