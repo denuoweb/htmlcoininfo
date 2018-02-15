@@ -25,19 +25,23 @@ class ContractsController {
   }
 
   async show(ctx) {
-    let options = {noTxList: Number.parseInt(ctx.query.noTxList)}
-    if (ctx.query.from && ctx.query.to) {
-      options.from = Number.parseInt(ctx.query.from)
-      options.to = Number.parseInt(ctx.query.to)
-    }
     try {
-      let summary = await this._contract.getContractSummary(ctx.contract.address, options)
+      let summary = await this._contract.getContractSummary(ctx.contract.address)
+      let tokenBalances = await this._contract.getAllQRC20TokenBalances(ctx.contract.address)
       summary.owner = ctx.contract.owner
       summary.txid = ctx.contract.createTransactionId
       summary.type = ctx.contract.type
       if (ctx.contract.type === 'qrc20') {
         summary.qrc20 = ctx.contract.qrc20
       }
+      summary.tokenBalances = tokenBalances.map(token => ({
+        address: token.address,
+        name: token.name,
+        symbol: token.symbol,
+        decimals: token.decimals,
+        totalSupply: token.totalSupply,
+        balance: token.balance
+      }))
       ctx.body = summary
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)

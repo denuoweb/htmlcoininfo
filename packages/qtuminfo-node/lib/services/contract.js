@@ -179,7 +179,9 @@ class ContractService extends BaseService {
   }
 
   async getAllQRC20TokenBalances(address) {
-    let hexAddress = Base58Check.decode(address).slice(1).toString('hex')
+    let hexAddress = /^[0-9a-f]{40}$/i.test(address)
+      ? address
+      : Base58Check.decode(address).slice(1).toString('hex')
     let tokens = await Transaction.aggregate([
       {
         $match: {
