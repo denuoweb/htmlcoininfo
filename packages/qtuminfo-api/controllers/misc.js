@@ -54,7 +54,9 @@ class MiscController {
   }
 
   async richList(ctx) {
-    ctx.body = await this._address.getRichList()
+    let from = Number.parseInt(ctx.query.from) || 0
+    let to = Number.parseInt(ctx.query.to) || from + 10
+    ctx.body = await this._address.getRichList({from, to})
   }
 }
 

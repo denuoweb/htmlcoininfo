@@ -203,11 +203,12 @@ class AddressService extends BaseService {
     await Snapshot.create(list.slice(0, 10000).map(({address, balance}, index) => ({address, balance, index})))
   }
 
-  getRichList() {
+  getRichList({from = 0, to = 100} = {}) {
     return Snapshot.aggregate([
       {$match: {contract: '0'.repeat(40)}},
       {$sort: {index: 1}},
-      {$limit: 100},
+      {$skip: from},
+      {$limit: to - from},
       {$project: {_id: false, address: '$address', balance: '$balance'}}
     ])
   }
