@@ -465,31 +465,88 @@ class ContractService extends BaseService {
     }
   }
 
-  async qrc20TokenSnapshot(address) {
-    let addressResults = await Transaction.aggregate([
+  async qrc20TokenSnapshot(address, height) {
+    let token = await Contract.findOne({address, type: 'qrc20'})
+    if (!token) {
+      return
+    }
+    if (height == null) {
+      height = this._block.getTip().height
+    }
+    if (height < token.createHeight) {
+      return []
+    }
+    let [{addressResults, previousTransfers}] = await Transaction.aggregate([
       {$match: {'receipts.logs.address': address}},
-      {$project: {_id: false, receipts: '$receipts'}},
+      {$project: {_id: false, height: '$block.height', receipts: '$receipts'}},
       {$unwind: '$receipts'},
       {$unwind: '$receipts.logs'},
       {
-        $match: {
-          'receipts.logs.address': address,
-          'receipts.logs.topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]}
+        $project: {
+          height: '$height',
+          address: '$receipts.logs.address',
+          topics: '$receipts.logs.topics',
+          data: '$receipts.logs.data'
         }
       },
-      {$project: {address: {$slice: ['$receipts.logs.topics', 1, 2]}}},
-      {$unwind: '$address'},
-      {$project: {address: {$substr: ['$address', 24, 40]}}},
-      {$group: {_id: null, addresses: {$addToSet: '$address'}}}
+      {
+        $match: {
+          address,
+          'topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]}
+        }
+      },
+      {
+        $facet: {
+          addressResults: [
+            {$project: {address: {$slice: ['$topics', 1, 2]}}},
+            {$unwind: '$address'},
+            {$project: {address: {$substr: ['$address', 24, 40]}}},
+            {$group: {_id: null, addresses: {$addToSet: '$address'}}}
+          ],
+          previousTransfers: [
+            {$match: {height: {$gt: height}}},
+            {$project: {topics: '$topics', data: '$data'}}
+          ]
+        }
+      }
     ])
     let addresses = addressResults.length ? addressResults[0].addresses : []
     let balances = await Promise.all(await this._batchCallMethods(addresses.map(item => ({
       address, abi: tokenAbi, method: 'balanceOf', args: [item]
     }))))
-    let results = []
+    let mapping = new Map()
     for (let i = 0; i < addresses.length; ++i) {
-      if (!balances[i].balance.isZero()) {
-        results.push({address: await this._fromHexAddress(addresses[i]), balance: balances[i].balance})
+      mapping.set(addresses[i], balances[i].balance)
+    }
+    for (let {topics, data} of previousTransfers) {
+      if (topics[0] === TOKEN_EVENTS.Transfer) {
+        let from = topics[1].slice(24)
+        let to = topics[2].slice(24)
+        let amount = ContractService._uint256toBN(data)
+        if (mapping.has(from)) {
+          mapping.get(from).iadd(amount)
+        }
+        if (mapping.has(to)) {
+          mapping.get(to).isub(amount)
+        }
+      } else if (topics[0] === TOKEN_EVENTS.Mint) {
+        let to = topics[1].slice(24)
+        let amount = ContractService._uint256toBN(data.slice(-64))
+        if (mapping.has(to)) {
+          mapping.get(to).isub(amount)
+        }
+      } else if (topics[0] === TOKEN_EVENTS.Burn) {
+        let from = topics[1].slice(24)
+        let amount = ContractService._uint256toBN(data.slice(-64))
+        if (mapping.has(from)) {
+          mapping.get(from).iadd(amount)
+        }
+      }
+    }
+    let results = []
+    for (let [address, balance] of mapping) {
+      if (!balance.isZero()) {
+        results.push({address: await this._fromHexAddress(address), balance})
       }
     }
     results.sort((x, y) => y.balance.cmp(x.balance))
