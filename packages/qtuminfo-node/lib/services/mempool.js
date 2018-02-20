@@ -1,7 +1,7 @@
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
-const {toRawScript} = require('../utils')
+const {toRawTransaction, toRawScript} = require('../utils')
 
 class MempoolService extends BaseService {
   constructor(options) {
@@ -124,6 +124,13 @@ class MempoolService extends BaseService {
       inputAddresses: [...inputAddresses],
       outputAddresses: [...outputAddresses],
     })
+    await transaction.save()
+    let _transaction = await this.node.services.get('transaction').getTransaction(tx.id)
+    let rawTransaction = toRawTransaction(_transaction)
+    let transactionBuffer = rawTransaction.toBuffer()
+    let transactionHashBuffer = rawTransaction.toHashBuffer()
+    transaction.size = transactionBuffer.length
+    transaction.weight = transactionBuffer.length + transactionHashBuffer.length * 3
     await transaction.save()
 
     let txBuffer = tx.toBuffer()

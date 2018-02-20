@@ -1,4 +1,5 @@
 const LRU = require('lru-cache')
+const BN = require('qtuminfo-lib').crypto.BN
 const Block = require('qtuminfo-node/lib/models/block')
 const {toRawBlock} = require('qtuminfo-node/lib/utils')
 const {ErrorResponse} = require('../components/utils')
@@ -86,22 +87,19 @@ class BlocksController {
   }
 
   async transformBlock(block) {
-    let rawBlock = await toRawBlock(block)
-    let blockBuffer = rawBlock.toBuffer()
-    let blockHashBuffer = rawBlock.toHashBuffer()
-    let {reward, minedBy, duration} = await this.getBlockReward(block, rawBlock)
+    let {reward, minedBy, duration} = await this.getBlockReward(block)
     return {
       hash: block.hash,
-      size: blockBuffer.length,
-      weight: blockBuffer.length + blockHashBuffer.length * 3,
       height: block.height,
       version: block.version,
+      size: block.size,
+      weight: block.weight,
       merkleRoot: block.merkleRoot,
       tx: block.transactions,
       timestamp: block.timestamp,
       nonce: block.nonce,
       bits: block.bits.toString(16),
-      difficulty: rawBlock.header.getDifficulty(),
+      difficulty: this._getDifficulty(block.bits),
       chainWork: block.chainwork,
       confirmations: this._block.getTip().height - block.height + 1,
       previousBlockHash: block.prevHash,
@@ -139,12 +137,11 @@ class BlocksController {
   }
 
   async _getBlockSummary(block) {
-    let rawBlock = await toRawBlock(block)
-    let {reward, minedBy, duration} = await this.getBlockReward(block, rawBlock)
+    let {reward, minedBy, duration} = await this.getBlockReward(block)
     let summary = {
       hash: block.hash,
       height: block.height,
-      size: rawBlock.toBuffer().length,
+      size: block.size,
       timestamp: block.timestamp,
       txLength: block.transactions.length,
       reward,
@@ -190,10 +187,10 @@ class BlocksController {
     }
   }
 
-  async getBlockReward(block, rawBlock) {
+  async getBlockReward(block) {
     let minedBy, duration
     let reward = 0
-    if (rawBlock.header.isProofOfStake()) {
+    if (block.prevOutStakeHash !== '0'.repeat(64) && block.prevOutStakeN !== 0xffffffff) {
       let transaction = await this._transaction.getTransaction(block.transactions[1])
       reward = -transaction.feeSatoshis
       minedBy = transaction.outputs[1].address
@@ -208,6 +205,24 @@ class BlocksController {
       duration = block.timestamp - prevBlockHeader.timestamp
     }
     return {reward, minedBy, duration}
+  }
+
+  _getTargetDifficulty(bits) {
+    let target = new BN(bits & 0xffffff)
+    let mov = ((bits >>> 24) - 3) << 3
+    while (mov--) {
+      target = target.mul(new BN(2))
+    }
+    return target
+  }
+
+  _getDifficulty(bits) {
+    let difficultyTargetBN = this._getTargetDifficulty(0x1d00ffff).mul(new BN(100000000))
+    let currentTargetBN = this._getTargetDifficulty(bits)
+    let difficultyString = difficultyTargetBN.div(currentTargetBN).toString(10)
+    let decimalPos = difficultyString.length - 8
+    difficultyString = difficultyString.slice(0, decimalPos) + '.' + difficultyString.slice(decimalPos)
+    return Number.parseFloat(difficultyString)
   }
 }
 

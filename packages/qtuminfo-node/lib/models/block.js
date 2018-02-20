@@ -6,6 +6,8 @@ const blockSchema = new Schema({
   height: {type: Number, index: true, unique: true},
   version: Number,
   prevHash: {type: String, default: '0'.repeat(64)},
+  size: Number,
+  weight: Number,
   merkleRoot: String,
   timestamp: {type: Number, index: true},
   bits: Number,

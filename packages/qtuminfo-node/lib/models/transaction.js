@@ -26,7 +26,9 @@ const transactionSchema = new Schema({
       topics: [{type: String, index: true}],
       data: String
     }]
-  }]
+  }],
+  size: Number,
+  weight: Number
 })
 
 module.exports = mongoose.model('Transaction', transactionSchema)

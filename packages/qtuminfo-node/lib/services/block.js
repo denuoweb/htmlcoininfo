@@ -523,7 +523,7 @@ class BlockService extends BaseService {
     do {
       header = await Header.findOne({hash: block.hash})
     } while (!header)
-    return new Block({
+    let blockObj = new Block({
       hash: header.hash,
       height: header.height,
       version: header.version,
@@ -539,7 +539,13 @@ class BlockService extends BaseService {
       vchBlockSig: header.vchBlockSig,
       chainwork: header.chainwork,
       transactions: block.transactions.map(tx => tx.id)
-    }).save()
+    })
+    let rawBlock = await toRawBlock(blockObj)
+    let blockBuffer = rawBlock.toBuffer()
+    let blockHashBuffer = rawBlock.toHashBuffer()
+    blockObj.size = blockBuffer.length,
+    blockObj.weight = blockBuffer.length + blockHashBuffer.length * 3
+    return blockObj.save()
   }
 
   async _setTip(tip) {

@@ -2,6 +2,7 @@ const assert = require('assert')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
+const {toRawTransaction} = require('../utils')
 
 class TransactionService extends BaseService {
   constructor(options) {
@@ -101,7 +102,9 @@ class TransactionService extends BaseService {
           witnessStack: {$first: '$witnessStack'},
           nLockTime: {$first: '$nLockTime'},
           block: {$first: '$block'},
-          receipts: {$first: '$receipts'}
+          receipts: {$first: '$receipts'},
+          size: {$first: '$size'},
+          weight: {$first: '$weight'}
         }
       },
       {$unwind: '$outputs'},
@@ -144,7 +147,9 @@ class TransactionService extends BaseService {
           witnessStack: {$first: '$witnessStack'},
           nLockTime: {$first: '$nLockTime'},
           block: {$first: '$block'},
-          receipts: {$first: '$receipts'}
+          receipts: {$first: '$receipts'},
+          size: {$first: '$size'},
+          weight: {$first: '$weight'}
         }
       },
       {
@@ -282,6 +287,15 @@ class TransactionService extends BaseService {
       })
     }
     await transaction.save()
+    if (!transaction.size) {
+      let _transaction = await this._getTransaction(tx.id)
+      let rawTransaction = toRawTransaction(_transaction)
+      let transactionBuffer = rawTransaction.toBuffer()
+      let transactionHashBuffer = rawTransaction.toHashBuffer()
+      transaction.size = transactionBuffer.length
+      transaction.weight = transactionBuffer.length + transactionHashBuffer.length * 3
+      await transaction.save()
+    }
   }
 }
 
