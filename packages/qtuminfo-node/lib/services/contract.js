@@ -14,8 +14,7 @@ const TOKEN_EVENTS = {
   Transfer: tokenAbi.eventSignature('Transfer').slice(2),
   Approval: tokenAbi.eventSignature('Approval').slice(2),
   Mint: tokenAbi.eventSignature('Mint').slice(2),
-  Burn: tokenAbi.eventSignature('Burn').slice(2),
-  TokenPurchase: tokenAbi.eventSignature('TokenPurchase').slice(2)
+  Burn: tokenAbi.eventSignature('Burn').slice(2)
 }
 const TOKEN_EVENT_HASHES = Object.values(TOKEN_EVENTS)
 
@@ -131,6 +130,9 @@ class ContractService extends BaseService {
     let list = []
     for (let receipt of transaction.receipts) {
       for (let {address, topics, data} of receipt.logs) {
+        if (topics[0] !== TOKEN_EVENTS.Transfer) {
+          continue
+        }
         let token = await Contract.findOne({address, type: 'qrc20'})
         if (!token) {
           continue
@@ -143,28 +145,12 @@ class ContractService extends BaseService {
           totalSupply: token.qrc20.totalSupply,
           version: token.qrc20.version
         }
-        if (topics[0] === TOKEN_EVENTS.Transfer) {
-          list.push({
-            token,
-            from: topics[1] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[1].slice(24)),
-            to: topics[2] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[2].slice(24)),
-            amount: ContractService._uint256toBN(data).toString()
-          })
-        } else if (topics[0] === TOKEN_EVENTS.Mint) {
-          list.push({
-            token,
-            from: null,
-            to: await this._fromHexAddress(topics[1].slice(24)),
-            amount: ContractService._uint256toBN(data.slice(-64)).toString()
-          })
-        } else if (topics[0] === TOKEN_EVENTS.Burn) {
-          list.push({
-            token,
-            from: await this._fromHexAddress(topics[1].slice(24)),
-            to: null,
-            amount: ContractService._uint256toBN(data.slice(-64)).toString()
-          })
-        }
+        list.push({
+          token,
+          from: topics[1] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[1].slice(24)),
+          to: topics[2] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[2].slice(24)),
+          amount: ContractService._uint256toBN(data).toString()
+        })
       }
     }
     return list
@@ -186,7 +172,7 @@ class ContractService extends BaseService {
       {$project: {receipts: '$receipts'}},
       {
         $match: {
-          'receipts.logs.topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint]},
+          'receipts.logs.topics.0': TOKEN_EVENTS.Transfer,
           'receipts.logs.topics': '0'.repeat(24) + hexAddress,
         }
       },
@@ -194,7 +180,7 @@ class ContractService extends BaseService {
       {$unwind: '$receipts.logs'},
       {
         $match: {
-          'receipts.logs.topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint]},
+          'receipts.logs.topics.0': TOKEN_EVENTS.Transfer,
           'receipts.logs.topics': '0'.repeat(24) + hexAddress,
         }
       },
@@ -489,12 +475,7 @@ class ContractService extends BaseService {
           data: '$receipts.logs.data'
         }
       },
-      {
-        $match: {
-          address,
-          'topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]}
-        }
-      },
+      {$match: {address, 'topics.0': TOKEN_EVENTS.Transfer}},
       {
         $facet: {
           addressResults: [
@@ -519,28 +500,14 @@ class ContractService extends BaseService {
       mapping.set(addresses[i], balances[i].balance)
     }
     for (let {topics, data} of previousTransfers) {
-      if (topics[0] === TOKEN_EVENTS.Transfer) {
-        let from = topics[1].slice(24)
-        let to = topics[2].slice(24)
-        let amount = ContractService._uint256toBN(data)
-        if (mapping.has(from)) {
-          mapping.get(from).iadd(amount)
-        }
-        if (mapping.has(to)) {
-          mapping.get(to).isub(amount)
-        }
-      } else if (topics[0] === TOKEN_EVENTS.Mint) {
-        let to = topics[1].slice(24)
-        let amount = ContractService._uint256toBN(data.slice(-64))
-        if (mapping.has(to)) {
-          mapping.get(to).isub(amount)
-        }
-      } else if (topics[0] === TOKEN_EVENTS.Burn) {
-        let from = topics[1].slice(24)
-        let amount = ContractService._uint256toBN(data.slice(-64))
-        if (mapping.has(from)) {
-          mapping.get(from).iadd(amount)
-        }
+      let from = topics[1].slice(24)
+      let to = topics[2].slice(24)
+      let amount = ContractService._uint256toBN(data)
+      if (mapping.has(from)) {
+        mapping.get(from).iadd(amount)
+      }
+      if (mapping.has(to)) {
+        mapping.get(to).isub(amount)
       }
     }
     let results = []
