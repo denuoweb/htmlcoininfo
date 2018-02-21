@@ -1,4 +1,3 @@
-const BN = require('bn.js')
 const {CronJob} = require('cron')
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
@@ -7,6 +6,7 @@ const Utxo = require('../models/utxo')
 const Snapshot = require('../models/snapshot')
 const {toRawScript} = require('../utils')
 const {Base58Check} = qtuminfo.encoding
+const {BN} = qtuminfo.crypto
 const {Contract, tokenABI} = qtuminfo.contract
 const Address = qtuminfo.Address
 

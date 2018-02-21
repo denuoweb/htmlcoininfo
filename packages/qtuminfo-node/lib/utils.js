@@ -1,10 +1,10 @@
 const assert = require('assert')
-const BN = require('bn.js')
 const mongoose = require('mongoose')
 const qtuminfo = require('qtuminfo-lib')
 const Block = require('./models/block')
 const Transaction = require('./models/transaction')
 const Utxo = require('./models/utxo')
+const {BN} = qtuminfo.crypto
 
 exports.parseParamsWithJSON = function(paramsArg) {
   return paramsArg.map(paramArg => {

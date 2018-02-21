@@ -1,5 +1,5 @@
 const assert = require('assert')
-const BN = require('bn.js')
+const {BN} = require('qtuminfo-lib').crypto
 const BaseService = require('../service')
 const Header = require('../models/header')
 const {QTUM_GENESIS_HASH, QTUM_GENESIS_NONCE} = require('../constants')

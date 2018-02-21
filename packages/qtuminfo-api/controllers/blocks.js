@@ -1,5 +1,5 @@
 const LRU = require('lru-cache')
-const BN = require('qtuminfo-lib').crypto.BN
+const {BN} = require('qtuminfo-lib').crypto
 const Block = require('qtuminfo-node/lib/models/block')
 const {toRawBlock} = require('qtuminfo-node/lib/utils')
 const {ErrorResponse} = require('../components/utils')
