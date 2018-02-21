@@ -54,6 +54,7 @@ class TransactionController {
       valueOut: transaction.outputSatoshis,
       size: transaction.size,
       weight: transaction.weight,
+      receipts: transaction.receipts,
       tokenTransfers: []
     }
 
