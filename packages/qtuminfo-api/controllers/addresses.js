@@ -1,4 +1,6 @@
+const qtuminfo = require('qtuminfo-lib')
 const {ErrorResponse} = require('../components/utils')
+const Address = qtuminfo.Address
 
 class AddressController {
   constructor(node) {
@@ -7,6 +9,12 @@ class AddressController {
     this._address = this.node.services.get('address')
     this._block = this.node.services.get('block')
     this._contract = this.node.services.get('contract')
+    this._network = this.node.network
+    if (this.node.network === 'livenet') {
+      this._network = 'mainnet'
+    } else if (this.node.network === 'regtest') {
+      this._network = 'testnet'
+    }
   }
 
   async show(ctx) {
@@ -73,6 +81,7 @@ class AddressController {
   async checkAddresses(ctx, next) {
     const makeArray = addrs => typeof addrs === 'string' ? addrs.split(',') : addrs
     if (ctx.params.address) {
+      this.validateAddress(ctx.params.address)
       ctx.address = ctx.params.address
       ctx.addresses = [ctx.address]
     } else {
@@ -82,6 +91,10 @@ class AddressController {
           message: 'Must include address',
           code: 1
         })
+      } else {
+        for (let address of ctx.addresses) {
+          this.validateAddress(address)
+        }
       }
       ctx.address = ctx.addresses[0]
     }
@@ -118,6 +131,14 @@ class AddressController {
       }
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
+    }
+  }
+
+  validateAddress(address) {
+    try {
+      new Address(address, this._network, 'scripthash')
+    } catch (err) {
+      new Address(address, this._network, 'pubkeyhash')
     }
   }
 }

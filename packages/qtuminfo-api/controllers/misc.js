@@ -1,4 +1,6 @@
+const qtuminfo = require('qtuminfo-lib')
 const {ErrorResponse} = require('../components/utils')
+const Address = qtuminfo.Address
 
 class MiscController {
   constructor(node) {
@@ -9,6 +11,12 @@ class MiscController {
     this._block = this.node.services.get('block')
     this._contract = this.node.services.get('contract')
     this._transaction = this.node.services.get('transaction')
+    this._network = this.node.network
+    if (this.node.network === 'livenet') {
+      this._network = 'mainnet'
+    } else if (this.node.network === 'regtest') {
+      this._network = 'testnet'
+    }
   }
 
   async info(ctx) {
@@ -26,6 +34,11 @@ class MiscController {
         return
       }
     } else if (id.length === 34) {
+      try {
+        this.validateAddress(id)
+      } catch (err) {
+        return
+      }
       let {totalCount} = await this._address.getAddressHistory(id)
       if (totalCount > 0) {
         ctx.body = {type: 'address'}
@@ -57,6 +70,14 @@ class MiscController {
     let from = Number.parseInt(ctx.query.from) || 0
     let to = Number.parseInt(ctx.query.to) || from + 10
     ctx.body = await this._address.getRichList({from, to})
+  }
+
+  validateAddress(address) {
+    try {
+      new Address(address, this._network, 'scripthash')
+    } catch (err) {
+      new Address(address, this._network, 'pubkeyhash')
+    }
   }
 }
 
