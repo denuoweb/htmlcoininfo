@@ -128,7 +128,7 @@ class AddressService extends BaseService {
           unconfirmedBalance.iadd(value)
         }
       }
-      if (utxo.isStake && confirmations < 500) {
+      if (utxo.isStake && confirmations <= 500) {
         stakingBalance.iadd(value)
       }
     }
