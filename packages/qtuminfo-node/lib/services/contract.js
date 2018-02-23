@@ -422,6 +422,7 @@ class ContractService extends BaseService {
           receipts: blockReceipts[index].map(receipt => ({
             gasUsed: receipt.gasUsed,
             contractAddress: receipt.contractAddress,
+            excepted: receipt.excepted,
             logs: receipt.log
           }))
         }

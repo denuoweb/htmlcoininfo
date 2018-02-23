@@ -21,6 +21,7 @@ const transactionSchema = new Schema({
   receipts: [{
     gasUsed: Number,
     contractAddress: {type: String, index: true},
+    excepted: String,
     logs: [{
       address: {type: String, index: true},
       topics: [{type: String, index: true}],
