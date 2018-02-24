@@ -15,8 +15,7 @@ const TOKEN_EVENTS = {
   Transfer: tokenAbi.eventSignature('Transfer').slice(2),
   Approval: tokenAbi.eventSignature('Approval').slice(2),
   Mint: tokenAbi.eventSignature('Mint').slice(2),
-  Burn: tokenAbi.eventSignature('Burn').slice(2),
-  TokenPurchase: tokenAbi.eventSignature('TokenPurchase').slice(2)
+  Burn: tokenAbi.eventSignature('Burn').slice(2)
 }
 
 class AddressService extends BaseService {
