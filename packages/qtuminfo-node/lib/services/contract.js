@@ -267,7 +267,11 @@ class ContractService extends BaseService {
     }
     for (let x of ['80', '81', '82', '83', '84']) {
       let dgpAddress = '0'.repeat(38) + x
-      await Contract.findOneAndUpdate({address: dgpAddress}, {type: 'dgp'}, {upsert: true})
+      await Contract.findOneAndUpdate(
+        {address: dgpAddress},
+        {createHeight: 0, type: 'dgp'},
+        {upsert: true}
+      )
     }
     await Contract.deleteMany({createHeight: {$gt: blockTip.height}})
   }
