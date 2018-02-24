@@ -5,10 +5,10 @@ const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
 const Snapshot = require('../models/snapshot')
 const {toRawScript} = require('../utils')
-const {Base58Check} = qtuminfo.encoding
+const {Address, Networks} = qtuminfo
+const {Base58Check, SegwitAddress} = qtuminfo.encoding
 const {BN} = qtuminfo.crypto
 const {Contract, tokenABI} = qtuminfo.contract
-const Address = qtuminfo.Address
 
 const tokenAbi = new Contract(tokenABI)
 const TOKEN_EVENTS = {
@@ -41,9 +41,7 @@ class AddressService extends BaseService {
     if (typeof addresses === 'string') {
       addresses = [addresses]
     }
-    let hexAddresses = addresses.map(
-      address => '0'.repeat(24) + Base58Check.decode(address).slice(1).toString('hex')
-    )
+    let hexAddresses = addresses.map(address => '0'.repeat(24) + this._toHexAddress(address))
     let [{count, list}] = await Transaction.aggregate([
       {
         $match: {
@@ -219,6 +217,21 @@ class AddressService extends BaseService {
       onTick: this.cronSnapshot.bind(this),
       start: true
     })
+  }
+
+  _toHexAddress(address) {
+    let network = Networks.get(this._network)
+    if (address.length === 34) {
+      let hexAddress = Base58Check.decode(address)
+      if (hexAddress[0] === network.pubkeyhash) {
+        return hexAddress.slice(1).toString('hex')
+      }
+    } else if (address.length === 42) {
+      let result = SegwitAddress.decode(network.witness_v0_keyhash, address)
+      if (result) {
+        return Buffer.from(result.program).toString('hex')
+      }
+    }
   }
 }
 

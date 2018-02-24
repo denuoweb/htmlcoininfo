@@ -8,11 +8,12 @@ class Network {
   constructor(options) {
     this.name = options.name
     this.alias = options.alias
-    this.pubkey = this.pubkeyhash = this.witness_v0_keyhash = options.pubkeyhash
+    this.pubkey = this.pubkeyhash = options.pubkeyhash
     this.privatekey = options.privatekey
-    this.scripthash = this.witness_v0_scripthash = options.scripthash
+    this.scripthash = options.scripthash
     this.xpubkey = options.xpubkey
     this.xprivkey = options.xprivkey
+    this.witness_v0_keyhash = this.witness_v0_scripthash = options.witness_v0_keyhash
     if (options.networkMagic) {
       this.networkMagic = BufferUtil.integerAsBuffer(options.networkMagic)
     }
@@ -78,6 +79,7 @@ Network.add({
   scripthash: 0x32,
   xpubkey: 0x0488b21e,
   xprivkey: 0x0488ade4,
+  witness_v0_keyhash: 'bc',
   networkMagic: 0xf1cfa6d3,
   port: 3888,
   dnsSeeds: []
@@ -90,6 +92,7 @@ Network.add({
   pubkeyhash: 0x78,
   privatekey: 0xef,
   scripthash: 0x6e,
+  witness_v0_keyhash: 'tb',
   xpubkey: 0x043587cf,
   xprivkey: 0x04358394
 })

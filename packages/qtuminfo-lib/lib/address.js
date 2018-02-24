@@ -8,6 +8,7 @@ var Networks = require('./networks');
 var Hash = require('./crypto/hash');
 var JSUtil = require('./util/js');
 var PublicKey = require('./publickey');
+var SegwitAddress = require('./encoding/segwit-address')
 
 /**
  * Instantiate an address from an address String or Buffer, a public key or script hash Buffer,
@@ -496,7 +497,11 @@ Address.prototype.toObject = Address.prototype.toJSON = function toObject() {
  * @returns {string} Bitcoin address
  */
 Address.prototype.toString = function() {
-  return Base58Check.encode(this.toBuffer());
+  if ([Address.PayToWitnessKeyHash, Address.PayToWitnessScriptHash].includes(this.type)) {
+    return SegwitAddress.encode(this.network[this.type], 0, this.hashBuffer)
+  } else {
+    return Base58Check.encode(this.toBuffer())
+  }
 };
 
 /**

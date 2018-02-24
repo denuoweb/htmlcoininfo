@@ -49,12 +49,22 @@ class MiscController {
         ctx.body = {type: 'contract'}
         return
       }
+    } else if (id.length === 42) {
+      if (SegwitAddress.decode(Networks.get(this._network).witness_v0_keyhash, id)) {
+        ctx.body = {type: 'address'}
+        return
+      }
     } else if (id.length === 64) {
       if (await this._header.getBlockHeader(id)) {
         ctx.body = {type: 'block-hash'}
         return
       } else if (await this._transaction.getTransaction(id)) {
         ctx.body = {type: 'transaction'}
+        return
+      }
+    } else if (id.length === 62) {
+      if (SegwitAddress.decode(Networks.get(this._network).witness_v0_scripthash, id)) {
+        ctx.body = {type: 'address'}
         return
       }
     }

@@ -703,7 +703,7 @@ class Script {
       }
     } else if (this.isWitnessScriptHashOut()) {
       return {
-        hashBuffer: sha256ripemd160(this.getData()),
+        hashBuffer: this.getData(),
         type: Address.PayToWitnessScriptHash
       }
     }

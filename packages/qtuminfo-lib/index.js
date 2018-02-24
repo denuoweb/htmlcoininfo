@@ -25,7 +25,8 @@ exports.encoding = {
   Base58Check: require('./lib/encoding/base58check'),
   BufferReader: require('./lib/encoding/bufferreader'),
   BufferWriter: require('./lib/encoding/bufferwriter'),
-  Varint: require('./lib/encoding/varint')
+  Varint: require('./lib/encoding/varint'),
+  SegwitAddress: require('./lib/encoding/segwit-address')
 }
 
 exports.util = {

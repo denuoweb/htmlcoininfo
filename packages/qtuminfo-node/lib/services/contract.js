@@ -386,9 +386,12 @@ class ContractService extends BaseService {
   }
 
   async _fromHexAddress(data) {
-    let contract = await Contract.findOne({address: data})
-    if (contract) {
+    if (await Contract.findOne({address: data})) {
       return data
+    }
+    let segwitAddress = new Address(Buffer.from(data, 'hex'), this._network, Address.PayToWitnessKeyHash)
+    if (await Utxo.findOne({address: segwitAddress})) {
+      return segwitAddress.toString()
     } else {
       return new Address(Buffer.from(data, 'hex'), this._network).toString()
     }
