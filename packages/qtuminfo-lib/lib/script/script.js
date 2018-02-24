@@ -216,11 +216,15 @@ class Script {
     let chunks = this.chunks.map(chunk => this._chunkToString(chunk))
     if (['OP_CREATE', 'OP_CALL'].includes(chunks[chunks.length - 1])) {
       for (let i = 0; i < 3; ++i) {
-        let list = []
-        for (let j = 0; j < chunks[i].length; j += 2) {
-          list.push(chunks[i].slice(j, j + 2))
+        if (/^OP_\d+$/.test(chunks[i])) {
+          chunks[i] = chunks[i].slice(3)
+        } else {
+          let list = []
+          for (let j = 0; j < chunks[i].length; j += 2) {
+            list.push(chunks[i].slice(j, j + 2))
+          }
+          chunks[i] = Number.parseInt(list.reverse().join(''), 16)
         }
-        chunks[i] = Number.parseInt(list.reverse().join(''), 16)
       }
     }
     return chunks.join(' ')
