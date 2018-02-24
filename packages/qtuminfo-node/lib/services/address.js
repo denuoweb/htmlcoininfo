@@ -79,9 +79,7 @@ class AddressService extends BaseService {
     if (typeof addresses === 'string') {
       addresses = [addresses]
     }
-    let hexAddresses = addresses.map(
-      address => '0'.repeat(24) + Base58Check.decode(address).slice(1).toString('hex')
-    )
+    let hexAddresses = addresses.map(address => '0'.repeat(24) + this._toHexAddress(address))
     let result = await Transaction.aggregate([
       {
         $match: {

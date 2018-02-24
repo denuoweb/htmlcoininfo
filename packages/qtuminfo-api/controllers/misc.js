@@ -1,6 +1,7 @@
 const qtuminfo = require('qtuminfo-lib')
 const {ErrorResponse} = require('../components/utils')
-const Address = qtuminfo.Address
+const {Address, Networks} = qtuminfo
+const {SegwitAddress} = qtuminfo.encoding
 
 class MiscController {
   constructor(node) {

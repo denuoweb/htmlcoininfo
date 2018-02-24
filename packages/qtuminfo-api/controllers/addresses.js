@@ -1,6 +1,7 @@
 const qtuminfo = require('qtuminfo-lib')
 const {ErrorResponse} = require('../components/utils')
-const Address = qtuminfo.Address
+const {Address, Networks} = qtuminfo
+const {SegwitAddress} = qtuminfo.encoding
 
 class AddressController {
   constructor(node) {
@@ -135,10 +136,22 @@ class AddressController {
   }
 
   validateAddress(address) {
-    try {
-      new Address(address, this._network, 'scripthash')
-    } catch (err) {
-      new Address(address, this._network, 'pubkeyhash')
+    if (address.length === 34) {
+      try {
+        new Address(address, this._network, 'scripthash')
+      } catch (err) {
+        new Address(address, this._network, 'pubkeyhash')
+      }
+    } else if (address.length === 42) {
+      if (!SegwitAddress.decode(Networks.get(this._network).witness_v0_keyhash, address)) {
+        throw new Error()
+      }
+    } else if (address.length === 62) {
+      if (!SegwitAddress.decode(Networks.get(this._network).witness_v0_scripthash, address)) {
+        throw new Error()
+      }
+    } else {
+      throw new Error()
     }
   }
 }

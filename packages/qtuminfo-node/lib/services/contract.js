@@ -6,8 +6,8 @@ const Contract = require('../models/contract')
 const {getInputAddress} = require('../utils')
 const {BN} = qtuminfo.crypto
 const {sha256ripemd160} = qtuminfo.crypto.Hash
-const {Base58Check} = qtuminfo.encoding
-const Address = qtuminfo.Address
+const {Base58Check, SegwitAddress} = qtuminfo.encoding
+const {Address, Networks} = qtuminfo
 
 const tokenAbi = new qtuminfo.contract.Contract(qtuminfo.contract.tokenABI)
 const TOKEN_EVENTS = {
@@ -165,9 +165,7 @@ class ContractService extends BaseService {
   }
 
   async getAllQRC20TokenBalances(address) {
-    let hexAddress = /^[0-9a-f]{40}$/i.test(address)
-      ? address
-      : Base58Check.decode(address).slice(1).toString('hex')
+    let hexAddress = /^[0-9a-f]{40}$/i.test(address) ? address : this._toHexAddress(address)
     let tokens = await Transaction.aggregate([
       {$project: {receipts: '$receipts'}},
       {
@@ -394,6 +392,21 @@ class ContractService extends BaseService {
       return segwitAddress.toString()
     } else {
       return new Address(Buffer.from(data, 'hex'), this._network).toString()
+    }
+  }
+
+  _toHexAddress(address) {
+    let network = Networks.get(this._network)
+    if (address.length === 34) {
+      let hexAddress = Base58Check.decode(address)
+      if (hexAddress[0] === network.pubkeyhash) {
+        return hexAddress.slice(1).toString('hex')
+      }
+    } else if (address.length === 42) {
+      let result = SegwitAddress.decode(network.witness_v0_keyhash, address)
+      if (result) {
+        return Buffer.from(result.program).toString('hex')
+      }
     }
   }
 
