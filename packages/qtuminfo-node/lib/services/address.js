@@ -164,15 +164,15 @@ class AddressService extends BaseService {
     ]
   }
 
-  snapshot(height, minBalance = 0) {
-    if (!height) {
+  snapshot({height, minBalance = 0, top} = {}) {
+    if (height == null) {
       height = this._block.getTip().height + 1
     }
     return Utxo.aggregate([
       {
         $match: {
           satoshis: {$ne: 0},
-          address: {$ne: null},
+          $nor: [{address: null}, {address: /^[0-9a-f]{40}$/}],
           'output.height': {$lte: height},
           $or: [
             {'input.height': null},
@@ -188,14 +188,15 @@ class AddressService extends BaseService {
       },
       {$match: {balance: {$gte: minBalance}}},
       {$sort: {balance: -1}},
+      ...(top == null ? [] : [{$limit: top}]),
       {$project: {_id: false, address: '$_id', balance: '$balance'}}
     ])
   }
 
   async cronSnapshot() {
-    let list = await this.snapshot()
+    let list = await this.snapshot({top: 10000})
     await Snapshot.deleteMany({contract: '0'.repeat(40)})
-    await Snapshot.create(list.slice(0, 10000).map(({address, balance}, index) => ({address, balance, index})))
+    await Snapshot.create(list.map(({address, balance}, index) => ({address, balance, index})))
   }
 
   getRichList({from = 0, to = 100} = {}) {

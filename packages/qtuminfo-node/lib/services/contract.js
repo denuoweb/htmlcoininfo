@@ -534,7 +534,10 @@ class ContractService extends BaseService {
     let results = []
     for (let [address, balance] of mapping) {
       if (!balance.isZero()) {
-        results.push({address: await this._fromHexAddress(address), balance})
+        address = await this._fromHexAddress(address)
+        if (address.length !== 40) {
+          results.push({address, balance})
+        }
       }
     }
     results.sort((x, y) => y.balance.cmp(x.balance))
