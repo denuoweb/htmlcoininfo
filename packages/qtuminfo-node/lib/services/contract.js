@@ -3,6 +3,7 @@ const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
 const Contract = require('../models/contract')
+const TokenBalance = require('../models/token-balance')
 const {getInputAddress} = require('../utils')
 const {BN} = qtuminfo.crypto
 const {sha256ripemd160} = qtuminfo.crypto.Hash
@@ -165,30 +166,8 @@ class ContractService extends BaseService {
   }
 
   async getAllQRC20TokenBalances(address) {
-    let hexAddress = /^[0-9a-f]{40}$/i.test(address) ? address : this._toHexAddress(address)
-    let tokens = await Transaction.aggregate([
-      {$project: {receipts: '$receipts'}},
-      {
-        $match: {
-          'receipts.logs.topics.0': TOKEN_EVENTS.Transfer,
-          'receipts.logs.topics': '0'.repeat(24) + hexAddress,
-        }
-      },
-      {$unwind: '$receipts'},
-      {$unwind: '$receipts.logs'},
-      {
-        $match: {
-          'receipts.logs.topics.0': TOKEN_EVENTS.Transfer,
-          'receipts.logs.topics': '0'.repeat(24) + hexAddress,
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          contract: {$addToSet: '$receipts.logs.address'}
-        }
-      },
-      {$unwind: '$contract'},
+    let list = await TokenBalance.aggregate([
+      {$match: {address: this._toHexAddress(address), balance: {$ne: '0'.repeat(78)}}},
       {
         $lookup: {
           from: 'contracts',
@@ -197,36 +176,19 @@ class ContractService extends BaseService {
           as: 'contract'
         }
       },
-      {$unwind: '$contract'},
       {$match: {'contract.type': 'qrc20'}},
-      {$project: {address: '$contract.address', qrc20: '$contract.qrc20'}}
+      {$unwind: '$contract'},
+      {$unwind: '$contract.qrc20'}
     ])
-    let tokenCreated = await Contract.find({owner: address, type: 'qrc20'})
-    let tokenSet = new Set(tokens.map(token => token.address))
-    tokens.push(...tokenCreated.filter(token => !tokenSet.has(token.address)))
-    let results = await this._batchCallMethods(tokens.map(token => ({
-      address: token.address,
-      abi: tokenAbi,
-      method: 'balanceOf',
-      args: [hexAddress]
-    })))
-    let list = []
-    for (let i = 0; i < tokens.length; ++i) {
-      let token = tokens[i]
-      let {balance} = await results[i]
-      if (!balance.isZero()) {
-        list.push({
-          address: token.address,
-          name: token.qrc20.name,
-          symbol: token.qrc20.symbol,
-          decimals: token.qrc20.decimals,
-          totalSupply: token.qrc20.totalSupply,
-          version: token.qrc20.version,
-          balance: balance.toString()
-        })
-      }
-    }
-    return list
+    return list.map(({balance, contract}) => ({
+      address: contract.address,
+      name: contract.qrc20.name,
+      symbol: contract.qrc20.symbol,
+      decimals: contract.qrc20.decimals,
+      totalSupply: contract.qrc20.totalSupply,
+      version: contract.qrc20.version,
+      balance: balance.replace(/^0+/, '') || '0'
+    }))
   }
 
   async searchQRC20Token(name) {
@@ -306,6 +268,36 @@ class ContractService extends BaseService {
 
   async onReorg(_, block) {
     await Contract.deleteMany({createHeight: block.height})
+    let balanceChanges = new Set()
+    let receipts = await Transaction.find({'block.height': block.height}, {_id: false, receipts: true})
+    for (let receipt of receipts) {
+      for (let {address, topics, data} of receipt.logs) {
+        if (topics[0] === TOKEN_EVENTS.Transfer) {
+          balanceChanges.add(address + ' ' + topics[1].slice(24))
+          balanceChanges.add(address + ' ' + topics[2].slice(24))
+        }
+      }
+    }
+    balanceChanges = [...balanceChanges].map(item => {
+      let [contract, address] = item.split(' ')
+      return {contract, address}
+    })
+    let results = await this._batchCallMethods(balanceChanges.map(
+      ({contract, address}) => ({address: contract, abi: tokenAbi, method: 'balanceOf', args: [address]})
+    ))
+    for (let i = 0; i < results.length; ++i) {
+      let result
+      try {
+        result = await results[i]
+      } catch (e) {
+        continue
+      }
+      await TokenBalance.update(
+        balanceChanges[i],
+        {balance: result.balance.toString().padStart(78, '0')},
+        {upsert: true}
+      )
+    }
   }
 
   static _getContractAddress(tx, index) {
@@ -433,6 +425,7 @@ class ContractService extends BaseService {
         this._client.getTransactionReceipt(block.transactions[index].id)
       }
     }))
+    let balanceChanges = new Set()
     let totalSupplyChanges = new Set()
     for (let index = 0; index < receiptIndices.length; ++index) {
       let tx = block.transactions[receiptIndices[index]]
@@ -455,11 +448,35 @@ class ContractService extends BaseService {
               await this._createContract(transaction, block, address, contractAddress)
             }
           }
-          if ([TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn].includes(topics[0])) {
+          if (topics[0] === TOKEN_EVENTS.Transfer) {
+            balanceChanges.add(address + ' ' + topics[1].slice(24))
+            balanceChanges.add(address + ' ' + topics[2].slice(24))
+          } else if ([TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn].includes(topics[0])) {
             totalSupplyChanges.add(address)
           }
         }
       }
+    }
+    balanceChanges = [...balanceChanges].map(item => {
+      let [contract, address] = item.split(' ')
+      return {contract, address}
+    })
+    let results = await this._batchCallMethods(balanceChanges.map(
+      ({contract, address}) => ({address: contract, abi: tokenAbi, method: 'balanceOf', args: [address]})
+    ))
+
+    for (let i = 0; i < results.length; ++i) {
+      let result
+      try {
+        result = await results[i]
+      } catch (e) {
+        continue
+      }
+      await TokenBalance.update(
+        balanceChanges[i],
+        {balance: result.balance.toString().padStart(78, '0')},
+        {upsert: true}
+      )
     }
     for (let address of totalSupplyChanges) {
       let contract = await Contract.findOne({address, type: 'qrc20'})
@@ -483,7 +500,8 @@ class ContractService extends BaseService {
     if (height < token.createHeight) {
       return []
     }
-    let [{addressResults, previousTransfers}] = await Transaction.aggregate([
+    let addressResults = await TokenBalance.find({contract: address})
+    let previousTransfers = await Transaction.aggregate([
       {$match: {'receipts.logs.address': address}},
       {$project: {_id: false, height: '$block.height', receipts: '$receipts'}},
       {$unwind: '$receipts'},
@@ -496,29 +514,12 @@ class ContractService extends BaseService {
           data: '$receipts.logs.data'
         }
       },
-      {$match: {address, 'topics.0': TOKEN_EVENTS.Transfer}},
-      {
-        $facet: {
-          addressResults: [
-            {$project: {address: {$slice: ['$topics', 1, 2]}}},
-            {$unwind: '$address'},
-            {$project: {address: {$substr: ['$address', 24, 40]}}},
-            {$group: {_id: null, addresses: {$addToSet: '$address'}}}
-          ],
-          previousTransfers: [
-            {$match: {height: {$gt: height}}},
-            {$project: {topics: '$topics', data: '$data'}}
-          ]
-        }
-      }
+      {$match: {height: {$gt: height}, address, 'topics.0': TOKEN_EVENTS.Transfer}},
+      {$project: {topics: '$topics', data: '$data'}}
     ])
-    let addresses = addressResults.length ? addressResults[0].addresses : []
-    let balances = await Promise.all(await this._batchCallMethods(addresses.map(item => ({
-      address, abi: tokenAbi, method: 'balanceOf', args: [item]
-    }))))
     let mapping = new Map()
-    for (let i = 0; i < addresses.length; ++i) {
-      mapping.set(addresses[i], balances[i].balance)
+    for (let {address, balance} of addressResults) {
+      mapping.set(address, new BN(balance))
     }
     for (let {topics, data} of previousTransfers) {
       let from = topics[1].slice(24)
