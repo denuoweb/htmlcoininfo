@@ -269,16 +269,22 @@ class ContractService extends BaseService {
   async onReorg(_, block) {
     await Contract.deleteMany({createHeight: block.height})
     let balanceChanges = new Set()
-    let transactions = await Transaction.find({'block.height': block.height}, {_id: false, receipts: true})
-    for (let transaction of transactions) {
-      for (let receipt of transaction.receipts) {
-        for (let {address, topics, data} of receipt.logs) {
-          if (topics[0] === TOKEN_EVENTS.Transfer) {
-            balanceChanges.add(address + ' ' + topics[1].slice(24))
-            balanceChanges.add(address + ' ' + topics[2].slice(24))
-          }
+    let transfers = await Transaction.aggregate([
+      {$match: {'block.height': block.height, 'receipts.logs.topics.0': TOKEN_EVENTS.Transfer}},
+      {$project: {_id: false, receipts: '$receipts'}},
+      {$unwind: '$receipts'},
+      {$unwind: '$receipts.logs'},
+      {
+        $project: {
+          address: '$receipts.logs.address',
+          topics: '$receipts.logs.topics'
         }
-      }
+      },
+      {$match: {'topics.0': TOKEN_EVENTS.Transfer}}
+    ])
+    for (let {address, topics} of transfers) {
+      balanceChanges.add(address + ' ' + topics[1].slice(24))
+      balanceChanges.add(address + ' ' + topics[2].slice(24))
     }
     await this._updateBalances(balanceChanges)
   }
@@ -453,25 +459,16 @@ class ContractService extends BaseService {
   }
 
   async _updateBalances(balanceChanges) {
-    let changes = [...balanceChanges].map(item => {
+    for (let item of balanceChanges) {
       let [contract, address] = item.split(' ')
-      return {contract, address}
-    })
-    let results = await this._batchCallMethods(changes.map(
-      ({contract, address}) => ({address: contract, abi: tokenAbi, method: 'balanceOf', args: [address]})
-    ))
-    for (let i = 0; i < results.length; ++i) {
-      let result
       try {
-        result = await results[i]
-      } catch (err) {
-        continue
-      }
-      await Balance.update(
-        changes[i],
-        {balance: result.balance.toString().padStart(78, '0')},
-        {upsert: true}
-      )
+        let {balance} = await this._callMethod(contract, tokenAbi, 'balanceOf', address)
+        await Balance.update(
+          {contract, address},
+          {balance: balance.toString().padStart(78, '0')},
+          {upsert: true}
+        )
+      } catch (err) {}
     }
   }
 
