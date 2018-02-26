@@ -212,7 +212,11 @@ class AddressService extends BaseService {
       {$limit: to - from},
       {$project: {_id: false, address: '$address', balance: '$balance'}}
     ])
-    return list.map(({address, balance}) => ({address, balance: balance.replace(/^0+/, '')}))
+    let totalCount = await Balance.count({contract: null})
+    return {
+      totalCount,
+      list: list.map(({address, balance}) => ({address, balance: balance.replace(/^0+/, '')}))
+    }
   }
 
   start() {
