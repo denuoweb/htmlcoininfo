@@ -3,7 +3,7 @@ const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
-const Snapshot = require('../models/snapshot')
+const Balance = require('../models/balance')
 const {toRawScript} = require('../utils')
 const {Address, Networks} = qtuminfo
 const {Base58Check, SegwitAddress} = qtuminfo.encoding
@@ -164,7 +164,7 @@ class AddressService extends BaseService {
     ]
   }
 
-  snapshot({height, minBalance = 0, top} = {}) {
+  snapshot({height, minBalance = 0, sort = true, limit} = {}) {
     if (height == null) {
       height = this._block.getTip().height + 1
     }
@@ -187,29 +187,35 @@ class AddressService extends BaseService {
         }
       },
       {$match: {balance: {$gte: minBalance}}},
-      {$sort: {balance: -1}},
-      ...(top == null ? [] : [{$limit: top}]),
+      ...(sort ? [{$sort: {balance: -1}}] : []),
+      ...(limit == null ? [] : [{$limit: limit}]),
       {$project: {_id: false, address: '$_id', balance: '$balance'}}
     ])
   }
 
   async cronSnapshot() {
-    let list = await this.snapshot({top: 10000})
-    await Snapshot.deleteMany({contract: '0'.repeat(40)})
-    await Snapshot.create(list.map(({address, balance}, index) => ({address, balance, index})))
+    let list = await this.snapshot({sort: false})
+    await Balance.deleteMany({contract: null})
+    for (let i = 0; i < Math.ceil(list.length / 100); ++i) {
+      await Balance.create(list.slice(i * 100, (i + 1) * 100).map((item, index) => ({
+        address: item.address,
+        balance: item.balance.toString().padStart(17, '0')
+      })))
+    }
   }
 
-  getRichList({from = 0, to = 100} = {}) {
-    return Snapshot.aggregate([
-      {$match: {contract: '0'.repeat(40)}},
-      {$sort: {index: 1}},
+  async getRichList({from = 0, to = 100} = {}) {
+    let list = await Balance.aggregate([
+      {$match: {contract: null}},
+      {$sort: {balance: -1}},
       {$skip: from},
       {$limit: to - from},
       {$project: {_id: false, address: '$address', balance: '$balance'}}
     ])
+    return list.map(({address, balance}) => ({address, balance: balance.replace(/^0+/, '')}))
   }
 
-  async start() {
+  start() {
     new CronJob({
       cronTime: '0 0 * * * *',
       onTick: this.cronSnapshot.bind(this),

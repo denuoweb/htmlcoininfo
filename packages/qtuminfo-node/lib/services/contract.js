@@ -3,7 +3,7 @@ const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
 const Contract = require('../models/contract')
-const TokenBalance = require('../models/token-balance')
+const Balance = require('../models/balance')
 const {getInputAddress} = require('../utils')
 const {BN} = qtuminfo.crypto
 const {sha256ripemd160} = qtuminfo.crypto.Hash
@@ -166,7 +166,7 @@ class ContractService extends BaseService {
   }
 
   async getAllQRC20TokenBalances(address) {
-    let list = await TokenBalance.aggregate([
+    let list = await Balance.aggregate([
       {$match: {address: this._toHexAddress(address), balance: {$ne: '0'.repeat(78)}}},
       {
         $lookup: {
@@ -269,35 +269,18 @@ class ContractService extends BaseService {
   async onReorg(_, block) {
     await Contract.deleteMany({createHeight: block.height})
     let balanceChanges = new Set()
-    let receipts = await Transaction.find({'block.height': block.height}, {_id: false, receipts: true})
-    for (let receipt of receipts) {
-      for (let {address, topics, data} of receipt.logs) {
-        if (topics[0] === TOKEN_EVENTS.Transfer) {
-          balanceChanges.add(address + ' ' + topics[1].slice(24))
-          balanceChanges.add(address + ' ' + topics[2].slice(24))
+    let transactions = await Transaction.find({'block.height': block.height}, {_id: false, receipts: true})
+    for (let transaction of transactions) {
+      for (let receipt of transaction.receipts) {
+        for (let {address, topics, data} of receipt.logs) {
+          if (topics[0] === TOKEN_EVENTS.Transfer) {
+            balanceChanges.add(address + ' ' + topics[1].slice(24))
+            balanceChanges.add(address + ' ' + topics[2].slice(24))
+          }
         }
       }
     }
-    balanceChanges = [...balanceChanges].map(item => {
-      let [contract, address] = item.split(' ')
-      return {contract, address}
-    })
-    let results = await this._batchCallMethods(balanceChanges.map(
-      ({contract, address}) => ({address: contract, abi: tokenAbi, method: 'balanceOf', args: [address]})
-    ))
-    for (let i = 0; i < results.length; ++i) {
-      let result
-      try {
-        result = await results[i]
-      } catch (e) {
-        continue
-      }
-      await TokenBalance.update(
-        balanceChanges[i],
-        {balance: result.balance.toString().padStart(78, '0')},
-        {upsert: true}
-      )
-    }
+    await this._updateBalances(balanceChanges)
   }
 
   static _getContractAddress(tx, index) {
@@ -457,27 +440,7 @@ class ContractService extends BaseService {
         }
       }
     }
-    balanceChanges = [...balanceChanges].map(item => {
-      let [contract, address] = item.split(' ')
-      return {contract, address}
-    })
-    let results = await this._batchCallMethods(balanceChanges.map(
-      ({contract, address}) => ({address: contract, abi: tokenAbi, method: 'balanceOf', args: [address]})
-    ))
-
-    for (let i = 0; i < results.length; ++i) {
-      let result
-      try {
-        result = await results[i]
-      } catch (e) {
-        continue
-      }
-      await TokenBalance.update(
-        balanceChanges[i],
-        {balance: result.balance.toString().padStart(78, '0')},
-        {upsert: true}
-      )
-    }
+    await this._updateBalances(balanceChanges)
     for (let address of totalSupplyChanges) {
       let contract = await Contract.findOne({address, type: 'qrc20'})
       if (!contract) {
@@ -486,6 +449,29 @@ class ContractService extends BaseService {
       let {totalSupply} = await this._callMethod(address, tokenAbi, 'totalSupply')
       contract.qrc20.totalSupply = totalSupply.toString()
       await contract.save()
+    }
+  }
+
+  async _updateBalances(balanceChanges) {
+    let changes = [...balanceChanges].map(item => {
+      let [contract, address] = item.split(' ')
+      return {contract, address}
+    })
+    let results = await this._batchCallMethods(changes.map(
+      ({contract, address}) => ({address: contract, abi: tokenAbi, method: 'balanceOf', args: [address]})
+    ))
+    for (let i = 0; i < results.length; ++i) {
+      let result
+      try {
+        result = await results[i]
+      } catch (err) {
+        continue
+      }
+      await Balance.update(
+        changes[i],
+        {balance: result.balance.toString().padStart(78, '0')},
+        {upsert: true}
+      )
     }
   }
 
@@ -500,7 +486,7 @@ class ContractService extends BaseService {
     if (height < token.createHeight) {
       return []
     }
-    let addressResults = await TokenBalance.find({contract: address})
+    let addressResults = await Balance.find({contract: address})
     let previousTransfers = await Transaction.aggregate([
       {$match: {'receipts.logs.address': address}},
       {$project: {_id: false, height: '$block.height', receipts: '$receipts'}},
