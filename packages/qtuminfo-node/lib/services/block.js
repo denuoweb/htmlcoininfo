@@ -251,7 +251,7 @@ class BlockService extends BaseService {
   }
 
   async _onReorg(commonAncestorHash, block) {
-    for (let service of this.node.services.values()) {
+    for (let service of this.node.getServicesByOrder().reverse()) {
       if (service.onReorg) {
         this.node.log.info('Block Service: Reorging', service.name, 'service.')
         await service.onReorg(commonAncestorHash, block)
@@ -443,7 +443,7 @@ class BlockService extends BaseService {
       block.height = this._tip.height + 1
     }
     try {
-      for (let service of this.node.services.values()) {
+      for (let service of this.node.getServicesByOrder()) {
         if (service.onBlock) {
           await service.onBlock(block)
         }

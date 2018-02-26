@@ -221,7 +221,7 @@ class HeaderService extends BaseService {
     }
     this.node.log.info('Header Service: sync complete.')
     this._initialSync = false
-    for (let service of this.node.services.values()) {
+    for (let service of this.node.getServicesByOrder()) {
       if (service.onHeaders) {
         await service.onHeaders()
       }

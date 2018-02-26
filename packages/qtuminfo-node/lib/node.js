@@ -53,8 +53,33 @@ class Node extends EventEmitter {
     function addToStack(names) {
       for (let name of names) {
         let service = servicesByName[name]
-        assert(service, `Required dependency "${name}" not available.`)
         addToStack(service.module.dependencies)
+        if (!stackNames.has(name)) {
+          stack.push(service)
+          stackNames.add(name)
+        }
+      }
+    }
+
+    addToStack(names)
+    return stack
+  }
+
+  getServicesByOrder() {
+    let names = []
+    let servicesByName = {}
+    for (let [name, service] of this.services) {
+      names.push(name)
+      servicesByName[name] = service
+    }
+
+    let stack = []
+    let stackNames = new Set()
+
+    function addToStack(names) {
+      for (let name of names) {
+        let service = servicesByName[name]
+        addToStack(service.constructor.dependencies)
         if (!stackNames.has(name)) {
           stack.push(service)
           stackNames.add(name)
