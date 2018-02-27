@@ -83,6 +83,12 @@ class MiscController {
     ctx.body = await this._address.getRichList({from, to})
   }
 
+  async biggestMiners(ctx) {
+    let from = Number.parseInt(ctx.query.from) || 0
+    let to = Number.parseInt(ctx.query.to) || from + 10
+    ctx.body = await this._address.getMiners({from, to})
+  }
+
   validateAddress(address) {
     try {
       new Address(address, this._network, 'scripthash')

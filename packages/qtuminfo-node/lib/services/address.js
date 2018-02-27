@@ -1,6 +1,7 @@
 const {CronJob} = require('cron')
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
+const Block = require('../models/block')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
 const Balance = require('../models/balance')
@@ -219,7 +220,52 @@ class AddressService extends BaseService {
     }
   }
 
-  start() {
+  async getMiners({from = 0, to = 100} = {}) {
+    let [{count, list}] = await Block.aggregate([
+      {$match: {height: {$gt: 5000}}},
+      {$group: {_id: '$minedBy', blocks: {$sum: 1}}},
+      {$project: {_id: false, address: '$_id', blocks: '$blocks'}},
+      {
+        $facet: {
+          count: [{$group: {_id: null, count: {$sum: 1}}}],
+          list: [
+            {$sort: {blocks: -1}},
+            {$skip: from},
+            {$limit: to - from},
+            {
+              $lookup: {
+                from: 'balances',
+                localField: 'address',
+                foreignField: 'address',
+                as: 'balance'
+              }
+            },
+            {
+              $project: {
+                address: '$address',
+                blocks: '$blocks',
+                balance: {
+                  $cond: {
+                    if: {$eq: ['$balance', []]},
+                    then: '0',
+                    else: {$arrayElemAt: ['$balance.balance', 0]}
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ])
+    return {
+      totalCount: count[0].count,
+      list: list.map(
+        ({address, blocks, balance}) => ({address, blocks, balance: balance.replace(/^0+/, '') || '0'})
+      )
+    }
+  }
+
+  async start() {
     new CronJob({
       cronTime: '0 0 * * * *',
       onTick: this.cronSnapshot.bind(this),
