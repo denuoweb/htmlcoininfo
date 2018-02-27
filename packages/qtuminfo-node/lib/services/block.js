@@ -4,7 +4,8 @@ const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Block = require('../models/block')
 const Header = require('../models/header')
-const Transaciton = require('../models/transaction')
+const Transaction = require('../models/transaction')
+const Utxo = require('../models/utxo')
 const utils = require('../utils')
 const {
   getTarget, getDifficulty, convertSecondsToHumanReadable,
@@ -540,6 +541,15 @@ class BlockService extends BaseService {
       chainwork: header.chainwork,
       transactions: block.transactions.map(tx => tx.id)
     })
+    if (block.prevOutStakeHash !== '0'.repeat(64) && block.prevOutStakeN !== 0xffffffff) {
+      let transaction = await Transaction.findOne({id: block.transactions[1]})
+      let utxo = await Utxo.findById(transaction.outputs[1])
+      blockObj.minedBy = utxo.address
+    } else {
+      let transaction = await Transaction.findOne({id: block.transactions[0]})
+      let utxo = await Utxo.findById(transaction.outputs[0])
+      blockObj.minedBy = utxo.address
+    }
     let rawBlock = await toRawBlock(blockObj)
     let blockBuffer = rawBlock.toBuffer()
     let blockHashBuffer = rawBlock.toHashBuffer()

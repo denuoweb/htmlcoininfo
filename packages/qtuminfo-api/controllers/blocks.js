@@ -87,7 +87,7 @@ class BlocksController {
   }
 
   async transformBlock(block) {
-    let {reward, minedBy, duration} = await this.getBlockReward(block)
+    let {reward, duration} = await this.getBlockReward(block)
     return {
       hash: block.hash,
       height: block.height,
@@ -105,7 +105,7 @@ class BlocksController {
       previousBlockHash: block.prevHash,
       nextBlockHash: block.nextHash,
       reward,
-      minedBy,
+      minedBy: block.minedBy,
       duration,
       isMainChain: true
     }
@@ -145,7 +145,7 @@ class BlocksController {
       timestamp: block.timestamp,
       txLength: block.transactions.length,
       reward,
-      minedBy,
+      minedBy: block.minedBy,
       duration
     }
     return summary
@@ -188,23 +188,21 @@ class BlocksController {
   }
 
   async getBlockReward(block) {
-    let minedBy, duration
+    let duration
     let reward = 0
     if (block.prevOutStakeHash !== '0'.repeat(64) && block.prevOutStakeN !== 0xffffffff) {
       let transaction = await this._transaction.getTransaction(block.transactions[1])
       reward = -transaction.feeSatoshis
-      minedBy = transaction.outputs[1].address
     } else {
       let transaction = await this._transaction.getTransaction(block.transactions[0])
       reward = transaction.outputSatoshis
-      minedBy = transaction.outputs[0].address
     }
     let prevHash = block.prevHash
     if (prevHash !== '0'.repeat(64)) {
       let prevBlockHeader = await this._header.getBlockHeader(prevHash)
       duration = block.timestamp - prevBlockHeader.timestamp
     }
-    return {reward, minedBy, duration}
+    return {reward, duration}
   }
 
   _getTargetDifficulty(bits) {

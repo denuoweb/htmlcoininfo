@@ -18,7 +18,8 @@ const blockSchema = new Schema({
   prevOutStakeN: Number,
   vchBlockSig: String,
   chainwork: String,
-  transactions: [String]
+  transactions: [String],
+  minedBy: {type: String, index: true}
 })
 
 module.exports = mongoose.model('Block', blockSchema)
