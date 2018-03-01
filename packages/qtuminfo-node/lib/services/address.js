@@ -100,15 +100,15 @@ class AddressService extends BaseService {
     return result.length && result[0].count
   }
 
-  async getAddressSummary(address, options = {}) {
-    let totalCount = await this.getAddressTransactionCount(address)
+  async getAddressSummary(addresses, options = {}) {
+    let totalCount = await this.getAddressTransactionCount(addresses)
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
     let unconfirmedBalance = new BN(0)
     let stakingBalance = new BN(0)
     let cursor = Utxo.find(
-      {address},
+      {address: {$in: addresses}},
       ['satoshis', 'output.height', 'input.transactionId', 'isStake']
     ).cursor()
     let utxo
@@ -129,7 +129,6 @@ class AddressService extends BaseService {
       }
     }
     return {
-      address,
       totalCount,
       balance: balance.toString(),
       totalReceived: totalReceived.toString(),

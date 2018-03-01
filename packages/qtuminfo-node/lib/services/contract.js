@@ -22,7 +22,6 @@ const TOKEN_EVENT_HASHES = Object.values(TOKEN_EVENTS)
 class ContractService extends BaseService {
   constructor(options) {
     super(options)
-    this._address = this.node.services.get('address')
     this._block = this.node.services.get('block')
     this._db = this.node.services.get('db')
     this._network = this.node.network
@@ -165,30 +164,52 @@ class ContractService extends BaseService {
     return Contract.find({type: 'qrc20'})
   }
 
-  async getAllQRC20TokenBalances(address) {
+  async getAllQRC20TokenBalances(addresses) {
+    if (!Array.isArray(addresses)) {
+      addresses = [addresses]
+    }
     let list = await Balance.aggregate([
-      {$match: {address: this._toHexAddress(address), balance: {$ne: '0'.repeat(78)}}},
+      {
+        $match: {
+          contract: {$ne: null},
+          address: {$in: addresses.map(address => this._toHexAddress(address))},
+          balance: {$ne: '0'.repeat(78)}
+        }
+      },
+      {
+        $group: {
+          _id: '$contract',
+          balances: {$push: '$balance'}
+        }
+      },
       {
         $lookup: {
           from: 'contracts',
-          localField: 'contract',
+          localField: '_id',
           foreignField: 'address',
           as: 'contract'
         }
       },
       {$match: {'contract.type': 'qrc20'}},
       {$unwind: '$contract'},
-      {$unwind: '$contract.qrc20'}
+      {$unwind: '$contract.qrc20'},
+      {$project: {_id: false, contract: '$contract', balances: '$balances'}}
     ])
-    return list.map(({balance, contract}) => ({
-      address: contract.address,
-      name: contract.qrc20.name,
-      symbol: contract.qrc20.symbol,
-      decimals: contract.qrc20.decimals,
-      totalSupply: contract.qrc20.totalSupply,
-      version: contract.qrc20.version,
-      balance: balance.replace(/^0+/, '') || '0'
-    }))
+    return list.map(({contract, balances}) => {
+      let sum = new BN()
+      for (let balance of balances) {
+        sum.iadd(new BN(balance))
+      }
+      return {
+        address: contract.address,
+        name: contract.qrc20.name,
+        symbol: contract.qrc20.symbol,
+        decimals: contract.qrc20.decimals,
+        totalSupply: contract.qrc20.totalSupply,
+        version: contract.qrc20.version,
+        balance: sum.toString()
+      }
+    })
   }
 
   async searchQRC20Token(name) {

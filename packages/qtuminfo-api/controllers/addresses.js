@@ -25,7 +25,7 @@ class AddressController {
       options.to = Number.parseInt(ctx.query.to)
     }
     try {
-      ctx.body = await this.getAddressSummary(ctx.address, options)
+      ctx.body = await this.getAddressSummary(ctx.addresses, options)
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
@@ -49,7 +49,7 @@ class AddressController {
 
   async addressSummarySubQuery(ctx, param) {
     try {
-      let data = await this.getAddressSummary(ctx.address)
+      let data = await this.getAddressSummary(ctx.addresses)
       ctx.body = data[param]
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
@@ -60,7 +60,6 @@ class AddressController {
     let summary = await this._address.getAddressSummary(address, options)
     let tokenBalances = await this._contract.getAllQRC20TokenBalances(address)
     return {
-      address,
       balance: summary.balance,
       totalReceived: summary.totalReceived,
       totalSent: summary.totalSent,
@@ -80,31 +79,23 @@ class AddressController {
   }
 
   async checkAddresses(ctx, next) {
-    const makeArray = addrs => typeof addrs === 'string' ? addrs.split(',') : addrs
-    if (ctx.params.address) {
-      this.validateAddress(ctx.params.address)
-      ctx.address = ctx.params.address
-      ctx.addresses = [ctx.address]
+    ctx.addresses = (ctx.params.address || '').split(',')
+    if (ctx.addresses.length === 0) {
+      this.errorResponse.handleErrors(ctx, {
+        message: 'Must include address',
+        code: 1
+      })
     } else {
-      ctx.addresses = makeArray(ctx.params.addresses) || []
-      if (ctx.addresses.length === 0) {
-        this.errorResponse.handleErrors(ctx, {
-          message: 'Must include address',
-          code: 1
-        })
-      } else {
-        for (let address of ctx.addresses) {
-          this.validateAddress(address)
-        }
+      for (let address of ctx.addresses) {
+        this.validateAddress(address)
       }
-      ctx.address = ctx.addresses[0]
     }
     await next()
   }
 
   async utxo(ctx) {
     try {
-      ctx.body = await this._address.getAddressUnspentOutputs(ctx.address)
+      ctx.body = await this._address.getAddressUnspentOutputs(ctx.addresses)
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }

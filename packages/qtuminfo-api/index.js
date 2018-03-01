@@ -7,7 +7,7 @@ const bodyparser = require('koa-bodyparser')
 const BaseService = require('qtuminfo-node/lib/service')
 const AddressController = require('./controllers/addresses')
 const BlockController = require('./controllers/blocks')
-const contractController = require('./controllers/contracts')
+const ContractController = require('./controllers/contracts')
 const MiscController = require('./controllers/misc')
 const TransactionController = require('./controllers/transactions')
 const RateLimiter = require('./components/rate-limiter')
@@ -39,7 +39,7 @@ class QtuminfoAPI extends BaseService {
     }
     this.addressController = new AddressController(this.node)
     this.blockController = new BlockController(blockOptions)
-    this.contractController = new contractController(this.node)
+    this.contractController = new ContractController(this.node)
     this.transactionController = new TransactionController(this.node)
     this.miscController = new MiscController(this.node)
   }
@@ -169,13 +169,13 @@ class QtuminfoAPI extends BaseService {
       addresses.utxo.bind(addresses)
     )
     router.get(
-      '/addresses/:addresses/utxo',
+      '/address/:address/utxo',
       this.cacheShort(),
       addresses.checkAddresses.bind(addresses),
       addresses.multiutxo.bind(addresses)
     )
     router.get(
-      '/addresses/:addresses/txs',
+      '/address/:address/txs',
       this.cacheShort(),
       addresses.checkAddresses.bind(addresses),
       addresses.multitxs.bind(addresses)
