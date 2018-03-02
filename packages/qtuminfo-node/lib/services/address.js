@@ -4,7 +4,7 @@ const BaseService = require('../service')
 const Block = require('../models/block')
 const Transaction = require('../models/transaction')
 const Utxo = require('../models/utxo')
-const Balance = require('../models/balance')
+const Snapshot = require('../models/snapshot')
 const {toRawScript} = require('../utils')
 const {Address, Networks} = qtuminfo
 const {Base58Check, SegwitAddress} = qtuminfo.encoding
@@ -164,11 +164,11 @@ class AddressService extends BaseService {
     ]
   }
 
-  snapshot({height, minBalance = 0, sort = true, limit} = {}) {
+  snapshot({height, minBalance = 1, sort = true, limit} = {}) {
     if (height == null) {
       height = this._block.getTip().height + 1
     }
-    return Utxo.aggregate([
+    return [
       {
         $match: {
           satoshis: {$ne: 0},
@@ -180,43 +180,24 @@ class AddressService extends BaseService {
           ]
         }
       },
-      {
-        $group: {
-          _id: '$address',
-          balance: {$sum: '$satoshis'}
-        }
-      },
+      {$group: {_id: '$address', balance: {$sum: '$satoshis'}}},
       {$match: {balance: {$gte: minBalance}}},
       ...(sort ? [{$sort: {balance: -1}}] : []),
       ...(limit == null ? [] : [{$limit: limit}]),
       {$project: {_id: false, address: '$_id', balance: '$balance'}}
-    ])
+    ]
   }
 
   async cronSnapshot() {
-    let list = await this.snapshot({sort: false})
-    await Balance.deleteMany({contract: null})
-    for (let i = 0; i < Math.ceil(list.length / 100); ++i) {
-      await Balance.create(list.slice(i * 100, (i + 1) * 100).map((item, index) => ({
-        address: item.address,
-        balance: item.balance.toString().padStart(17, '0')
-      })))
-    }
+    await Utxo.aggregate(
+      this.snapshot({sort: false}).concat({$out: 'snapshots'})
+    ).option({allowDiskUse: true})
   }
 
   async getRichList({from = 0, to = 100} = {}) {
-    let list = await Balance.aggregate([
-      {$match: {contract: null}},
-      {$sort: {balance: -1}},
-      {$skip: from},
-      {$limit: to - from},
-      {$project: {_id: false, address: '$address', balance: '$balance'}}
-    ])
-    let totalCount = await Balance.count({contract: null})
-    return {
-      totalCount,
-      list: list.map(({address, balance}) => ({address, balance: balance.replace(/^0+/, '')}))
-    }
+    let totalCount = await Snapshot.count({balance: {$ne: 0}})
+    let list = await Snapshot.find({}, {_id: false}).sort({balance: -1}).skip(from).limit(to - from)
+    return {totalCount, list}
   }
 
   async getMiners({from = 0, to = 100} = {}) {
@@ -233,7 +214,7 @@ class AddressService extends BaseService {
             {$limit: to - from},
             {
               $lookup: {
-                from: 'balances',
+                from: 'snapshots',
                 localField: 'address',
                 foreignField: 'address',
                 as: 'balance'
@@ -256,17 +237,12 @@ class AddressService extends BaseService {
         }
       }
     ])
-    return {
-      totalCount: count[0].count,
-      list: list.map(
-        ({address, blocks, balance}) => ({address, blocks, balance: balance.replace(/^0+/, '') || '0'})
-      )
-    }
+    return {totalCount: count[0].count, list}
   }
 
-  async start() {
+  start() {
     new CronJob({
-      cronTime: '0 0 * * * *',
+      cronTime: '0 */10 * * * *',
       onTick: this.cronSnapshot.bind(this),
       start: true
     })

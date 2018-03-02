@@ -171,7 +171,6 @@ class ContractService extends BaseService {
     let list = await Balance.aggregate([
       {
         $match: {
-          contract: {$ne: null},
           address: {$in: addresses.map(address => this._toHexAddress(address))},
           balance: {$ne: '0'.repeat(78)}
         }
