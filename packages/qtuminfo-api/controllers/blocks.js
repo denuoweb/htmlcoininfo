@@ -163,11 +163,7 @@ class BlocksController {
     let limit = Number.parseInt(ctx.query.limit) || BLOCK_LIMIT
 
     try {
-      let blocks = await Block.aggregate([
-        {$match: {timestamp: {$lte: lte, $gte: gte}}},
-        {$sort: {height: -1}},
-        {$limit: limit},
-      ])
+      let blocks = await Block.find({timestamp: {$lte: lte, $gte: gte}}).sort({height: -1}).limit(limit)
       blocks = await Promise.all(blocks.map(block => this._getBlockSummary(block)))
       let count = await Block.find({timestamp: {$lte: lte, $gte: gte}}).count()
       let more = count > blocks.length

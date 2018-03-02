@@ -10,6 +10,7 @@ const BlockController = require('./controllers/blocks')
 const ContractController = require('./controllers/contracts')
 const MiscController = require('./controllers/misc')
 const TransactionController = require('./controllers/transactions')
+const SearchController = require('./controllers/search')
 const RateLimiter = require('./components/rate-limiter')
 
 class QtuminfoAPI extends BaseService {
@@ -42,6 +43,7 @@ class QtuminfoAPI extends BaseService {
     this.contractController = new ContractController(this.node)
     this.transactionController = new TransactionController(this.node)
     this.miscController = new MiscController(this.node)
+    this.searchController = new SearchController(this.node)
   }
 
   cache(maxAge) {
@@ -218,6 +220,9 @@ class QtuminfoAPI extends BaseService {
       contracts.contract.bind(contracts),
       contracts.txs.bind(contracts)
     )
+
+    let searches = this.searchController
+    router.get('/search/:string', searches.search.bind(searches))
 
     app.use(router.routes()).use(router.allowedMethods())
   }
