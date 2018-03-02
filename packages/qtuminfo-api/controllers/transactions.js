@@ -1,3 +1,4 @@
+const Transaction = require('qtuminfo-node/lib/models/transaction')
 const {toRawTransaction, toRawScript} = require('qtuminfo-node/lib/utils')
 const {ErrorResponse} = require('../components/utils')
 
@@ -26,9 +27,9 @@ class TransactionController {
 
   async transaction(ctx, next) {
     let txid = ctx.params.txid
-
+    let tx = await Transaction.findOne({$or: [{id: txid}, {hash: txid}]})
     try {
-      let transaction = await this._transaction.getTransaction(txid)
+      let transaction = await this._transaction.getTransaction(tx.id)
       if (!transaction) {
         ctx.throw(404)
       }
@@ -42,7 +43,7 @@ class TransactionController {
   async transformTransaction(transaction, options = {}) {
     let confirmations = 'block' in transaction ? this._block.getTip().height - transaction.block.height + 1 : 0
     let transformed = {
-      txid: transaction.id,
+      id: transaction.id,
       hash: transaction.hash,
       version: transaction.version,
       lockTime: transaction.nLockTime,

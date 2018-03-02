@@ -1,4 +1,6 @@
 const qtuminfo = require('qtuminfo-lib')
+const Block = require('qtuminfo-node/lib/models/block')
+const Transaction = require('qtuminfo-node/lib/models/transaction')
 const {ErrorResponse} = require('../components/utils')
 const {Address, Networks} = qtuminfo
 const {SegwitAddress} = qtuminfo.encoding
@@ -8,7 +10,6 @@ class MiscController {
     this.node = node
     this.errorResponse = new ErrorResponse({log: this.node.log})
     this._address = this.node.services.get('address')
-    this._header = this.node.services.get('header')
     this._block = this.node.services.get('block')
     this._contract = this.node.services.get('contract')
     this._transaction = this.node.services.get('transaction')
@@ -30,8 +31,8 @@ class MiscController {
     let id = ctx.params.id
     if (/^(0|[1-9]\d{0,9})$/.test(id)) {
       id = Number.parseInt(id)
-      if (id <= this._header.getBestHeight()) {
-        ctx.body = {type: 'block-height'}
+      if (id <= this._block.getTip().height) {
+        ctx.body = {type: 'block'}
         return
       }
     } else if (id.length === 34) {
@@ -56,10 +57,10 @@ class MiscController {
         return
       }
     } else if (id.length === 64) {
-      if (await this._header.getBlockHeader(id)) {
-        ctx.body = {type: 'block-hash'}
+      if (await Block.findOne({hash: id})) {
+        ctx.body = {type: 'block'}
         return
-      } else if (await this._transaction.getTransaction(id)) {
+      } else if (await Transaction.findOne({$or: [{id}, {hash: id}]})) {
         ctx.body = {type: 'transaction'}
         return
       }
