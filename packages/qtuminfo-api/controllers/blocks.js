@@ -1,4 +1,3 @@
-const LRU = require('lru-cache')
 const {BN} = require('qtuminfo-lib').crypto
 const Block = require('qtuminfo-node/lib/models/block')
 const {toRawBlock} = require('qtuminfo-node/lib/utils')
@@ -21,7 +20,6 @@ class BlocksController {
     blockCacheSize = DEFAULT_BLOCK_CACHE_SIZE
   }) {
     this.node = node
-    this.blockCache = new LRU(blockCacheSize)
     this.errorResponse = new ErrorResponse({log: this.node.log})
     this._block = this.node.services.get('block')
     this._header = this.node.services.get('header')
@@ -34,56 +32,35 @@ class BlocksController {
     }
   }
 
-  async checkBlockHash(ctx, next) {
-    let hash = ctx.params.blockHash
-    if (!/^[0-9A-Fa-f]{64}$/.test(hash)) {
-      ctx.throw(404)
-    }
-    await next()
-  }
-
   async block(ctx, next) {
-    let hash = ctx.params.blockHash
-    let blockCached = this.blockCache.get(hash)
-
-    if (blockCached) {
-      let height = this._block.getTip().height
-      blockCached.confirmations = height - blockCached.height + 1
-      ctx.block = blockCached
-    } else {
-      try {
-        let block = await this._block.getBlock(hash)
-        if (!block) {
-          ctx.throw(404)
-        }
-
-        let blockResult = await this.transformBlock(block)
-        if (blockResult.confirmations >= BLOCK_CACHE_CONFIRMATIONS) {
-          this.blockCache.set(hash, blockResult)
-        }
-        ctx.block = blockResult
-      } catch (err) {
-        this.errorResponse.handleErrors(ctx, err)
+    let block = ctx.params.block
+    if (/^(0|[1-9]\d{0,9})$/.test(block)) {
+      block = Number(block)
+      if (block <= this._block.getTip().height) {
+        ctx.block = await this.transformBlock(await Block.findOne({height: block}))
+        return await next()
+      }
+    } else if (/^[0-9A-Fa-f]{64}$/.test(block)) {
+      block = await Block.findOne({hash: block})
+      if (block) {
+        ctx.block = await this.transformBlock(block)
+        return await next()
       }
     }
-
     await next()
   }
 
   async rawBlock(ctx, next) {
-    let blockHash = ctx.params.blockHash
-
-    try {
-      let block = await this._block.getBlock(blockHash)
-      if (!block) {
-        ctx.throw(404)
+    let hash = ctx.params.blockHash
+    if (/^[0-9A-Fa-f]{64}$/.test(hash)) {
+      block = await Block.findOne({hash})
+      if (block) {
+        let blockBuffer = (await toRawBlock(block)).toBuffer()
+        ctx.rawBlock = blockBuffer.toString('hex')
+        return await next()
       }
-      let blockBuffer = (await toRawBlock(block)).toBuffer()
-      ctx.rawBlock = {rawBlock: blockBuffer.toString('hex')}
-      await next()
-    } catch (err) {
-      this.errorResponse.handleErrors(ctx, err)
     }
+    ctx.throw(404)
   }
 
   async transformBlock(block) {
@@ -112,28 +89,11 @@ class BlocksController {
   }
 
   async show(ctx) {
-    if (ctx.block) {
-      ctx.body = ctx.block
-    }
+    ctx.body = ctx.block
   }
 
   async showRaw(ctx) {
-    if (ctx.rawBlock) {
-      ctx.body = ctx.rawBlock
-    }
-  }
-
-  async blockIndex(ctx) {
-    let height = Number.parseInt(ctx.params.height)
-    try {
-      let info = await this._header.getBlockHeader(height)
-      if (!info) {
-        ctx.throw(404)
-      }
-      ctx.body = {blockHash: info.hash}
-    } catch (err) {
-      this.errorResponse.handleErrors(ctx, err)
-    }
+    ctx.body = {rawBlock: ctx.rawBlock}
   }
 
   async _getBlockSummary(block) {
@@ -149,6 +109,13 @@ class BlocksController {
       duration
     }
     return summary
+  }
+
+  async recentBlocks(ctx) {
+    let count = ctx.query.count || 10
+    let height = this._block.getTip().height
+    let blocks = await Block.find({height: {$gt: height - 10}}).sort({height: 1})
+    ctx.body = await Promise.all(blocks.map(block => this._getBlockSummary(block)))
   }
 
   async list(ctx) {

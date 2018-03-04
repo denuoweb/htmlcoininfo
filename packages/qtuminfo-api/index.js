@@ -126,20 +126,18 @@ class QtuminfoAPI extends BaseService {
     let blocks = this.blockController
     router.get('/blocks', this.cacheShort(), blocks.list.bind(blocks))
     router.get(
-      '/block/:blockHash',
+      '/block/:block',
       this.cacheShort(),
-      blocks.checkBlockHash.bind(blocks),
       blocks.block.bind(blocks),
       blocks.show.bind(blocks)
     )
     router.get(
       '/rawblock/:blockHash',
       this.cacheLong(),
-      blocks.checkBlockHash.bind(blocks),
       blocks.rawBlock.bind(blocks),
       blocks.showRaw.bind(blocks)
     )
-    router.get('/block-index/:height', this.cacheShort(), blocks.blockIndex.bind(blocks))
+    router.get('/recent-blocks', blocks.recentBlocks.bind(blocks))
 
     let transactions = this.transactionController
     router.get(
