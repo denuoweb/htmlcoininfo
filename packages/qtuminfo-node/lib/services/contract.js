@@ -1,7 +1,7 @@
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
-const Utxo = require('../models/utxo')
+const TransactionOutput = require('../models/transaction-output')
 const Contract = require('../models/contract')
 const Balance = require('../models/balance')
 const {getInputAddress} = require('../utils')
@@ -106,12 +106,12 @@ class ContractService extends BaseService {
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
-    let cursor = Utxo.find({address}, ['satoshis', 'input.transactionId']).cursor()
-    let utxo
-    while (utxo = await cursor.next()) {
-      let value = new BN(utxo.satoshis)
+    let cursor = TransactionOutput.find({address}, ['satoshis', 'input.transactionId']).cursor()
+    let txo
+    while (txo = await cursor.next()) {
+      let value = new BN(txo.satoshis)
       totalReceived.iadd(value)
-      if (utxo.input.transactionId) {
+      if (txo.input.transactionId) {
         totalSent.iadd(value)
       } else {
         balance.iadd(value)
@@ -272,7 +272,7 @@ class ContractService extends BaseService {
           } catch (err) {
             continue
           }
-          let owner = (await Utxo.findOne({
+          let owner = (await TransactionOutput.findOne({
             'input.transactionId': tx.id,
             'input.index': 0
           })).address
@@ -393,7 +393,7 @@ class ContractService extends BaseService {
       return data
     }
     let segwitAddress = new Address(Buffer.from(data, 'hex'), this._network, Address.PayToWitnessKeyHash)
-    if (await Utxo.findOne({address: segwitAddress})) {
+    if (await TransactionOutput.findOne({address: segwitAddress})) {
       return segwitAddress.toString()
     } else {
       return new Address(Buffer.from(data, 'hex'), this._network).toString()

@@ -3,7 +3,7 @@ const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Block = require('../models/block')
 const Transaction = require('../models/transaction')
-const Utxo = require('../models/utxo')
+const TransactionOutput = require('../models/transaction-output')
 const Snapshot = require('../models/snapshot')
 const {toRawScript} = require('../utils')
 const {Address, Networks} = qtuminfo
@@ -107,24 +107,24 @@ class AddressService extends BaseService {
     let totalSent = new BN(0)
     let unconfirmedBalance = new BN(0)
     let stakingBalance = new BN(0)
-    let cursor = Utxo.find(
+    let cursor = TransactionOutput.find(
       {address: {$in: addresses}},
       ['satoshis', 'output.height', 'input.transactionId', 'isStake']
     ).cursor()
-    let utxo
-    while (utxo = await cursor.next()) {
-      let value = new BN(utxo.satoshis)
-      let confirmations = Math.max(this._block.getTip().height - utxo.output.height + 1, 0)
+    let txo
+    while (txo = await cursor.next()) {
+      let value = new BN(txo.satoshis)
+      let confirmations = Math.max(this._block.getTip().height - txo.output.height + 1, 0)
       totalReceived.iadd(value)
-      if (utxo.input.transactionId) {
+      if (txo.input.transactionId) {
         totalSent.iadd(value)
       } else {
         balance.iadd(value)
-        if (utxo.confirmations === 0) {
+        if (txo.confirmations === 0) {
           unconfirmedBalance.iadd(value)
         }
       }
-      if (utxo.isStake && confirmations <= 500) {
+      if (txo.isStake && confirmations <= 500) {
         stakingBalance.iadd(value)
       }
     }
@@ -142,7 +142,7 @@ class AddressService extends BaseService {
     if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
-    let utxoList = await Utxo.find({address: {$in: addresses}, 'input.height': null})
+    let utxoList = await TransactionOutput.find({address: {$in: addresses}, 'input.height': null})
     return utxoList.map(utxo => ({
       address: utxo.address,
       txid: utxo.output.transactionId,
@@ -189,7 +189,7 @@ class AddressService extends BaseService {
   }
 
   async cronSnapshot() {
-    await Utxo.aggregate(
+    await TransactionOutput.aggregate(
       this.snapshot({sort: false}).concat({$out: 'snapshots'})
     ).option({allowDiskUse: true})
   }

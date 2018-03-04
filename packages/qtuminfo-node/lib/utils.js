@@ -3,7 +3,7 @@ const mongoose = require('mongoose')
 const qtuminfo = require('qtuminfo-lib')
 const Block = require('./models/block')
 const Transaction = require('./models/transaction')
-const Utxo = require('./models/utxo')
+const TransactionOutput = require('./models/transaction-output')
 const {BN} = qtuminfo.crypto
 
 exports.parseParamsWithJSON = function(paramsArg) {
@@ -140,7 +140,7 @@ async function toRawBlock(block) {
     {$unwind: '$inputs'},
     {
       $lookup: {
-        from: 'utxos',
+        from: 'transactionoutputs',
         localField: 'inputs',
         foreignField: '_id',
         as: 'input'
@@ -178,7 +178,7 @@ async function toRawBlock(block) {
     {$unwind: '$outputs'},
     {
       $lookup: {
-        from: 'utxos',
+        from: 'transactionoutputs',
         localField: 'outputs',
         foreignField: '_id',
         as: 'output'

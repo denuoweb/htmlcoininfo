@@ -1,6 +1,6 @@
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
-const Utxo = require('../models/utxo')
+const TransactionOutput = require('../models/transaction-output')
 const {toRawTransaction, toRawScript} = require('../utils')
 
 class MempoolService extends BaseService {
@@ -26,9 +26,9 @@ class MempoolService extends BaseService {
   async onReorg(_, block) {
     await Transaction.deleteMany({'block.height': block.height, index: {$in: [0, 1]}})
     await Transaction.updateMany({'block.height': block.height}, {block: {height: 0xffffffff}})
-    await Utxo.updateMany({'output.height': block.height}, {'output.height': 0xffffffff})
-    await Utxo.updateMany({'input.height': block.height}, {'input.height': 0xffffffff})
-    await Utxo.deleteMany({
+    await TransactionOutput.updateMany({'output.height': block.height}, {'output.height': 0xffffffff})
+    await TransactionOutput.updateMany({'input.height': block.height}, {'input.height': 0xffffffff})
+    await TransactionOutput.deleteMany({
       $or: [
         {'output.transactionId': {$in: [block.transactions[0].id, block.transactions[1].id]}},
         {'input.transactionId': block.transactions[0].id}
@@ -58,55 +58,55 @@ class MempoolService extends BaseService {
   async _onTransaction(tx) {
     let inputAddresses = new Set()
     let outputAddresses = new Set()
-    let inputUtxos = []
+    let inputTxos = []
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
-      let utxo = await Utxo.findOne({
+      let txo = await TransactionOutput.findOne({
         'output.transactionId': input.prevTxId.toString('hex'),
         'output.index': input.outputIndex
       })
-      if (!utxo) {
+      if (!txo) {
         return
       }
-      inputUtxos.push(utxo)
+      inputTxos.push(txo)
     }
     let inputs = []
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
-      let utxo = inputUtxos[index]
-      await Transaction.remove({id: utxo.input.transactionId})
-      utxo.input.height = 0xffffffff
-      utxo.input.transactionId = tx.id
-      utxo.input.index = index
-      utxo.input.script = Utxo.transformScript(input.script)
-      utxo.input.sequence = input.sequenceNumber
-      await utxo.save()
-      inputs.push(utxo._id)
-      if (utxo.address) {
-        inputAddresses.add(utxo.address)
+      let txo = inputTxos[index]
+      await Transaction.remove({id: txo.input.transactionId})
+      txo.input.height = 0xffffffff
+      txo.input.transactionId = tx.id
+      txo.input.index = index
+      txo.input.script = TransactionOutput.transformScript(input.script)
+      txo.input.sequence = input.sequenceNumber
+      await txo.save()
+      inputs.push(txo._id)
+      if (txo.address) {
+        inputAddresses.add(txo.address)
       }
     }
 
     let outputs = []
-    let outputUtxos = []
+    let outputTxos = []
     for (let index = 0; index < tx.outputs.length; ++index) {
       let output = tx.outputs[index]
-      let utxo = new Utxo({
+      let txo = new TransactionOutput({
         satoshis: output.satoshis,
         output: {
           height: 0xffffffff,
           transactionId: tx.id,
           index,
-          script: Utxo.transformScript(output.script)
+          script: TransactionOutput.transformScript(output.script)
         },
-        address: Utxo.getAddress(tx, index, this._network),
+        address: TransactionOutput.getAddress(tx, index, this._network),
         isStake: tx.outputs[0].script.chunks.length === 0
       })
-      await utxo.save()
-      outputs.push(utxo._id)
-      outputUtxos.push(utxo)
-      if (utxo.address) {
-        outputAddresses.add(utxo.address)
+      await txo.save()
+      outputs.push(txo._id)
+      outputTxos.push(txo)
+      if (txo.address) {
+        outputAddresses.add(txo.address)
       }
     }
 
@@ -135,8 +135,8 @@ class MempoolService extends BaseService {
 
     let txBuffer = tx.toBuffer()
     let txHashBuffer = tx.toHashBuffer()
-    let inputSatoshis = inputUtxos.map(utxo => utxo.satoshis).reduce((x, y) => x + y)
-    let outputSatoshis = outputUtxos.map(utxo => utxo.satoshis).reduce((x, y) => x + y)
+    let inputSatoshis = inputTxos.map(txo => txo.satoshis).reduce((x, y) => x + y)
+    let outputSatoshis = outputTxos.map(txo => txo.satoshis).reduce((x, y) => x + y)
     let transformed = {
       id: transaction.id,
       size: txBuffer.length,

@@ -5,7 +5,7 @@ const BaseService = require('../service')
 const Block = require('../models/block')
 const Header = require('../models/header')
 const Transaction = require('../models/transaction')
-const Utxo = require('../models/utxo')
+const TransactionOutput = require('../models/transaction-output')
 const utils = require('../utils')
 const {
   getTarget, getDifficulty, convertSecondsToHumanReadable,
@@ -543,11 +543,11 @@ class BlockService extends BaseService {
     })
     if (block.prevOutStakeHash !== '0'.repeat(64) && block.prevOutStakeN !== 0xffffffff) {
       let transaction = await Transaction.findOne({id: block.transactions[1]})
-      let utxo = await Utxo.findById(transaction.outputs[1])
+      let utxo = await TransactionOutput.findById(transaction.outputs[1])
       blockObj.minedBy = utxo.address
     } else {
       let transaction = await Transaction.findOne({id: block.transactions[0]})
-      let utxo = await Utxo.findById(transaction.outputs[0])
+      let utxo = await TransactionOutput.findById(transaction.outputs[0])
       blockObj.minedBy = utxo.address
     }
     let rawBlock = await toRawBlock(blockObj)

@@ -1,7 +1,7 @@
 const assert = require('assert')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
-const Utxo = require('../models/utxo')
+const TransactionOutput = require('../models/transaction-output')
 const {toRawTransaction} = require('../utils')
 
 class TransactionService extends BaseService {
@@ -43,8 +43,8 @@ class TransactionService extends BaseService {
       tx.outputSatoshis += output.satoshis
     }
     if (tx.inputs.length === 1) {
-      let utxo = await Utxo.findById(tx.inputs[0]._id)
-      if (utxo.output.transactionId === '0'.repeat(64) && utxo.output.index === 0xffffffff) {
+      let txo = await TransactionOutput.findById(tx.inputs[0]._id)
+      if (txo.output.transactionId === '0'.repeat(64) && txo.output.index === 0xffffffff) {
         tx.isCoinbase = true
         return
       }
@@ -62,7 +62,7 @@ class TransactionService extends BaseService {
       {$unwind: '$inputs'},
       {
         $lookup: {
-          from: 'utxos',
+          from: 'transactionoutputs',
           localField: 'inputs',
           foreignField: '_id',
           as: 'input'
@@ -110,7 +110,7 @@ class TransactionService extends BaseService {
       {$unwind: '$outputs'},
       {
         $lookup: {
-          from: 'utxos',
+          from: 'transactionoutputs',
           localField: 'outputs',
           foreignField: '_id',
           as: 'output'
@@ -173,8 +173,8 @@ class TransactionService extends BaseService {
       await this._db.updateServiceTip(this.name, this._tip)
     }
     await Transaction.deleteMany({'block.height': {$gt: blockTip.height}})
-    await Utxo.deleteMany({'output.height': {$gt: blockTip.height}})
-    await Utxo.updateMany(
+    await TransactionOutput.deleteMany({'output.height': {$gt: blockTip.height}})
+    await TransactionOutput.updateMany(
       {'input.height': {$gt: blockTip.height}},
       {
         'input.height': null,
@@ -204,60 +204,60 @@ class TransactionService extends BaseService {
     let inputs = []
     for (let index = 0; index < tx.inputs.length; ++index) {
       let input = tx.inputs[index]
-      let utxo
+      let txo
       if (Buffer.compare(input.prevTxId, Buffer.alloc(32)) === 0) {
-        utxo = new Utxo({
+        txo = new TransactionOutput({
           output: {height: block.height},
           input: {
             height: block.height,
             transactionId: tx.id,
             index,
-            script: Utxo.transformScript(input.script),
+            script: TransactionOutput.transformScript(input.script),
             sequence: input.sequenceNumber
           },
           isStake: tx.outputs[0].script.chunks.length === 0
         })
       } else {
-        utxo = await Utxo.findOne({
+        txo = await TransactionOutput.findOne({
           'output.transactionId': input.prevTxId.toString('hex'),
           'output.index': input.outputIndex
         })
-        utxo.input.height = block.height
-        utxo.input.transactionId = tx.id
-        utxo.input.index = index
-        utxo.input.script = Utxo.transformScript(input.script)
-        utxo.input.sequence = input.sequenceNumber
+        txo.input.height = block.height
+        txo.input.transactionId = tx.id
+        txo.input.index = index
+        txo.input.script = TransactionOutput.transformScript(input.script)
+        txo.input.sequence = input.sequenceNumber
       }
-      await utxo.save()
-      inputs.push(utxo._id)
-      if (utxo.address) {
-        inputAddresses.add(utxo.address)
+      await txo.save()
+      inputs.push(txo._id)
+      if (txo.address) {
+        inputAddresses.add(txo.address)
       }
     }
 
     let outputs = []
     for (let index = 0; index < tx.outputs.length; ++index) {
       let output = tx.outputs[index]
-      let utxo = await Utxo.findOne({'output.transactionId': tx.id, 'output.index': index})
-      if (utxo) {
-        utxo.output.height = block.height
+      let txo = await TransactionOutput.findOne({'output.transactionId': tx.id, 'output.index': index})
+      if (txo) {
+        txo.output.height = block.height
       } else {
-        utxo = new Utxo({
+        txo = new TransactionOutput({
           satoshis: output.satoshis,
           output: {
             height: block.height,
             transactionId: tx.id,
             index,
-            script: Utxo.transformScript(output.script)
+            script: TransactionOutput.transformScript(output.script)
           },
-          address: Utxo.getAddress(tx, index, this._network),
+          address: TransactionOutput.getAddress(tx, index, this._network),
           isStake: tx.outputs[0].script.chunks.length === 0
         })
       }
-      await utxo.save()
-      outputs.push(utxo._id)
-      if (utxo.address) {
-        outputAddresses.add(utxo.address)
+      await txo.save()
+      outputs.push(txo._id)
+      if (txo.address) {
+        outputAddresses.add(txo.address)
       }
     }
 

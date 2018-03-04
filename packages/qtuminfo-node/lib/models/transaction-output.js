@@ -3,7 +3,7 @@ const qtuminfo = require('qtuminfo-lib')
 const {Schema} = mongoose
 const {sha256ripemd160} = qtuminfo.crypto.Hash
 
-const utxoSchema = new Schema({
+const transactionOutputSchema = new Schema({
   satoshis: {type: Number, default: 0},
   output: {
     height: {type: Number, default: 0xffffffff, index: true},
@@ -22,7 +22,7 @@ const utxoSchema = new Schema({
   isStake: Boolean
 })
 
-exports = module.exports = mongoose.model('Utxo', utxoSchema)
+exports = module.exports = mongoose.model('TransactionOutput', transactionOutputSchema)
 
 exports.transformScript = function(script) {
   return script.chunks.map(chunk => ({
