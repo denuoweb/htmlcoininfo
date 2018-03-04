@@ -114,7 +114,7 @@ class BlocksController {
   async recentBlocks(ctx) {
     let count = ctx.query.count || 10
     let height = this._block.getTip().height
-    let blocks = await Block.find({height: {$gt: height - 10}}).sort({height: 1})
+    let blocks = await Block.find({height: {$gt: height - 10}}).sort({height: -1})
     ctx.body = await Promise.all(blocks.map(block => this._getBlockSummary(block)))
   }
 
