@@ -3,7 +3,6 @@ const Block = require('qtuminfo-node/lib/models/block')
 const {toRawBlock} = require('qtuminfo-node/lib/utils')
 const {ErrorResponse} = require('../components/utils')
 
-const BLOCK_LIMIT = 200
 const DEFAULT_BLOCK_CACHE_SIZE = 1000
 const BLOCK_CACHE_CONFIRMATIONS = 6
 
@@ -119,32 +118,14 @@ class BlocksController {
   }
 
   async list(ctx) {
-    let todayStr = formatTimestamp(new Date())
-    let dateStr = ctx.query.blockDate || todayStr
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      this.errorResponse.handleErrors(ctx, new Error('Please use yyyy-mm-dd format'))
-    }
-    let isToday = dateStr === todayStr
-    let gte = Math.floor((new Date(dateStr)).getTime() / 1000)
-    let lte = gte + 24 * 60 * 60 - 1
-    let limit = Number.parseInt(ctx.query.limit) || BLOCK_LIMIT
+    let date = ctx.query.date || formatTimestamp(new Date())
+    let gte = Math.floor(Date.parse(date) / 1000)
+    let lt = gte + 24 * 60 * 60
 
     try {
-      let blocks = await Block.find({timestamp: {$lte: lte, $gte: gte}}).sort({height: -1}).limit(limit)
+      let blocks = await Block.find({timestamp: {$lt: lt, $gte: gte}}).sort({height: -1})
       blocks = await Promise.all(blocks.map(block => this._getBlockSummary(block)))
-      let count = await Block.find({timestamp: {$lte: lte, $gte: gte}}).count()
-      let more = count > blocks.length
-      ctx.body = {
-        blocks,
-        length: count,
-        pagination: {
-          currentTs: Math.floor(Date.now() / 1000),
-          current: dateStr,
-          isToday,
-          more,
-          moreTs: more ? blocks[blocks.length - 1].time - 1 : undefined
-        }
-      }
+      ctx.body = blocks
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
