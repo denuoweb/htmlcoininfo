@@ -35,18 +35,14 @@ class BlocksController {
     let block = ctx.params.block
     if (/^(0|[1-9]\d{0,9})$/.test(block)) {
       block = Number(block)
-      if (block <= this._block.getTip().height) {
-        ctx.block = await this.transformBlock(await Block.findOne({height: block}))
-        return await next()
-      }
-    } else if (/^[0-9A-Fa-f]{64}$/.test(block)) {
-      block = await Block.findOne({hash: block})
-      if (block) {
-        ctx.block = await this.transformBlock(block)
-        return await next()
-      }
     }
-    await next()
+    block = await this._block.getBlock(block)
+    if (block) {
+      ctx.block = await this.transformBlock(block)
+      return await next()
+    } else {
+      ctx.throw(404)
+    }
   }
 
   async rawBlock(ctx, next) {

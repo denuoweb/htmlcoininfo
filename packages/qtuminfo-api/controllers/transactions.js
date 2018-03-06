@@ -22,18 +22,40 @@ class TransactionController {
   async show(ctx) {
     if (ctx.transaction) {
       ctx.body = ctx.transaction
+    } else if (ctx.transactions) {
+      ctx.body = ctx.transactions
     }
   }
 
   async transaction(ctx, next) {
     let txid = ctx.params.txid
-    let tx = await Transaction.findOne({$or: [{id: txid}, {hash: txid}]})
     try {
+      let tx = await Transaction.findOne({$or: [{id: txid}, {hash: txid}]})
       let transaction = await this._transaction.getTransaction(tx.id)
-      if (!transaction) {
+      if (transaction) {
+        ctx.transaction = await this.transformTransaction(transaction)
+        await next()
+      } else {
         ctx.throw(404)
       }
-      ctx.transaction = await this.transformTransaction(transaction)
+    } catch (err) {
+      this.errorResponse.handleErrors(ctx, err)
+    }
+  }
+
+  async transactions(ctx, next) {
+    let txids = ctx.params.txids.split(',')
+    let list = []
+    try {
+      for (let txid of txids) {
+        let transaction = await this._transaction.getTransaction(txid)
+        if (transaction) {
+          list.push(transaction)
+        } else {
+          ctx.throw(404)
+        }
+      }
+      ctx.transactions = await Promise.all(list.map(this.transformTransaction.bind(this)))
       await next()
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)

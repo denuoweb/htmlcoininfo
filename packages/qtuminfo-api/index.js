@@ -146,6 +146,12 @@ class QtuminfoAPI extends BaseService {
       transactions.transaction.bind(transactions),
       transactions.show.bind(transactions)
     )
+    router.get(
+      '/txs/:txids',
+      this.cacheShort(),
+      transactions.transactions.bind(transactions),
+      transactions.show.bind(transactions)
+    )
     router.get('/txs', this.cacheShort(), transactions.list.bind(transactions))
     router.post('/tx/send', transactions.send.bind(transactions))
     router.get(
