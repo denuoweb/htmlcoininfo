@@ -59,8 +59,8 @@ class ContractService extends BaseService {
       {
         $match: {
           $or: [
-            {inputAddresses: address},
-            {outputAddresses: address},
+            {inputAddresses: {type: 'contract', hex: address}},
+            {outputAddresses: {type: 'contract', hex: address}},
             {'receipts.contractAddress': address},
             {'receipts.logs.address': address}
           ]
@@ -89,8 +89,8 @@ class ContractService extends BaseService {
       {
         $match: {
           $or: [
-            {inputAddresses: address},
-            {outputAddresses: address},
+            {inputAddresses: {type: 'contract', hex: address}},
+            {outputAddresses: {type: 'contract', hex: address}},
             {'receipts.contractAddress': address},
             {'receipts.logs.address': address}
           ]
@@ -106,12 +106,15 @@ class ContractService extends BaseService {
     let balance = new BN(0)
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
-    let cursor = TransactionOutput.find({address}, ['satoshis', 'input.transactionId']).cursor()
+    let cursor = TransactionOutput.find(
+      {address: {type: 'contract', hex: address}},
+      ['satoshis', 'input']
+    ).cursor()
     let txo
     while (txo = await cursor.next()) {
       let value = new BN(txo.satoshis)
       totalReceived.iadd(value)
-      if (txo.input.transactionId) {
+      if (txo.input) {
         totalSent.iadd(value)
       } else {
         balance.iadd(value)
@@ -147,9 +150,9 @@ class ContractService extends BaseService {
         }
         list.push({
           token,
-          from: topics[1] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[1].slice(24)),
-          to: topics[2] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[2].slice(24)),
-          amount: ContractService._uint256toBN(data).toString()
+          from: topics[1] === '0'.repeat(64) ? null : topics[1].slice(24),
+          to: topics[2] === '0'.repeat(64) ? null : topics[2].slice(24),
+          amount: new BN(data, 16).toString()
         })
       }
     }
@@ -171,8 +174,8 @@ class ContractService extends BaseService {
     let list = await Balance.aggregate([
       {
         $match: {
-          address: {$in: addresses.map(address => this._toHexAddress(address))},
-          balance: {$ne: '0'.repeat(78)}
+          'address.hex': {$in: addresses},
+          balance: {$ne: '0'.repeat(64)}
         }
       },
       {
@@ -197,7 +200,7 @@ class ContractService extends BaseService {
     return list.map(({contract, balances}) => {
       let sum = new BN()
       for (let balance of balances) {
-        sum.iadd(new BN(balance))
+        sum.iadd(new BN(balance, 16))
       }
       return {
         address: contract.address,
@@ -227,8 +230,8 @@ class ContractService extends BaseService {
     for (let token of tokens) {
       let count = await Transaction.count({
         $or: [
-          {inputAddresses: token.address},
-          {outputAddresses: token.address},
+          {inputAddresses: {type: 'contract', hex: token.address}},
+          {outputAddresses: {type: 'contract', hex: token.address}},
           {'receipts.contractAddress': token.address},
           {'receipts.logs.address': token.address}
         ]
@@ -384,34 +387,11 @@ class ContractService extends BaseService {
     })
   }
 
-  static _uint256toBN(data) {
-    return new BN(data.replace(/^0+/, '') || '0', 16)
-  }
-
   async _fromHexAddress(data) {
     if (await Contract.findOne({address: data})) {
-      return data
-    }
-    let segwitAddress = new Address(Buffer.from(data, 'hex'), this._network, Address.PayToWitnessKeyHash)
-    if (await TransactionOutput.findOne({address: segwitAddress})) {
-      return segwitAddress.toString()
+      return {type: 'contract', hex: data}
     } else {
-      return new Address(Buffer.from(data, 'hex'), this._network).toString()
-    }
-  }
-
-  _toHexAddress(address) {
-    let network = Networks.get(this._network)
-    if (address.length === 34) {
-      let hexAddress = Base58Check.decode(address)
-      if (hexAddress[0] === network.pubkeyhash) {
-        return hexAddress.slice(1).toString('hex')
-      }
-    } else if (address.length === 42) {
-      let result = SegwitAddress.decode(network.witness_v0_keyhash, address)
-      if (result) {
-        return Buffer.from(result.program).toString('hex')
-      }
+      return {type: 'pubkeyhash', hex: data}
     }
   }
 
@@ -454,7 +434,7 @@ class ContractService extends BaseService {
           if (address !== contractAddress) {
             let transaction = block.transactions.find(tx => tx.id === transactionHash)
             if (!await Contract.findOne({address})) {
-              await this._createContract(transaction, block, address, contractAddress)
+              await this._createContract(transaction, block, address, {type: 'contract', hex: contractAddress})
             }
           }
           if (topics[0] === TOKEN_EVENTS.Transfer) {
@@ -485,7 +465,7 @@ class ContractService extends BaseService {
         let {balance} = await this._callMethod(contract, tokenAbi, 'balanceOf', address)
         await Balance.update(
           {contract, address},
-          {balance: balance.toString().padStart(78, '0')},
+          {balance: balance.toString(16).padStart(64, '0')},
           {upsert: true}
         )
       } catch (err) {}
@@ -527,7 +507,7 @@ class ContractService extends BaseService {
     for (let {topics, data} of previousTransfers) {
       let from = topics[1].slice(24)
       let to = topics[2].slice(24)
-      let amount = ContractService._uint256toBN(data)
+      let amount = new BN(data, 16)
       if (mapping.has(from)) {
         mapping.get(from).iadd(amount)
       }
@@ -538,10 +518,7 @@ class ContractService extends BaseService {
     let results = []
     for (let [address, balance] of mapping) {
       if (!balance.isZero()) {
-        address = await this._fromHexAddress(address)
-        if (address.length !== 40) {
-          results.push({address, balance})
-        }
+        results.push({address, balance})
       }
     }
     results.sort((x, y) => y.balance.cmp(x.balance))

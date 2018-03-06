@@ -175,12 +175,6 @@ class QtuminfoAPI extends BaseService {
       addresses.utxo.bind(addresses)
     )
     router.get(
-      '/address/:address/utxo',
-      this.cacheShort(),
-      addresses.checkAddresses.bind(addresses),
-      addresses.multiutxo.bind(addresses)
-    )
-    router.get(
       '/address/:address/txs',
       this.cacheShort(),
       addresses.checkAddresses.bind(addresses),

@@ -1,9 +1,10 @@
 const mongoose = require('mongoose')
+const addressSchema = require('./address')
 const {Schema} = mongoose
 
 const contractSchema = new Schema({
   address: {type: String, index: true, unique: true},
-  owner: {type: String, index: true},
+  owner: addressSchema,
   createTransactionId: String,
   createHeight: {type: Number, index: true},
   type: {type: String, index: true},

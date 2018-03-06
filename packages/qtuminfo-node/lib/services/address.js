@@ -41,18 +41,17 @@ class AddressService extends BaseService {
     if (typeof addresses === 'string') {
       addresses = [addresses]
     }
-    let hexAddresses = addresses.map(address => '0'.repeat(24) + this._toHexAddress(address))
     let [{count, list}] = await Transaction.aggregate([
       {
         $match: {
           $or: [
-            {inputAddresses: {$in: addresses}},
-            {outputAddresses: {$in: addresses}},
+            {'inputAddresses.type': {$ne: 'contract'}, 'inputAddresses.hex': {$in: addresses}},
+            {'outputAddresses.type': {$ne: 'contract'}, 'outputAddresses.hex': {$in: addresses}},
             {
               'receipts.logs.topics.0': {
                 $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
               },
-              'receipts.logs.topics': {$in: hexAddresses},
+              'receipts.logs.topics': {$in: addresses.map(address => '0'.repeat(24) + address)},
             }
           ]
         }
@@ -79,18 +78,17 @@ class AddressService extends BaseService {
     if (typeof addresses === 'string') {
       addresses = [addresses]
     }
-    let hexAddresses = addresses.map(address => '0'.repeat(24) + this._toHexAddress(address))
     let result = await Transaction.aggregate([
       {
         $match: {
           $or: [
-            {inputAddresses: {$in: addresses}},
-            {outputAddresses: {$in: addresses}},
+            {'inputAddresses.type': {$ne: 'contract'}, 'inputAddresses.hex': {$in: addresses}},
+            {'outputAddresses.type': {$ne: 'contract'}, 'outputAddresses.hex': {$in: addresses}},
             {
               'receipts.logs.topics.0': {
                 $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
               },
-              'receipts.logs.topics': {$in: hexAddresses},
+              'receipts.logs.topics': {$in: addresses.map(address => '0'.repeat(24) + address)},
             }
           ]
         }
@@ -108,15 +106,15 @@ class AddressService extends BaseService {
     let unconfirmedBalance = new BN(0)
     let stakingBalance = new BN(0)
     let cursor = TransactionOutput.find(
-      {address: {$in: addresses}},
-      ['satoshis', 'output.height', 'input.transactionId', 'isStake']
+      {'address.type': {$ne: 'contract'}, 'address.hex': {$in: addresses}},
+      ['satoshis', 'output.height', 'input', 'isStake']
     ).cursor()
     let txo
     while (txo = await cursor.next()) {
       let value = new BN(txo.satoshis)
       let confirmations = Math.max(this._block.getTip().height - txo.output.height + 1, 0)
       totalReceived.iadd(value)
-      if (txo.input.transactionId) {
+      if (txo.input) {
         totalSent.iadd(value)
       } else {
         balance.iadd(value)
@@ -142,7 +140,11 @@ class AddressService extends BaseService {
     if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
-    let utxoList = await TransactionOutput.find({address: {$in: addresses}, 'input.height': null})
+    let utxoList = await TransactionOutput.find({
+      'address.type': {$ne: 'contract'},
+      'address.hex': {$in: addresses},
+      input: {$exists: false}
+    })
     return utxoList.map(utxo => ({
       address: utxo.address,
       txid: utxo.output.transactionId,
@@ -172,15 +174,21 @@ class AddressService extends BaseService {
       {
         $match: {
           satoshis: {$ne: 0},
-          $nor: [{address: null}, {address: /^[0-9a-f]{40}$/}],
+          address: {$exists: true},
+          'address.type': {$ne: 'contract'},
           'output.height': {$lte: height},
           $or: [
-            {'input.height': null},
+            {input: {$exists: false}},
             {'input.height': {$gt: height}}
           ]
         }
       },
-      {$group: {_id: '$address', balance: {$sum: '$satoshis'}}},
+      {
+        $group: {
+          _id: '$address',
+          balance: {$sum: '$satoshis'}
+        }
+      },
       {$match: {balance: {$gte: minBalance}}},
       ...(sort ? [{$sort: {balance: -1}}] : []),
       ...(limit == null ? [] : [{$limit: limit}]),
@@ -203,7 +211,12 @@ class AddressService extends BaseService {
   async getMiners({from = 0, to = 100} = {}) {
     let [{count, list}] = await Block.aggregate([
       {$match: {height: {$gt: 5000}}},
-      {$group: {_id: '$minedBy', blocks: {$sum: 1}}},
+      {
+        $group: {
+          _id: '$minedBy',
+          blocks: {$sum: 1}
+        }
+      },
       {$project: {_id: false, address: '$_id', blocks: '$blocks'}},
       {
         $facet: {
@@ -246,21 +259,6 @@ class AddressService extends BaseService {
       onTick: this.cronSnapshot.bind(this),
       start: true
     })
-  }
-
-  _toHexAddress(address) {
-    let network = Networks.get(this._network)
-    if (address.length === 34) {
-      let hexAddress = Base58Check.decode(address)
-      if (hexAddress[0] === network.pubkeyhash) {
-        return hexAddress.slice(1).toString('hex')
-      }
-    } else if (address.length === 42) {
-      let result = SegwitAddress.decode(network.witness_v0_keyhash, address)
-      if (result) {
-        return Buffer.from(result.program).toString('hex')
-      }
-    }
   }
 }
 

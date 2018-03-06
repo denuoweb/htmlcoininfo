@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const addressSchema = require('./address')
 const {Schema} = mongoose
 
 const blockSchema = new Schema({
@@ -19,7 +20,7 @@ const blockSchema = new Schema({
   vchBlockSig: String,
   chainwork: String,
   transactions: [String],
-  minedBy: {type: String, index: true}
+  minedBy: addressSchema
 })
 
 module.exports = mongoose.model('Block', blockSchema)

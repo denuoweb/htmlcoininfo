@@ -468,10 +468,10 @@ class BlockService extends BaseService {
           subscription.emit('block/transaction', transaction)
         }
         for (let address of transaction.inputAddresses) {
-          addresses.add(address)
+          addresses.add(address.type + ' ' + address.hex)
         }
         for (let address of transaction.outputAddresses) {
-          addresses.add(address)
+          addresses.add(address.type + ' ' + address.hex)
         }
         for (let {from, to} of tokenTransfers) {
           if (from) {
@@ -484,7 +484,8 @@ class BlockService extends BaseService {
       }
       for (let subscription of this._subscriptions.address) {
         for (let address of addresses) {
-          subscription.emit('block/address', address)
+          let [type, hex] = address.split(' ')
+          subscription.emit('block/address', {type, hex})
         }
       }
     } catch (err) {
@@ -541,7 +542,7 @@ class BlockService extends BaseService {
       chainwork: header.chainwork,
       transactions: block.transactions.map(tx => tx.id)
     })
-    if (block.prevOutStakeHash !== '0'.repeat(64) && block.prevOutStakeN !== 0xffffffff) {
+    if (header.prevOutStakeHash !== '0'.repeat(64) && header.prevOutStakeN !== 0xffffffff) {
       let transaction = await Transaction.findOne({id: block.transactions[1]})
       let utxo = await TransactionOutput.findById(transaction.outputs[1])
       blockObj.minedBy = utxo.address

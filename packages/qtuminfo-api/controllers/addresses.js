@@ -1,7 +1,7 @@
 const qtuminfo = require('qtuminfo-lib')
 const {ErrorResponse} = require('../components/utils')
 const {Address, Networks} = qtuminfo
-const {SegwitAddress} = qtuminfo.encoding
+const {Base58Check, SegwitAddress} = qtuminfo.encoding
 
 class AddressController {
   constructor(node) {
@@ -79,16 +79,14 @@ class AddressController {
   }
 
   async checkAddresses(ctx, next) {
-    ctx.addresses = (ctx.params.address || '').split(',')
-    if (ctx.addresses.length === 0) {
+    let addresses = (ctx.params.address || '').split(',')
+    if (addresses.length === 0) {
       this.errorResponse.handleErrors(ctx, {
         message: 'Must include address',
         code: 1
       })
     } else {
-      for (let address of ctx.addresses) {
-        this.validateAddress(address)
-      }
+      ctx.addresses = addresses.map(this._toHexAddress.bind(this))
     }
     await next()
   }
@@ -96,15 +94,6 @@ class AddressController {
   async utxo(ctx) {
     try {
       ctx.body = await this._address.getAddressUnspentOutputs(ctx.addresses)
-    } catch (err) {
-      this.errorResponse.handleErrors(ctx, err)
-    }
-  }
-
-  async multiutxo(ctx) {
-    let addresses = [...new Set(ctx.addresses)]
-    try {
-      ctx.body = await this._address.getAddressUnspentOutputs(addresses)
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
@@ -126,24 +115,25 @@ class AddressController {
     }
   }
 
-  validateAddress(address) {
+  _toHexAddress(address) {
+    let network = Networks.get(this._network)
     if (address.length === 34) {
-      try {
-        new Address(address, this._network, 'scripthash')
-      } catch (err) {
-        new Address(address, this._network, 'pubkeyhash')
+      let hexAddress = Base58Check.decode(address)
+      if ([network.pubkeyhash, network.scripthash].includes(hexAddress[0])) {
+        return hexAddress.slice(1).toString('hex')
       }
     } else if (address.length === 42) {
-      if (!SegwitAddress.decode(Networks.get(this._network).witness_v0_keyhash, address)) {
-        throw new Error()
+      let result = SegwitAddress.decode(network.witness_v0_keyhash, address)
+      if (result) {
+        return Buffer.from(result.program).toString('hex')
       }
     } else if (address.length === 62) {
-      if (!SegwitAddress.decode(Networks.get(this._network).witness_v0_scripthash, address)) {
-        throw new Error()
+      let result = SegwitAddress.decode(network.witness_v0_scripthash, address)
+      if (result) {
+        return Buffer.from(result.program).toString('hex')
       }
-    } else {
-      throw new Error()
     }
+    throw new Error('Invalid address')
   }
 }
 

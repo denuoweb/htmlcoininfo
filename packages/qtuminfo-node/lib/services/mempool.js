@@ -75,15 +75,17 @@ class MempoolService extends BaseService {
       let input = tx.inputs[index]
       let txo = inputTxos[index]
       await Transaction.remove({id: txo.input.transactionId})
-      txo.input.height = 0xffffffff
-      txo.input.transactionId = tx.id
-      txo.input.index = index
-      txo.input.script = TransactionOutput.transformScript(input.script)
-      txo.input.sequence = input.sequenceNumber
+      txo.input = {
+        height: 0xffffffff,
+        transactionId: tx.id,
+        index: index,
+        script: TransactionOutput.transformScript(input.script),
+        sequence: input.sequenceNumber
+      }
       await txo.save()
       inputs.push(txo._id)
       if (txo.address) {
-        inputAddresses.add(txo.address)
+        inputAddresses.add(txo.address.type + ' ' + txo.address.hex)
       }
     }
 
@@ -99,15 +101,20 @@ class MempoolService extends BaseService {
           index,
           script: TransactionOutput.transformScript(output.script)
         },
-        address: TransactionOutput.getAddress(tx, index, this._network),
+        address: TransactionOutput.getAddress(tx, index),
         isStake: tx.outputs[0].script.chunks.length === 0
       })
       await txo.save()
       outputs.push(txo._id)
       outputTxos.push(txo)
       if (txo.address) {
-        outputAddresses.add(txo.address)
+        outputAddresses.add(txo.address.type + ' ' + txo.address.hex)
       }
+    }
+
+    function getAddress(item) {
+      let [type, hex] = item.split(' ')
+      return {type, hex}
     }
 
     let transaction = new Transaction({
@@ -121,8 +128,8 @@ class MempoolService extends BaseService {
       witnessStack: tx.witnessStack.map(witness => witness.map(item => item.toString('hex'))),
       nLockTime: tx.nLockTime,
       block: {height: 0xffffffff},
-      inputAddresses: [...inputAddresses],
-      outputAddresses: [...outputAddresses],
+      inputAddresses: [...inputAddresses].map(getAddress),
+      outputAddresses: [...outputAddresses].map(getAddress),
     })
     await transaction.save()
     let _transaction = await this.node.services.get('transaction').getTransaction(tx.id)
