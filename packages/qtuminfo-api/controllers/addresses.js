@@ -1,6 +1,6 @@
 const qtuminfo = require('qtuminfo-lib')
 const {ErrorResponse} = require('../components/utils')
-const {Address, Networks} = qtuminfo
+const {Networks} = qtuminfo
 const {Base58Check, SegwitAddress} = qtuminfo.encoding
 
 class AddressController {

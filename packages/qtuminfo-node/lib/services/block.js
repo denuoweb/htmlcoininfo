@@ -475,10 +475,10 @@ class BlockService extends BaseService {
         }
         for (let {from, to} of tokenTransfers) {
           if (from) {
-            addresses.add(from)
+            addresses.add(from.type + ' ' + from.hex)
           }
           if (to) {
-            addresses.add(to)
+            addresses.add(to.type + ' ' + to.hex)
           }
         }
       }

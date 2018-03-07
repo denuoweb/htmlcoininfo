@@ -2,8 +2,8 @@ const qtuminfo = require('qtuminfo-lib')
 const Block = require('qtuminfo-node/lib/models/block')
 const Transaction = require('qtuminfo-node/lib/models/transaction')
 const {ErrorResponse} = require('../components/utils')
-const {Address, Networks} = qtuminfo
-const {SegwitAddress} = qtuminfo.encoding
+const {Networks} = qtuminfo
+const {Base58Check, SegwitAddress} = qtuminfo.encoding
 
 class MiscController {
   constructor(node) {
@@ -29,31 +29,27 @@ class MiscController {
 
   async classify(ctx) {
     let id = ctx.params.id
+    console.log(id.length);
     if (/^(0|[1-9]\d{0,9})$/.test(id)) {
       id = Number.parseInt(id)
       if (id <= this._block.getTip().height) {
         ctx.body = {type: 'block'}
         return
       }
-    } else if (id.length === 34) {
+    } else if ([34, 42, 62].includes(id.length)) {
       try {
-        this.validateAddress(id)
+        let address = this._toHexAddress(id)
+        let count = await this._address.getAddressTransactionCount(address)
+        if (count > 0) {
+          ctx.body = {type: 'address'}
+        }
+        return
       } catch (err) {
-        return
-      }
-      let {totalCount} = await this._address.getAddressHistory(id)
-      if (totalCount > 0) {
-        ctx.body = {type: 'address'}
-        return
+        console.log(err);
       }
     } else if (id.length === 40) {
       if (await this._contract.getContract(id)) {
         ctx.body = {type: 'contract'}
-        return
-      }
-    } else if (id.length === 42) {
-      if (SegwitAddress.decode(Networks.get(this._network).witness_v0_keyhash, id)) {
-        ctx.body = {type: 'address'}
         return
       }
     } else if (id.length === 64) {
@@ -62,11 +58,6 @@ class MiscController {
         return
       } else if (await Transaction.findOne({$or: [{id}, {hash: id}]})) {
         ctx.body = {type: 'transaction'}
-        return
-      }
-    } else if (id.length === 62) {
-      if (SegwitAddress.decode(Networks.get(this._network).witness_v0_scripthash, id)) {
-        ctx.body = {type: 'address'}
         return
       }
     }
@@ -90,12 +81,25 @@ class MiscController {
     ctx.body = await this._address.getMiners({from, to})
   }
 
-  validateAddress(address) {
-    try {
-      new Address(address, this._network, 'scripthash')
-    } catch (err) {
-      new Address(address, this._network, 'pubkeyhash')
+  _toHexAddress(address) {
+    let network = Networks.get(this._network)
+    if (address.length === 34) {
+      let hexAddress = Base58Check.decode(address)
+      if ([network.pubkeyhash, network.scripthash].includes(hexAddress[0])) {
+        return hexAddress.slice(1).toString('hex')
+      }
+    } else if (address.length === 42) {
+      let result = SegwitAddress.decode(network.witness_v0_keyhash, address)
+      if (result) {
+        return Buffer.from(result.program).toString('hex')
+      }
+    } else if (address.length === 62) {
+      let result = SegwitAddress.decode(network.witness_v0_scripthash, address)
+      if (result) {
+        return Buffer.from(result.program).toString('hex')
+      }
     }
+    throw new Error('Invalid address')
   }
 }
 

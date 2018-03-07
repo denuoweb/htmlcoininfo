@@ -4,11 +4,7 @@ const Transaction = require('../models/transaction')
 const TransactionOutput = require('../models/transaction-output')
 const Contract = require('../models/contract')
 const Balance = require('../models/balance')
-const {getInputAddress} = require('../utils')
 const {BN} = qtuminfo.crypto
-const {sha256ripemd160} = qtuminfo.crypto.Hash
-const {Base58Check, SegwitAddress} = qtuminfo.encoding
-const {Address, Networks} = qtuminfo
 
 const tokenAbi = new qtuminfo.contract.Contract(qtuminfo.contract.tokenABI)
 const TOKEN_EVENTS = {
@@ -150,8 +146,8 @@ class ContractService extends BaseService {
         }
         list.push({
           token,
-          from: topics[1] === '0'.repeat(64) ? null : topics[1].slice(24),
-          to: topics[2] === '0'.repeat(64) ? null : topics[2].slice(24),
+          from: topics[1] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[1].slice(24)),
+          to: topics[2] === '0'.repeat(64) ? null : await this._fromHexAddress(topics[2].slice(24)),
           amount: new BN(data, 16).toString()
         })
       }
@@ -174,7 +170,7 @@ class ContractService extends BaseService {
     let list = await Balance.aggregate([
       {
         $match: {
-          'address.hex': {$in: addresses},
+          address: {$in: addresses},
           balance: {$ne: '0'.repeat(64)}
         }
       },
@@ -269,7 +265,7 @@ class ContractService extends BaseService {
       for (let i = 0; i < tx.outputs.length; ++i) {
         let output = tx.outputs[i]
         if (output.script.isContractCreate()) {
-          let address = ContractService._getContractAddress(tx, i)
+          let address = TransactionOutput.getAddress(tx, i)
           try {
             await this._client.callContract(address, '00')
           } catch (err) {
@@ -310,15 +306,6 @@ class ContractService extends BaseService {
       balanceChanges.add(address + ' ' + topics[2].slice(24))
     }
     await this._updateBalances(balanceChanges)
-  }
-
-  static _getContractAddress(tx, index) {
-    let indexBuffer = Buffer.alloc(4)
-    indexBuffer.writeUInt32LE(index)
-    return sha256ripemd160(Buffer.concat([
-      Buffer.from(tx.id, 'hex').reverse(),
-      indexBuffer
-    ])).toString('hex')
   }
 
   async _createContract(tx, block, address, owner) {

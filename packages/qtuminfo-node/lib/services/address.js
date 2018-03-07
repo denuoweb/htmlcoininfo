@@ -166,7 +166,7 @@ class AddressService extends BaseService {
     ]
   }
 
-  snapshot({height, minBalance = 1, sort = true, limit} = {}) {
+  snapshot({height, minBalance = 1, sort = true, hexOnly, limit} = {}) {
     if (height == null) {
       height = this._block.getTip().height + 1
     }
@@ -183,12 +183,24 @@ class AddressService extends BaseService {
           ]
         }
       },
-      {
-        $group: {
-          _id: '$address',
-          balance: {$sum: '$satoshis'}
+      ...([hexOnly
+        ? {$group: {_id: '$address.hex', balance: {$sum: '$satoshis'}}}
+        : {
+          $group: {
+            _id: {
+              type: {
+                $cond: {
+                  if: {$in: ['$address.type', ['pubkey', 'pubkeyhash']]},
+                  then: 'pubkeyhash',
+                  else: '$address.type'
+                }
+              },
+              hex: '$address.hex'
+            },
+            balance: {$sum: '$satoshis'}
+          }
         }
-      },
+      ]),
       {$match: {balance: {$gte: minBalance}}},
       ...(sort ? [{$sort: {balance: -1}}] : []),
       ...(limit == null ? [] : [{$limit: limit}]),
@@ -211,13 +223,8 @@ class AddressService extends BaseService {
   async getMiners({from = 0, to = 100} = {}) {
     let [{count, list}] = await Block.aggregate([
       {$match: {height: {$gt: 5000}}},
-      {
-        $group: {
-          _id: '$minedBy',
-          blocks: {$sum: 1}
-        }
-      },
-      {$project: {_id: false, address: '$_id', blocks: '$blocks'}},
+      {$group: {_id: '$minedBy.hex', blocks: {$sum: 1}}},
+      {$project: {_id: false, address: {type: 'pubkey', hex: '$_id'}, blocks: '$blocks'}},
       {
         $facet: {
           count: [{$group: {_id: null, count: {$sum: 1}}}],
@@ -228,8 +235,8 @@ class AddressService extends BaseService {
             {
               $lookup: {
                 from: 'snapshots',
-                localField: 'address',
-                foreignField: 'address',
+                localField: 'address.hex',
+                foreignField: 'address.hex',
                 as: 'balance'
               }
             },
