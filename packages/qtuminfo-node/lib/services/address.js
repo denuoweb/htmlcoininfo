@@ -106,7 +106,11 @@ class AddressService extends BaseService {
     let unconfirmedBalance = new BN(0)
     let stakingBalance = new BN(0)
     let cursor = TransactionOutput.find(
-      {'address.type': {$ne: 'contract'}, 'address.hex': {$in: addresses}},
+      {
+        'address.type': {$ne: 'contract'},
+        'address.hex': {$in: addresses},
+        'output.height': {$gt: 0}
+      },
       ['satoshis', 'output.height', 'input', 'isStake']
     ).cursor()
     let txo
@@ -143,6 +147,7 @@ class AddressService extends BaseService {
     let utxoList = await TransactionOutput.find({
       'address.type': {$ne: 'contract'},
       'address.hex': {$in: addresses},
+      'output.height': {$gt: 0},
       input: {$exists: false}
     })
     return utxoList.map(utxo => ({
@@ -176,7 +181,7 @@ class AddressService extends BaseService {
           satoshis: {$ne: 0},
           address: {$exists: true},
           'address.type': {$ne: 'contract'},
-          'output.height': {$lte: height},
+          'output.height': {$gt: 0, $lte: height},
           $or: [
             {input: {$exists: false}},
             {'input.height': {$gt: height}}
