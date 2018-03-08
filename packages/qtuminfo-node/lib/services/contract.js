@@ -263,7 +263,7 @@ class ContractService extends BaseService {
       for (let i = 0; i < tx.outputs.length; ++i) {
         let output = tx.outputs[i]
         if (output.script.isContractCreate()) {
-          let address = TransactionOutput.getAddress(tx, i)
+          let address = TransactionOutput.getAddress(tx, i).hex
           try {
             await this._client.callContract(address, '00')
           } catch (err) {
