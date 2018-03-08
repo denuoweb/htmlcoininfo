@@ -324,7 +324,7 @@ class ContractService extends BaseService {
     }
   }
 
-  async _createContract(address, {transaction, block, owner}) {
+  async _createContract(address, {transaction, block, owner} = {}) {
     if (await Contract.findOne({address})) {
       return
     }
