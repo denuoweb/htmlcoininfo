@@ -278,6 +278,9 @@ class ContractService extends BaseService {
       }
     }
     await this._processReceipts(block)
+    if (this._synced) {
+      await this._syncContracts()
+    }
     this._tip.height = block.height
     this._tip.hash = block.hash
     await this.node.updateServiceTip(this.name, this._tip)
@@ -307,6 +310,11 @@ class ContractService extends BaseService {
   }
 
   async onSynced() {
+    this._synced = true
+    await this._syncContracts()
+  }
+
+  async _syncContracts() {
     let result = await this._client.listContracts(1, 1e8)
     let contractSet = new Set(Object.keys(result))
     let originalContracts = await Contract.find({type: {$ne: 'dgp'}}, {_id: false, address: true})

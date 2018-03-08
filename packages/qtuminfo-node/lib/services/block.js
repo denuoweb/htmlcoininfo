@@ -590,7 +590,7 @@ class BlockService extends BaseService {
     this._logSynced(this._tip.hash)
     for (let service of this.node.getServicesByOrder()) {
       if (service.onSynced) {
-        await service.onSynced(block)
+        await service.onSynced()
       }
     }
   }
