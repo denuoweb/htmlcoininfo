@@ -273,7 +273,7 @@ class ContractService extends BaseService {
             'input.transactionId': tx.id,
             'input.index': 0
           })).address
-          await this._createContract(tx, block, address, owner)
+          await this._createContract(address, {transaction: tx, block, owner})
         }
       }
     }
@@ -306,11 +306,32 @@ class ContractService extends BaseService {
     await this._updateBalances(balanceChanges)
   }
 
-  async _createContract(tx, block, address, owner) {
+  async onSynced() {
+    let result = await this._client.listContracts(1, 1e8)
+    let contractSet = new Set(Object.keys(result))
+    let originalContracts = await Contract.find({}, {_id: false, address: true})
+    let contractsToRemove = []
+    for (let {address} of originalContracts) {
+      if (contractSet.has(address)) {
+        contractSet.delete(address)
+      } else {
+        contractsToRemove.push(address)
+      }
+    }
+    await Contract.deleteMany({address: {$in: contractsToRemove}})
+    for (let address of contractSet) {
+      await this._createContract(address)
+    }
+  }
+
+  async _createContract(address, {transaction, block, owner}) {
     if (await Contract.findOne({address})) {
       return
     }
-    let contract = new Contract({address, owner, createTransactionId: tx.id, createHeight: block.height})
+    let contract = new Contract({
+      address,
+      ...(owner ? {owner, createTransactionId: transaction.id, createHeight: block.height} : {})
+    })
     try {
       let [{totalSupply}, {balance}] = await Promise.all(await this._batchCallMethods([
         {address, abi: tokenAbi, method: 'totalSupply'},
@@ -419,7 +440,7 @@ class ContractService extends BaseService {
           if (address !== contractAddress) {
             let transaction = block.transactions.find(tx => tx.id === transactionHash)
             if (!await Contract.findOne({address})) {
-              await this._createContract(transaction, block, address, {type: 'contract', hex: contractAddress})
+              await this._createContract(address)
             }
           }
           if (topics[0] === TOKEN_EVENTS.Transfer) {

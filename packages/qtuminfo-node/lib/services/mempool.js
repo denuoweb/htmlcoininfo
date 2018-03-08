@@ -53,6 +53,10 @@ class MempoolService extends BaseService {
     this._enabled = true
   }
 
+  onSynced() {
+    this.enable()
+  }
+
   async _onTransaction(tx) {
     let inputAddresses = new Set()
     let outputAddresses = new Set()

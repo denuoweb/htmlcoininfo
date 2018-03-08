@@ -20,7 +20,6 @@ class BlockService extends BaseService {
     this._subscriptions = {block: [], transaction: [], address: []}
     this._tip = null
     this._header = this.node.services.get('header')
-    this._mempool = this.node.services.get('mempool')
     this._network = this.node.network
     if (this._network === 'livenet') {
       this._network = 'mainnet'
@@ -40,7 +39,7 @@ class BlockService extends BaseService {
   }
 
   static get dependencies() {
-    return ['db', 'header', 'mempool', 'p2p']
+    return ['db', 'header', 'p2p']
   }
 
   get APIMethods() {
@@ -581,7 +580,7 @@ class BlockService extends BaseService {
     }
   }
 
-  _onSynced() {
+  async _onSynced() {
     if (this._reportInterval) {
       clearInterval(this._reportInterval)
     }
@@ -589,7 +588,11 @@ class BlockService extends BaseService {
     this._initialSync = false
     this._startBlockSubscription()
     this._logSynced(this._tip.hash)
-    this._mempool.enable()
+    for (let service of this.node.getServicesByOrder()) {
+      if (service.onSynced) {
+        await service.onSynced(block)
+      }
+    }
   }
 
   async _startSync() {

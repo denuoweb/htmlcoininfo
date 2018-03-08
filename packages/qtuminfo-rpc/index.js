@@ -134,6 +134,7 @@ const callspec = {
   getTxOut: 'str int bool',
   getTxOutProof: 'obj',
   getTxOutSetInfo: '',
+  listContracts: 'int int',
   preciousBlock: '',
   searchLogs: 'int int',
   sendRawTransaction: '',
