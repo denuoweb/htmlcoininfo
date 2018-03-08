@@ -9,13 +9,12 @@ const contractSchema = new Schema({
   createHeight: {type: Number, index: true},
   type: {type: String, index: true},
   qrc20: {
-    name: String,
-    symbol: String,
+    name: {type: String, index: true},
+    symbol: {type: String, index: true},
     decimals: Number,
     totalSupply: String,
     version: String
   }
 })
 
-contractSchema.index({'qrc20.name': 'text', 'qrc20.symbol': 'text'})
 module.exports = mongoose.model('Contract', contractSchema)

@@ -53,8 +53,8 @@ class ContractService extends BaseService {
       {
         $match: {
           $or: [
-            {inputAddresses: {type: 'contract', hex: address}},
-            {outputAddresses: {type: 'contract', hex: address}},
+            {'inputAddresses.type': 'contract', 'inputAddresses.hex': address},
+            {'outputAddresses.type': 'contract', 'outputAddresses.hex': address},
             {'receipts.contractAddress': address},
             {'receipts.logs.address': address}
           ]
@@ -65,9 +65,9 @@ class ContractService extends BaseService {
           count: [{$group: {_id: null, count: {$sum: 1}}}],
           list: [
             {$sort: {'block.height': -1, index: -1}},
-            {$project: {id: true}},
             {$skip: from},
-            {$limit: to - from}
+            {$limit: to - from},
+            {$project: {id: true}}
           ]
         }
       }
@@ -78,21 +78,15 @@ class ContractService extends BaseService {
     }
   }
 
-  async getContractTransactionCount(address) {
-    let result = await Transaction.aggregate([
-      {
-        $match: {
-          $or: [
-            {inputAddresses: {type: 'contract', hex: address}},
-            {outputAddresses: {type: 'contract', hex: address}},
-            {'receipts.contractAddress': address},
-            {'receipts.logs.address': address}
-          ]
-        }
-      },
-      {$group: {_id: null, count: {$sum: 1}}}
-    ])
-    return result.length && result[0].count
+  getContractTransactionCount(address) {
+    return Transaction.count({
+      $or: [
+        {'inputAddresses.type': 'contract', 'inputAddresses.hex': address},
+        {'outputAddresses.type': 'contract', 'outputAddresses.hex': address},
+        {'receipts.contractAddress': address},
+        {'receipts.logs.address': address}
+      ]
+    })
   }
 
   async getContractSummary(address, options = {}) {
@@ -209,29 +203,13 @@ class ContractService extends BaseService {
   }
 
   async searchQRC20Token(name) {
-    let tokens = await Contract.find(
-      {$text: {$search: name}},
-      {score: {$meta: 'textScore'}}
-    ).sort({score: {$meta: 'textScore'}})
-    if (tokens.length === 0) {
-      return
-    }
-    let index = tokens.findIndex(token => token.score < tokens[0].score)
-    if (index >= 0) {
-      tokens = tokens.slice(0, index)
-    }
-    let bestToken = {token: null, transactions: 0}
+    let regex = new RegExp(name, 'i')
+    let tokens = await Contract.find({$or: [{'qrc20.name': regex}, {'qrc20.symbol': regex}]})
+    let bestToken = {token: null, holders: 0}
     for (let token of tokens) {
-      let count = await Transaction.count({
-        $or: [
-          {inputAddresses: {type: 'contract', hex: token.address}},
-          {outputAddresses: {type: 'contract', hex: token.address}},
-          {'receipts.contractAddress': token.address},
-          {'receipts.logs.address': token.address}
-        ]
-      })
-      if (count > bestToken.transactions) {
-        bestToken = {token, transactions: count}
+      let count = await Balance.count({contract: token.address})
+      if (count > bestToken.holders) {
+        bestToken = {token, holders: count}
       }
     }
     return bestToken.token

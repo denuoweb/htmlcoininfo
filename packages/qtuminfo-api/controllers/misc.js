@@ -39,9 +39,7 @@ class MiscController {
           ctx.body = {type: 'address'}
         }
         return
-      } catch (err) {
-        console.log(err);
-      }
+      } catch (err) {}
     } else if (id.length === 40) {
       if (await this.node.getContract(id)) {
         ctx.body = {type: 'contract'}
@@ -56,10 +54,12 @@ class MiscController {
         return
       }
     }
-    let token = await this.node.searchQRC20Token(id)
-    if (token) {
-      ctx.body = {type: 'contract', id: token.address}
-      return
+    if (/^[0-9a-z ]+$/i.test(id)) {
+      let token = await this.node.searchQRC20Token(id)
+      if (token) {
+        ctx.body = {type: 'contract', id: token.address}
+        return
+      }
     }
     ctx.throw(404)
   }
