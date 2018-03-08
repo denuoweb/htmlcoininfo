@@ -34,6 +34,18 @@ class AddressService extends BaseService {
     return ['block', 'db', 'transaction']
   }
 
+  get APIMethods() {
+    return {
+      getAddressHistory: this.getAddressHistory.bind(this),
+      getAddressSummary: this.getAddressSummary.bind(this),
+      getAddressUnspentOutputs: this.getAddressUnspentOutputs.bind(this),
+      getAddressTransactionCount: this.getAddressTransactionCount.bind(this),
+      getRichList: this.getRichList.bind(this),
+      getMiners: this.getMiners.bind(this),
+      snapshot: this.snapshot.bind(this)
+    }
+  }
+
   async getAddressHistory(addresses, {from = 0, to = 0xffffffff} = {}) {
     if (typeof addresses === 'string') {
       addresses = [addresses]
@@ -157,18 +169,6 @@ class AddressService extends BaseService {
       height: utxo.output.height,
       confirmations: Math.max(this.node.getBlockTip().height - utxo.output.height + 1, 0)
     }))
-  }
-
-  get APIMethods() {
-    return {
-      getAddressHistory: this.getAddressHistory.bind(this),
-      getAddressSummary: this.getAddressSummary.bind(this),
-      getAddressUnspentOutputs: this.getAddressUnspentOutputs.bind(this),
-      getAddressTransactionCount: this.getAddressTransactionCount.bind(this),
-      getRichList: this.getRichList.bind(this),
-      getMiners: this.getMiners.bind(this),
-      snapshot: this.snapshot.bind(this)
-    }
   }
 
   snapshot({height, minBalance = 1, sort = true, hexOnly, limit} = {}) {
