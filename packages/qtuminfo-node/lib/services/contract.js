@@ -309,7 +309,7 @@ class ContractService extends BaseService {
   async onSynced() {
     let result = await this._client.listContracts(1, 1e8)
     let contractSet = new Set(Object.keys(result))
-    let originalContracts = await Contract.find({}, {_id: false, address: true})
+    let originalContracts = await Contract.find({type: {$ne: 'dgp'}}, {_id: false, address: true})
     let contractsToRemove = []
     for (let {address} of originalContracts) {
       if (contractSet.has(address)) {
