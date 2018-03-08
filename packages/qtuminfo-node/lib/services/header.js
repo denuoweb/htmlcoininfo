@@ -13,7 +13,6 @@ class HeaderService extends BaseService {
     super(options)
     this._tip = null
     this._p2p = this.node.services.get('p2p')
-    this._db = this.node.services.get('db')
     this._hashes = []
     this._subscriptions = {block: []}
     this._checkpoint = options.checkpoint || 2000
@@ -37,10 +36,10 @@ class HeaderService extends BaseService {
   }
 
   get APIMethods() {
-    return [
-      ['getBestHeight', this.getBestHeight.bind(this), 0],
-      ['getBlockHeader', this.getBlockHeader.bind(this), 1]
-    ]
+    return {
+      getBestHeight: this.getBestHeight.bind(this),
+      getBlockHeader: this.getBlockHeader.bind(this)
+    }
   }
 
   getCurrentDifficulty() {
@@ -91,7 +90,7 @@ class HeaderService extends BaseService {
   }
 
   async start() {
-    this._tip = await this._db.getServiceTip(this.name)
+    this._tip = await this.node.getServiceTip(this.name)
     this._adjustTipBackToCheckpoint()
     if (this._tip.height === 0) {
       await this._setGenesisBlock()
@@ -156,7 +155,7 @@ class HeaderService extends BaseService {
     let header = new Header({hash: block.hash, ...block.header.toObject()})
     this._onHeader(header)
     await header.save()
-    await this._db.updateServiceTip(this.name, this._tip)
+    await this.node.updateServiceTip(this.name, this._tip)
   }
 
   _broadcast(block) {
@@ -198,7 +197,7 @@ class HeaderService extends BaseService {
       this._onHeader(header)
     }
     await Header.insertMany(transformedHeaders)
-    await this._db.updateServiceTip(this.name, this._tip)
+    await this.node.updateServiceTip(this.name, this._tip)
     await this._onHeadersSave()
   }
 
@@ -371,7 +370,7 @@ class HeaderService extends BaseService {
         )
         await this._onHeadersSave()
       } else {
-        let block = await this._p2p.getP2PBlock({
+        let block = await this.node.getP2PBlock({
           filter: {startHash: reorgInfo.commonHeader.hash, endHash: 0},
           blockHash: reorgInfo.blockHash
         })
@@ -404,7 +403,7 @@ class HeaderService extends BaseService {
   }
 
   _getP2PHeaders(hash) {
-    this._p2p.getHeaders({startHash: hash})
+    this.node.getHeaders({startHash: hash})
   }
 
   _sync() {

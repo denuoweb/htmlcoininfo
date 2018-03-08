@@ -20,9 +20,6 @@ class BlocksController {
   }) {
     this.node = node
     this.errorResponse = new ErrorResponse({log: this.node.log})
-    this._block = this.node.services.get('block')
-    this._header = this.node.services.get('header')
-    this._transaction = this.node.services.get('transaction')
     this._network = this.node.network
     if (this.node.network === 'livenet') {
       this._network = 'mainnet'
@@ -36,7 +33,7 @@ class BlocksController {
     if (/^(0|[1-9]\d{0,9})$/.test(block)) {
       block = Number(block)
     }
-    block = await this._block.getBlock(block)
+    block = await this.node.getBlock(block)
     if (block) {
       ctx.block = await this.transformBlock(block)
       return await next()
@@ -73,7 +70,7 @@ class BlocksController {
       bits: block.bits.toString(16),
       difficulty: this._getDifficulty(block.bits),
       chainWork: block.chainwork,
-      confirmations: this._block.getTip().height - block.height + 1,
+      confirmations: this.node.getBlockTip().height - block.height + 1,
       previousBlockHash: block.prevHash,
       nextBlockHash: block.nextHash,
       reward,
@@ -108,7 +105,7 @@ class BlocksController {
 
   async recentBlocks(ctx) {
     let count = ctx.query.count || 10
-    let height = this._block.getTip().height
+    let height = this.node.getBlockTip().height
     let blocks = await Block.find({height: {$gt: height - 10}}).sort({height: -1})
     ctx.body = await Promise.all(blocks.map(block => this._getBlockSummary(block)))
   }
@@ -131,15 +128,15 @@ class BlocksController {
     let duration
     let reward = 0
     if (block.prevOutStakeHash !== '0'.repeat(64) && block.prevOutStakeN !== 0xffffffff) {
-      let transaction = await this._transaction.getTransaction(block.transactions[1])
+      let transaction = await this.node.getTransaction(block.transactions[1])
       reward = -transaction.feeSatoshis
     } else {
-      let transaction = await this._transaction.getTransaction(block.transactions[0])
+      let transaction = await this.node.getTransaction(block.transactions[0])
       reward = transaction.outputSatoshis
     }
     let prevHash = block.prevHash
     if (prevHash !== '0'.repeat(64)) {
-      let prevBlockHeader = await this._header.getBlockHeader(prevHash)
+      let prevBlockHeader = await this.node.getBlockHeader(prevHash)
       duration = block.timestamp - prevBlockHeader.timestamp
     }
     return {reward, duration}

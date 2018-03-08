@@ -35,9 +35,11 @@ class DB extends BaseService {
   }
 
   get APIMethods() {
-    return [
-      ['getServiceTip', this.getServiceTip.bind(this), 1]
-    ]
+    return {
+      getServiceTip: this.getServiceTip.bind(this),
+      updateServiceTip: this.updateServiceTip.bind(this),
+      getRpcClient: this.getRpcClient.bind(this)
+    }
   }
 
   async getServiceTip(serviceName) {

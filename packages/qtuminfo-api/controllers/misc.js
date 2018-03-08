@@ -9,10 +9,6 @@ class MiscController {
   constructor(node) {
     this.node = node
     this.errorResponse = new ErrorResponse({log: this.node.log})
-    this._address = this.node.services.get('address')
-    this._block = this.node.services.get('block')
-    this._contract = this.node.services.get('contract')
-    this._transaction = this.node.services.get('transaction')
     this._network = this.node.network
     if (this.node.network === 'livenet') {
       this._network = 'mainnet'
@@ -23,23 +19,22 @@ class MiscController {
 
   async info(ctx) {
     ctx.body = {
-      height: this._block.getTip().height
+      height: this.node.getBlockTip().height
     }
   }
 
   async classify(ctx) {
     let id = ctx.params.id
-    console.log(id.length);
     if (/^(0|[1-9]\d{0,9})$/.test(id)) {
       id = Number.parseInt(id)
-      if (id <= this._block.getTip().height) {
+      if (id <= this.node.getBlockTip().height) {
         ctx.body = {type: 'block'}
         return
       }
     } else if ([34, 42, 62].includes(id.length)) {
       try {
         let address = this._toHexAddress(id)
-        let count = await this._address.getAddressTransactionCount(address)
+        let count = await this.node.getAddressTransactionCount(address)
         if (count > 0) {
           ctx.body = {type: 'address'}
         }
@@ -48,7 +43,7 @@ class MiscController {
         console.log(err);
       }
     } else if (id.length === 40) {
-      if (await this._contract.getContract(id)) {
+      if (await this.node.getContract(id)) {
         ctx.body = {type: 'contract'}
         return
       }
@@ -61,7 +56,7 @@ class MiscController {
         return
       }
     }
-    let token = await this._contract.searchQRC20Token(id)
+    let token = await this.node.searchQRC20Token(id)
     if (token) {
       ctx.body = {type: 'contract', id: token.address}
       return
@@ -72,13 +67,13 @@ class MiscController {
   async richList(ctx) {
     let from = Number.parseInt(ctx.query.from) || 0
     let to = Number.parseInt(ctx.query.to) || from + 10
-    ctx.body = await this._address.getRichList({from, to})
+    ctx.body = await this.node.getRichList({from, to})
   }
 
   async biggestMiners(ctx) {
     let from = Number.parseInt(ctx.query.from) || 0
     let to = Number.parseInt(ctx.query.to) || from + 10
-    ctx.body = await this._address.getMiners({from, to})
+    ctx.body = await this.node.getMiners({from, to})
   }
 
   _toHexAddress(address) {

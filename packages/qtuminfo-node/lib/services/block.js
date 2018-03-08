@@ -19,16 +19,14 @@ class BlockService extends BaseService {
     super(options)
     this._subscriptions = {block: [], transaction: [], address: []}
     this._tip = null
-    this._db = this.node.services.get('db')
-    this._p2p = this.node.services.get('p2p')
     this._header = this.node.services.get('header')
+    this._mempool = this.node.services.get('mempool')
     this._network = this.node.network
     if (this._network === 'livenet') {
       this._network = 'mainnet'
     } else if (this._network === 'regtest') {
       this._network = 'testnet'
     }
-    this._mempool = this.node.services.get('mempool')
     this.GENESIS_HASH = QTUM_GENESIS_HASH[this._network]
     this.GENESIS_BLOCK_HEX = QTUM_GENESIS_BLOCK_HEX[this._network]
     this._initialSync = false
@@ -46,20 +44,21 @@ class BlockService extends BaseService {
   }
 
   get APIMethods() {
-    return [
-      ['getInfo', this.getInfo.bind(this), 0],
-      ['getBlock', this.getBlock.bind(this), 1],
-      ['getBlockOverview', this.getBlockOverview.bind(this), 1],
-      ['getBestBlockHash', this.getBestBlockHash.bind(this), 0],
-      ['syncPercentage', this.syncPercentage.bind(this), 0],
-      ['isSynced', this.isSynced.bind(this), 0]
-    ]
+    return {
+      getInfo: this.getInfo.bind(this),
+      getBlockTip: this.getTip.bind(this),
+      getBlock: this.getBlock.bind(this),
+      getBlockOverview: this.getBlockOverview.bind(this),
+      getBestBlockHash: this.getBestBlockHash.bind(this),
+      syncPercentage: this.syncPercentage.bind(this),
+      isSynced: this.isSynced.bind(this)
+    }
   }
 
   getInfo() {
     return {
       blocks: this.getTip().height,
-      connections: this._p2p.getNumberOfPeers(),
+      connections: this.node.getNumberOfPeers(),
       timeoffset: 0,
       proxy: '',
       testnet: this._network !== 'mainnet',
@@ -131,7 +130,7 @@ class BlockService extends BaseService {
 
   async _checkTip() {
     this.node.log.info('Block Service: checking the saved tip...')
-    let header = (await this._header.getBlockHeader(this._tip.height)) || this._header.getLastHeader()
+    let header = (await this.node.getBlockHeader(this._tip.height)) || this._header.getLastHeader()
     if (header.hash === this._tip.hash && !this._reorgToBlock) {
       this.node.log.info('Block Service: saved tip is good to go.')
     }
@@ -176,7 +175,7 @@ class BlockService extends BaseService {
   }
 
   async start() {
-    let tip = await this._db.getServiceTip('block')
+    let tip = await this.node.getServiceTip('block')
     tip = await this._performSanityCheck(tip)
     this._blockProcessor = new AsyncQueue(this._onBlock.bind(this))
     this._bus = this.node.openBus({remoteAddress: 'localhost-block'})
@@ -238,7 +237,7 @@ class BlockService extends BaseService {
 
   async _getHash(blockArg) {
     if (Number.isInteger(blockArg)) {
-      let header = await this._header.getBlockHeader(blockArg)
+      let header = await this.node.getBlockHeader(blockArg)
       if (header) {
         return header.hash
       }
@@ -321,7 +320,7 @@ class BlockService extends BaseService {
 
   async _findLatestValidBlockHeader() {
     if (this._reorgToBlock) {
-      let header = await this._header.getBlockHeader(this._reorgToBlock)
+      let header = await this.node.getBlockHeader(this._reorgToBlock)
       if (!header) {
         throw new Error('Block Service: header not found to reorg to.')
       }
@@ -331,7 +330,7 @@ class BlockService extends BaseService {
     let blockServiceHeight = this._tip.height
     let header
     for (let i = 0; i <= this._recentBlockHashes.length; ++i) {
-      let _header = await this._header.getBlockHeader(blockServiceHash)
+      let _header = await this.node.getBlockHeader(blockServiceHash)
       let hash = blockServiceHash
       let height = blockServiceHeight--
       blockServiceHash = this._recentBlockHashes.get(hash)
@@ -370,7 +369,7 @@ class BlockService extends BaseService {
   }
 
   async _handleReorg() {
-    this._p2p.clearInventoryCache()
+    this.node.clearInventoryCache()
     let commonAncestorHeader = await this._findLatestValidBlockHeader()
     if (commonAncestorHeader.hash === this._tip.hash) {
       return
@@ -563,7 +562,7 @@ class BlockService extends BaseService {
     this.node.log.debug('Block Service: Setting tip to height:', tip.height)
     this.node.log.debug('Block Service: Setting tip to hash:', tip.hash)
     this._tip = tip
-    await this._db.updateServiceTip(this.name, tip)
+    await this.node.updateServiceTip(this.name, tip)
   }
 
   async _logSynced() {
@@ -625,7 +624,7 @@ class BlockService extends BaseService {
         this._processingBlock = false
         this.emit('synced')
       } else {
-        this._p2p.clearInventoryCache()
+        this.node.clearInventoryCache()
         this._getBlocksTimer = setTimeout(() => {
           this.node.log.debug('Block Service: block timeout, emitting for next block')
           this._processingBlock = false
@@ -634,7 +633,7 @@ class BlockService extends BaseService {
           }
         }, 5000)
         this._getBlocksTimer.unref()
-        let block = await this._p2p.getP2PBlock({
+        let block = await this.node.getP2PBlock({
           filter: {startHash: this._tip.hash, endHash},
           blockHash: targetHash
         })
@@ -652,7 +651,7 @@ class BlockService extends BaseService {
     if (!this._initialSync) {
       return
     }
-    let bestHeight = Math.max(this._header.getBestHeight(), this._tip.height)
+    let bestHeight = Math.max(this.node.getBestHeight(), this._tip.height)
     let progress = bestHeight === 0 ? 0 : (this._tip.height / bestHeight * 100).toFixed(4)
     this.node.log.info(
       'Block Service: download progress:',

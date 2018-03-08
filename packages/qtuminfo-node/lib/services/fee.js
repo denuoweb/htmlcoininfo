@@ -3,8 +3,7 @@ const BaseService = require('../service')
 class FeeService extends BaseService {
   constructor(options) {
     super(options)
-    this._db = this.node.services.get('db')
-    this._client = this._db.getRpcClient()
+    this._client = this.node.getRpcClient()
   }
 
   static get dependencies() {
@@ -12,9 +11,9 @@ class FeeService extends BaseService {
   }
 
   get APIMethods() {
-    return [
-      ['estimateFee', this, this.estimateFee, 1]
-    ]
+    return {
+      estimateFee: this.estimateFee.bind(this)
+    }
   }
 
   estimateFee(blocks) {

@@ -7,9 +7,6 @@ class AddressController {
   constructor(node) {
     this.node = node
     this.errorResponse = new ErrorResponse({log: this.node.log})
-    this._address = this.node.services.get('address')
-    this._block = this.node.services.get('block')
-    this._contract = this.node.services.get('contract')
     this._network = this.node.network
     if (this.node.network === 'livenet') {
       this._network = 'mainnet'
@@ -57,8 +54,8 @@ class AddressController {
   }
 
   async getAddressSummary(address, options) {
-    let summary = await this._address.getAddressSummary(address, options)
-    let tokenBalances = await this._contract.getAllQRC20TokenBalances(address)
+    let summary = await this.node.getAddressSummary(address, options)
+    let tokenBalances = await this.node.getAllQRC20TokenBalances(address)
     return {
       balance: summary.balance,
       totalReceived: summary.totalReceived,
@@ -93,7 +90,7 @@ class AddressController {
 
   async utxo(ctx) {
     try {
-      ctx.body = await this._address.getAddressUnspentOutputs(ctx.addresses)
+      ctx.body = await this.node.getAddressUnspentOutputs(ctx.addresses)
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
@@ -103,7 +100,7 @@ class AddressController {
     let from = Number.parseInt(ctx.query.from) || 0
     let to = Number.parseInt(ctx.query.to) || from + 10
     try {
-      let result = await this._address.getAddressHistory(ctx.addresses, {from, to})
+      let result = await this.node.getAddressHistory(ctx.addresses, {from, to})
       ctx.body = {
         totalCount: result.totalCount,
         from,

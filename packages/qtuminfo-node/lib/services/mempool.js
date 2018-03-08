@@ -8,8 +8,6 @@ class MempoolService extends BaseService {
     super(options)
     this._subscriptions = {transaction: []}
     this.log = this.node.log
-    this._db = this.node.services.get('db')
-    this._p2p = this.node.services.get('p2p')
     this._network = this.node.network
     this._enabled = false
     if (this._network === 'livenet') {
@@ -134,7 +132,7 @@ class MempoolService extends BaseService {
       outputAddresses: [...outputAddresses].map(getAddress),
     })
     await transaction.save()
-    let _transaction = await this.node.services.get('transaction').getTransaction(tx.id)
+    let _transaction = await this.node.getTransaction(tx.id)
     let rawTransaction = toRawTransaction(_transaction)
     let transactionBuffer = rawTransaction.toBuffer()
     let transactionHashBuffer = rawTransaction.toHashBuffer()

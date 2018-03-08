@@ -58,12 +58,7 @@ class WebService extends BaseService {
   }
 
   createMethodsMap() {
-    let methods = this.node.getAllAPIMethods()
-    this.methodsMap = {}
-
-    for (let [name, method, args] of methods) {
-      this.methodsMap[name] = {fn: method, args}
-    }
+    this.methods = this.node.getAllAPIMethods()
   }
 
   getEventNames() {
@@ -127,16 +122,8 @@ class WebService extends BaseService {
   }
 
   socketMessageHandler({method, params = []}, socketCallback) {
-    if (method in this.methodsMap) {
-      let {fn, args} = this.methodsMap[method]
-
-      if (params.length !== args) {
-        return socketCallback({
-          error: {message: `Expected ${args} parameter(s)`}
-        })
-      }
-
-      fn(...params).then(
+    if (method in this.methods) {
+      this.methods[method](...params).then(
         result => socketCallback({result}),
         err => socketCallback({message: err.toString()})
       )

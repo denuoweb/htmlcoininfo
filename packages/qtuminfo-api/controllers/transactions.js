@@ -6,11 +6,6 @@ class TransactionController {
   constructor(node) {
     this.node = node
     this.errorResponse = new ErrorResponse({log: this.node.log})
-    this._block = this.node.services.get('block')
-    this._transaction = this.node.services.get('transaction')
-    this._address = this.node.services.get('address')
-    this._p2p = this.node.services.get('p2p')
-    this._contract = this.node.services.get('contract')
     this._network = this.node.network
     if (this.node.network === 'livenet') {
       this._network = 'mainnet'
@@ -31,7 +26,7 @@ class TransactionController {
     let txid = ctx.params.txid
     try {
       let tx = await Transaction.findOne({$or: [{id: txid}, {hash: txid}]})
-      let transaction = await this._transaction.getTransaction(tx.id)
+      let transaction = await this.node.getTransaction(tx.id)
       if (transaction) {
         ctx.transaction = await this.transformTransaction(transaction)
         await next()
@@ -48,7 +43,7 @@ class TransactionController {
     let list = []
     try {
       for (let txid of txids) {
-        let transaction = await this._transaction.getTransaction(txid)
+        let transaction = await this.node.getTransaction(txid)
         if (transaction) {
           list.push(transaction)
         } else {
@@ -63,7 +58,7 @@ class TransactionController {
   }
 
   async transformTransaction(transaction, options = {}) {
-    let confirmations = 'block' in transaction ? this._block.getTip().height - transaction.block.height + 1 : 0
+    let confirmations = 'block' in transaction ? this.node.getBlockTip().height - transaction.block.height + 1 : 0
     let transformed = {
       id: transaction.id,
       hash: transaction.hash,
@@ -132,7 +127,7 @@ class TransactionController {
         }
       }
     })
-    transformed.tokenTransfers = await this._contract.getTokenTransfers(transaction)
+    transformed.tokenTransfers = await this.node.getTokenTransfers(transaction)
     return transformed
   }
 
@@ -140,7 +135,7 @@ class TransactionController {
     let txid = ctx.params.txid
 
     try {
-      let transaction = await this._transaction.getTransaction(txid)
+      let transaction = await this.node.getTransaction(txid)
       if (!transaction) {
         ctx.throw(404)
       }
@@ -165,7 +160,7 @@ class TransactionController {
 
     if (blockHash) {
       try {
-        let block = await this._block.getBlockOverview(blockHash)
+        let block = await this.node.getBlockOverview(blockHash)
         if (!block) {
           ctx.throw(404)
         }
@@ -176,7 +171,7 @@ class TransactionController {
 
         let transactions = []
         for (let txid of txids) {
-          let transaction = await this._transaction.getTransaction(txid)
+          let transaction = await this.node.getTransaction(txid)
           transactions.push(await this.transformTransaction(transaction))
         }
 
@@ -191,7 +186,7 @@ class TransactionController {
       }
 
       try {
-        let result = await this._address.getAddressHistory(address, options)
+        let result = await this.node.getAddressHistory(address, options)
         let transactions = await result.items.map(tx => this.transformTransaction(tx))
         ctx.body = {
           pageTotal: Math.ceil(result.totalCount / pageLength),
@@ -208,7 +203,7 @@ class TransactionController {
   async send(ctx) {
     let {rawtx} = ctx.request.body
     try {
-      let txid = await this._p2p.sendTransaction(rawtx)
+      let txid = await this.node.sendTransaction(rawtx)
       ctx.body = {txid}
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)

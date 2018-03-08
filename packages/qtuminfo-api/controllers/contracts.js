@@ -5,15 +5,12 @@ class ContractsController {
   constructor(node) {
     this.node = node
     this.errorResponse = new ErrorResponse({log: this.node.log})
-    this._block = this.node.services.get('block')
-    this._contract = this.node.services.get('contract')
-    this._transaction = this.node.services.get('transaction')
   }
 
   async contract(ctx, next) {
     let address = ctx.params.contract
     try {
-      let contract = await this._contract.getContract(address)
+      let contract = await this.node.getContract(address)
       if (!contract) {
         ctx.throw(404)
       }
@@ -26,8 +23,8 @@ class ContractsController {
 
   async show(ctx) {
     try {
-      let summary = await this._contract.getContractSummary(ctx.contract.address)
-      let tokenBalances = await this._contract.getAllQRC20TokenBalances(ctx.contract.address)
+      let summary = await this.node.getContractSummary(ctx.contract.address)
+      let tokenBalances = await this.node.getAllQRC20TokenBalances(ctx.contract.address)
       summary.owner = ctx.contract.owner
       summary.txid = ctx.contract.createTransactionId
       summary.type = ctx.contract.type
@@ -52,7 +49,7 @@ class ContractsController {
     let from = Number.parseInt(ctx.query.from) || 0
     let to = Number.parseInt(ctx.query.to) || from + 10
     try {
-      let result = await this._contract.getContractHistory(ctx.contract.address, {from, to})
+      let result = await this.node.getContractHistory(ctx.contract.address, {from, to})
       ctx.body = {
         totalCount: result.totalCount,
         from,

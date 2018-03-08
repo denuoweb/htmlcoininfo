@@ -7,9 +7,6 @@ class QtuminfoWS extends BaseService {
   constructor(options) {
     super(options)
     this._options = options
-    this._block = this.node.services.get('block')
-    this._header = this.node.services.get('header')
-    this._transaction = this.node.services.get('transaction')
   }
 
   static get dependencies() {
@@ -40,7 +37,7 @@ class QtuminfoWS extends BaseService {
     this._server = new WebSocket.Server({port: this._options.port})
     this._server.on('connection', (ws, req) => {
       ws.subscriptions = new Set(['height'])
-      ws.send(JSON.stringify({type: 'height', data: this._block.getTip().height}))
+      ws.send(JSON.stringify({type: 'height', data: this.node.getBlockTip().height}))
       ws.on('message', message => {
         if (message === '"ping"') {
           ws.send(JSON.stringify('pong'))
@@ -134,7 +131,7 @@ class QtuminfoWS extends BaseService {
       bits: block.bits.toString(16),
       difficulty: this._getDifficulty(block.bits),
       chainWork: block.chainwork,
-      confirmations: this._block.getTip().height - block.height + 1,
+      confirmations: this.node.getBlockTip().height - block.height + 1,
       previousBlockHash: block.prevHash,
       nextBlockHash: block.nextHash,
       reward,
@@ -148,17 +145,17 @@ class QtuminfoWS extends BaseService {
     let minedBy, duration
     let reward = 0
     if (block.prevOutStakeHash !== '0'.repeat(64) && block.prevOutStakeN !== 0xffffffff) {
-      let transaction = await this._transaction.getTransaction(block.transactions[1])
+      let transaction = await this.node.getTransaction(block.transactions[1])
       reward = -transaction.feeSatoshis
       minedBy = transaction.outputs[1].address
     } else {
-      let transaction = await this._transaction.getTransaction(block.transactions[0])
+      let transaction = await this.node.getTransaction(block.transactions[0])
       reward = transaction.outputSatoshis
       minedBy = transaction.outputs[0].address
     }
     let prevHash = block.prevHash
     if (prevHash !== '0'.repeat(64)) {
-      let prevBlockHeader = await this._header.getBlockHeader(prevHash)
+      let prevBlockHeader = await this.node.getBlockHeader(prevHash)
       duration = block.timestamp - prevBlockHeader.timestamp
     }
     return {reward, minedBy, duration}

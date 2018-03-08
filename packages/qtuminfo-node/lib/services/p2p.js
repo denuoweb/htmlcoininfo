@@ -24,13 +24,14 @@ class P2P extends BaseService {
   }
 
   get APIMethods() {
-    return [
-      ['clearInventoryCache', this.clearInventoryCache.bind(this), 0],
-      ['getP2PBlock', this.getP2PBlock.bind(this), 1],
-      ['getHeaders', this.getHeaders.bind(this), 1],
-      ['getMempool', this.getMempool.bind(this), 0],
-      ['sendTransaction', this.sendTransaction.bind(this), 1]
-    ]
+    return {
+      clearInventoryCache: this.clearInventoryCache.bind(this),
+      getP2PBlock: this.getP2PBlock.bind(this),
+      getHeaders: this.getHeaders.bind(this),
+      getMempool: this.getMempool.bind(this),
+      getNumberOfPeers: this.getNumberOfPeers.bind(this),
+      sendTransaction: this.sendTransaction.bind(this)
+    }
   }
 
   getNumberOfPeers() {

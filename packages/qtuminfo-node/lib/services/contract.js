@@ -18,10 +18,8 @@ const TOKEN_EVENT_HASHES = Object.values(TOKEN_EVENTS)
 class ContractService extends BaseService {
   constructor(options) {
     super(options)
-    this._block = this.node.services.get('block')
-    this._db = this.node.services.get('db')
     this._network = this.node.network
-    this._client = this._db.getRpcClient()
+    this._client = this.node.getRpcClient()
     if (this._network === 'livenet') {
       this._network = 'mainnet'
     } else if (this._network === 'regtest') {
@@ -34,16 +32,16 @@ class ContractService extends BaseService {
   }
 
   get APIMethods() {
-    return [
-      ['getContract', this.getContract.bind(this), 1],
-      ['getContractHistory', this.getContractHistory, 2],
-      ['getContractSummary', this.getContractSummary, 2],
-      ['getTokenTransfers', this.getTokenTransfers, 2],
-      ['listContracts', this.listContracts.bind(this), 0],
-      ['listQRC20Tokens', this.listQRC20Tokens.bind(this), 0],
-      ['getAllQRC20TokenBalances', this.getAllQRC20TokenBalances.bind(this), 1],
-      ['searchQRC20Token', this.searchQRC20Token.bind(this), 1]
-    ]
+    return {
+      getContract: this.getContract.bind(this),
+      getContractHistory: this.getContractHistory.bind(this),
+      getContractSummary: this.getContractSummary.bind(this),
+      getTokenTransfers: this.getTokenTransfers.bind(this),
+      listContracts: this.listContracts.bind(this),
+      listQRC20Tokens: this.listQRC20Tokens.bind(this),
+      getAllQRC20TokenBalances: this.getAllQRC20TokenBalances.bind(this),
+      searchQRC20Token: this.searchQRC20Token.bind(this)
+    }
   }
 
   getContract(address) {
@@ -240,11 +238,11 @@ class ContractService extends BaseService {
   }
 
   async start() {
-    this._tip = await this._db.getServiceTip(this.name)
-    let blockTip = this._block.getTip()
+    this._tip = await this.node.getServiceTip(this.name)
+    let blockTip = this.node.getBlockTip()
     if (this._tip.height > blockTip.height) {
       this._tip = blockTip
-      await this._db.updateServiceTip(this.name, this._tip)
+      await this.node.updateServiceTip(this.name, this._tip)
     }
     for (let x of ['80', '81', '82', '83', '84']) {
       let dgpAddress = '0'.repeat(38) + x
@@ -282,7 +280,7 @@ class ContractService extends BaseService {
     await this._processReceipts(block)
     this._tip.height = block.height
     this._tip.hash = block.hash
-    await this._db.updateServiceTip(this.name, this._tip)
+    await this.node.updateServiceTip(this.name, this._tip)
   }
 
   async onReorg(_, block) {
@@ -465,7 +463,7 @@ class ContractService extends BaseService {
       return
     }
     if (height == null) {
-      height = this._block.getTip().height
+      height = this.node.getBlockTip().height
     }
     if (height < token.createHeight) {
       return []

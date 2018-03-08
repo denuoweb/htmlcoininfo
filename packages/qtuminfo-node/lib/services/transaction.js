@@ -7,8 +7,6 @@ const {toRawTransaction} = require('../utils')
 class TransactionService extends BaseService {
   constructor(options) {
     super(options)
-    this._block = this.node.services.get('block')
-    this._db = this.node.services.get('db')
     this._network = this.node.network
     if (this._network === 'livenet') {
       this._network = 'mainnet'
@@ -23,10 +21,10 @@ class TransactionService extends BaseService {
   }
 
   get APIMethods() {
-    return [
-      ['getTransaction', this.getTransaction.bind(this), 1],
-      ['setTxMetaInfo', this.setTxMetaInfo.bind(this), 1]
-    ]
+    return {
+      getTransaction: this.getTransaction.bind(this),
+      setTxMetaInfo: this.setTxMetaInfo.bind(this)
+    }
   }
 
   async getTransaction(txid, options) {
@@ -166,11 +164,11 @@ class TransactionService extends BaseService {
   }
 
   async start() {
-    this._tip = await this._db.getServiceTip(this.name)
-    let blockTip = this._block.getTip()
+    this._tip = await this.node.getServiceTip(this.name)
+    let blockTip = this.node.getBlockTip()
     if (this._tip.height > blockTip.height) {
       this._tip = blockTip
-      await this._db.updateServiceTip(this.name, this._tip)
+      await this.node.updateServiceTip(this.name, this._tip)
     }
     await Transaction.deleteMany({'block.height': {$gt: blockTip.height}})
     await TransactionOutput.deleteMany({'output.height': {$gt: blockTip.height}})
@@ -189,7 +187,7 @@ class TransactionService extends BaseService {
     }
     this._tip.height = block.height
     this._tip.hash = block.hash
-    await this._db.updateServiceTip(this.name, this._tip)
+    await this.node.updateServiceTip(this.name, this._tip)
   }
 
   async _processTransaction(tx, indexInBlock, block) {

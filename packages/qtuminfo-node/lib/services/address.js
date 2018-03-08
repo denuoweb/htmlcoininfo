@@ -22,9 +22,6 @@ const TOKEN_EVENTS = {
 class AddressService extends BaseService {
   constructor(options) {
     super(options)
-    this._block = this.node.services.get('block')
-    this._db = this.node.services.get('db')
-    this._transaction = this.node.services.get('transaction')
     this._network = this.node.network
     if (this._network === 'livenet') {
       this._network = 'mainnet'
@@ -116,7 +113,7 @@ class AddressService extends BaseService {
     let txo
     while (txo = await cursor.next()) {
       let value = new BN(txo.satoshis)
-      let confirmations = Math.max(this._block.getTip().height - txo.output.height + 1, 0)
+      let confirmations = Math.max(this.node.getBlockTip().height - txo.output.height + 1, 0)
       totalReceived.iadd(value)
       if (txo.input) {
         totalSent.iadd(value)
@@ -158,22 +155,25 @@ class AddressService extends BaseService {
       satoshis: utxo.satoshis,
       isStake: utxo.isStake,
       height: utxo.output.height,
-      confirmations: Math.max(this._block.getTip().height - utxo.output.height + 1, 0)
+      confirmations: Math.max(this.node.getBlockTip().height - utxo.output.height + 1, 0)
     }))
   }
 
   get APIMethods() {
-    return [
-      ['getAddressHistory', this.getAddressHistory.bind(this), 2],
-      ['getAddressSummary', this.getAddressSummary.bind(this), 1],
-      ['getAddressUnspentOutputs', this.getAddressUnspentOutputs.bind(this), 1],
-      ['snapshot', this.snapshot.bind(this), 2]
-    ]
+    return {
+      getAddressHistory: this.getAddressHistory.bind(this),
+      getAddressSummary: this.getAddressSummary.bind(this),
+      getAddressUnspentOutputs: this.getAddressUnspentOutputs.bind(this),
+      getAddressTransactionCount: this.getAddressTransactionCount.bind(this),
+      getRichList: this.getRichList.bind(this),
+      getMiners: this.getMiners.bind(this),
+      snapshot: this.snapshot.bind(this)
+    }
   }
 
   snapshot({height, minBalance = 1, sort = true, hexOnly, limit} = {}) {
     if (height == null) {
-      height = this._block.getTip().height + 1
+      height = this.node.getBlockTip().height + 1
     }
     return [
       {

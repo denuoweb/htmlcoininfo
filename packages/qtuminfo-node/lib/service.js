@@ -27,7 +27,7 @@ class Service extends EventEmitter {
   }
 
   get APIMethods() {
-    return []
+    return {}
   }
 
   async start() {}

@@ -24,16 +24,16 @@ class Node extends EventEmitter {
   }
 
   getAllAPIMethods() {
-    let methods = []
-    for (let [name, service] of this.services) {
-      methods.push(...service.APIMethods)
+    let methods = {}
+    for (let service of this.services.values()) {
+      Object.assign(methods, service.APIMethods)
     }
     return methods
   }
 
   getAllPublishEvents() {
     let methods = []
-    for (let [name, service] of this.services) {
+    for (let service of this.services.values()) {
       methods.push(...service.publishEvents)
     }
     return methods
@@ -110,7 +110,7 @@ class Node extends EventEmitter {
     await service.start()
 
     let methodNameConflicts = []
-    for (let [name, method] of service.APIMethods) {
+    for (let [name, method] of Object.entries(service.APIMethods)) {
       if (name in this) {
         methodNameConflicts.push(name)
       } else {
