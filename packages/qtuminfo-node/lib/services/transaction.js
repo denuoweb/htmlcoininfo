@@ -79,16 +79,7 @@ class TransactionService extends BaseService {
               _id: {$arrayElemAt: ['$input._id', 0]},
               prevTxId: {$arrayElemAt: ['$input.output.transactionId', 0]},
               outputIndex: {$arrayElemAt: ['$input.output.index', 0]},
-              script: {
-                $map: {
-                  input: {$arrayElemAt: ['$input.input.script', 0]},
-                  as: 'chunk',
-                  in: {
-                    opcode: '$$chunk.opcode',
-                    buffer: '$$chunk.buffer'
-                  }
-                }
-              },
+              script: {$arrayElemAt: ['$input.input.script', 0]},
               sequence: {$arrayElemAt: ['$input.input.sequence', 0]},
               satoshis: {$arrayElemAt: ['$input.satoshis', 0]},
               address: {$arrayElemAt: ['$input.address', 0]}
@@ -127,16 +118,7 @@ class TransactionService extends BaseService {
             $push: {
               _id: {$arrayElemAt: ['$output._id', 0]},
               satoshis: {$arrayElemAt: ['$output.satoshis', 0]},
-              script: {
-                $map: {
-                  input: {$arrayElemAt: ['$output.output.script', 0]},
-                  as: 'chunk',
-                  in: {
-                    opcode: '$$chunk.opcode',
-                    buffer: '$$chunk.buffer'
-                  }
-                }
-              },
+              script: {$arrayElemAt: ['$output.output.script', 0]},
               address: {$arrayElemAt: ['$output.address', 0]}
             }
           },

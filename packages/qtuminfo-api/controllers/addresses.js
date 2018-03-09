@@ -116,18 +116,20 @@ class AddressController {
     let network = Networks.get(this._network)
     if (address.length === 34) {
       let hexAddress = Base58Check.decode(address)
-      if ([network.pubkeyhash, network.scripthash].includes(hexAddress[0])) {
-        return hexAddress.slice(1).toString('hex')
+      if (hexAddress[0] === network.pubkeyhash) {
+        return {type: 'pubkeyhash', hex: hexAddress.slice(1).toString('hex')}
+      } else if (hexAddress[0] === network.scripthash) {
+        return {type: 'scripthash', hex: hexAddress.slice(1).toString('hex')}
       }
     } else if (address.length === 42) {
       let result = SegwitAddress.decode(network.witness_v0_keyhash, address)
       if (result) {
-        return Buffer.from(result.program).toString('hex')
+        return {type: 'witness_v0_keyhash', hex: Buffer.from(result.program).toString('hex')}
       }
     } else if (address.length === 62) {
       let result = SegwitAddress.decode(network.witness_v0_scripthash, address)
       if (result) {
-        return Buffer.from(result.program).toString('hex')
+        return {type: 'witness_v0_scripthash', hex: Buffer.from(result.program).toString('hex')}
       }
     }
     throw new Error('Invalid address')

@@ -53,8 +53,8 @@ class ContractService extends BaseService {
       {
         $match: {
           $or: [
-            {'inputAddresses.type': 'contract', 'inputAddresses.hex': address},
-            {'outputAddresses.type': 'contract', 'outputAddresses.hex': address},
+            {inputAddresses: {$elemMatch: {type: 'contract', hex: address}}},
+            {outputAddresses: {$elemMatch: {type: 'contract', hex: address}}},
             {'receipts.contractAddress': address},
             {'receipts.logs.address': address}
           ]
@@ -81,8 +81,8 @@ class ContractService extends BaseService {
   getContractTransactionCount(address) {
     return Transaction.count({
       $or: [
-        {'inputAddresses.type': 'contract', 'inputAddresses.hex': address},
-        {'outputAddresses.type': 'contract', 'outputAddresses.hex': address},
+        {inputAddresses: {$elemMatch: {type: 'contract', hex: address}}},
+        {outputAddresses: {$elemMatch: {type: 'contract', hex: address}}},
         {'receipts.contractAddress': address},
         {'receipts.logs.address': address}
       ]
@@ -95,7 +95,7 @@ class ContractService extends BaseService {
     let totalReceived = new BN(0)
     let totalSent = new BN(0)
     let cursor = TransactionOutput.find(
-      {address: {type: 'contract', hex: address}},
+      {'address.type': 'contract', 'address.hex': address},
       ['satoshis', 'input']
     ).cursor()
     let txo
@@ -159,19 +159,12 @@ class ContractService extends BaseService {
     if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
+    let hexAddresses = addresses
+      .filter(address => ['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type))
+      .map(address => address.hex)
     let list = await Balance.aggregate([
-      {
-        $match: {
-          address: {$in: addresses},
-          balance: {$ne: '0'.repeat(64)}
-        }
-      },
-      {
-        $group: {
-          _id: '$contract',
-          balances: {$push: '$balance'}
-        }
-      },
+      {$match: {address: {$in: hexAddresses}, balance: {$ne: '0'.repeat(64)}}},
+      {$group: {_id: '$contract', balances: {$push: '$balance'}}},
       {
         $lookup: {
           from: 'contracts',

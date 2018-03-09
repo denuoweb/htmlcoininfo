@@ -54,13 +54,15 @@ class AddressService extends BaseService {
       {
         $match: {
           $or: [
-            {'inputAddresses.type': {$ne: 'contract'}, 'inputAddresses.hex': {$in: addresses}},
-            {'outputAddresses.type': {$ne: 'contract'}, 'outputAddresses.hex': {$in: addresses}},
+            {inputAddresses: {$elemMatch: AddressService._constructAddressElementQuery(addresses)}},
+            {outputAddresses: {$elemMatch: AddressService._constructAddressElementQuery(addresses)}},
             {
-              'receipts.logs.topics.0': {
-                $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
-              },
-              'receipts.logs.topics': {$in: addresses.map(address => '0'.repeat(24) + address)},
+              'receipts.logs': {
+                $elemMatch: {
+                  'topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]},
+                  topics: {$in: AddressService._toHexAddresses(addresses)}
+                }
+              }
             }
           ]
         }
@@ -83,31 +85,30 @@ class AddressService extends BaseService {
     }
   }
 
-  async getAddressTransactionCount(addresses) {
+  getAddressTransactionCount(addresses) {
     if (typeof addresses === 'string') {
       addresses = [addresses]
     }
-    let result = await Transaction.aggregate([
-      {
-        $match: {
-          $or: [
-            {'inputAddresses.type': {$ne: 'contract'}, 'inputAddresses.hex': {$in: addresses}},
-            {'outputAddresses.type': {$ne: 'contract'}, 'outputAddresses.hex': {$in: addresses}},
-            {
-              'receipts.logs.topics.0': {
-                $in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]
-              },
-              'receipts.logs.topics': {$in: addresses.map(address => '0'.repeat(24) + address)},
+    return Transaction.count({
+      $or: [
+        {inputAddresses: {$elemMatch: AddressService._constructAddressElementQuery(addresses)}},
+        {outputAddresses: {$elemMatch: AddressService._constructAddressElementQuery(addresses)}},
+        {
+          'receipts.logs': {
+            $elemMatch: {
+              'topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]},
+              topics: {$in: AddressService._toHexAddresses(addresses)}
             }
-          ]
+          }
         }
-      },
-      {$group: {_id: null, count: {$sum: 1}}}
-    ])
-    return result.length && result[0].count
+      ]
+    })
   }
 
   async getAddressSummary(addresses, options = {}) {
+    if (typeof addresses === 'string') {
+      addresses = [addresses]
+    }
     let totalCount = await this.getAddressTransactionCount(addresses)
     let balance = new BN(0)
     let totalReceived = new BN(0)
@@ -116,8 +117,7 @@ class AddressService extends BaseService {
     let stakingBalance = new BN(0)
     let cursor = TransactionOutput.find(
       {
-        'address.type': {$ne: 'contract'},
-        'address.hex': {$in: addresses},
+        ...AddressService._constructAddressQuery(addresses),
         'output.height': {$gt: 0}
       },
       ['satoshis', 'output.height', 'input', 'isStake']
@@ -149,13 +149,43 @@ class AddressService extends BaseService {
     }
   }
 
+  static _constructAddressElementQuery(addresses) {
+    return {
+      $or: addresses.map(address => {
+        if (['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type)) {
+          return {type: {$ne: 'contract'}, hex: address.hex}
+        } else {
+          return address
+        }
+      })
+    }
+  }
+
+  static _constructAddressQuery(addresses, key = 'address') {
+    return {
+      $or: addresses.map(address => {
+        if (['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type)) {
+          return {[key + '.type']: {$ne: 'contract'}, [key + '.hex']: address.hex}
+        } else {
+          return {[key + '.type']: address.type, [key + '.hex']: address.hex}
+        }
+      })
+    }
+  }
+
+  static _toHexAddresses(addresses) {
+    return addresses
+      .filter(address => ['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type))
+      .map(address => '0'.repeat(24) + address.hex)
+  }
+
   async getAddressUnspentOutputs(addresses) {
     if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
+    addresses = addresses.map(address => address.hex)
     let utxoList = await TransactionOutput.find({
-      'address.type': {$ne: 'contract'},
-      'address.hex': {$in: addresses},
+      ...AddressService._constructAddressQuery(addresses),
       'output.height': {$gt: 0},
       input: {$exists: false}
     })
@@ -252,7 +282,7 @@ class AddressService extends BaseService {
                 balance: {
                   $cond: {
                     if: {$eq: ['$balance', []]},
-                    then: '0',
+                    then: 0,
                     else: {$arrayElemAt: ['$balance.balance', 0]}
                   }
                 }
