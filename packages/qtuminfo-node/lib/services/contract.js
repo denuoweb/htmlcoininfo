@@ -121,7 +121,7 @@ class ContractService extends BaseService {
     let list = []
     for (let receipt of transaction.receipts) {
       for (let {address, topics, data} of receipt.logs) {
-        if (topics[0] !== TOKEN_EVENTS.Transfer) {
+        if (topics[0] !== TOKEN_EVENTS.Transfer || topics.length !== 2 || data.length !== 64) {
           continue
         }
         let token = await Contract.findOne({address, type: 'qrc20'})
@@ -274,8 +274,10 @@ class ContractService extends BaseService {
       {$match: {'topics.0': TOKEN_EVENTS.Transfer}}
     ])
     for (let {address, topics} of transfers) {
-      balanceChanges.add(address + ' ' + topics[1].slice(24))
-      balanceChanges.add(address + ' ' + topics[2].slice(24))
+      if (topics.length > 2) {
+        balanceChanges.add(address + ' ' + topics[1].slice(24))
+        balanceChanges.add(address + ' ' + topics[2].slice(24))
+      }
     }
     await this._updateBalances(balanceChanges)
   }
@@ -423,8 +425,10 @@ class ContractService extends BaseService {
             }
           }
           if (topics[0] === TOKEN_EVENTS.Transfer) {
-            balanceChanges.add(address + ' ' + topics[1].slice(24))
-            balanceChanges.add(address + ' ' + topics[2].slice(24))
+            if (topics.length > 2) {
+              balanceChanges.add(address + ' ' + topics[1].slice(24))
+              balanceChanges.add(address + ' ' + topics[2].slice(24))
+            }
           } else if ([TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn].includes(topics[0])) {
             totalSupplyChanges.add(address)
           }
