@@ -121,7 +121,7 @@ class ContractService extends BaseService {
     let list = []
     for (let receipt of transaction.receipts) {
       for (let {address, topics, data} of receipt.logs) {
-        if (topics[0] !== TOKEN_EVENTS.Transfer || topics.length !== 2 || data.length !== 64) {
+        if (topics[0] !== TOKEN_EVENTS.Transfer || topics.length !== 3 || data.length !== 64) {
           continue
         }
         let token = await Contract.findOne({address, type: 'qrc20'})

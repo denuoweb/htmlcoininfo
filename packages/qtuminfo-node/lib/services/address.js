@@ -47,7 +47,7 @@ class AddressService extends BaseService {
   }
 
   async getAddressHistory(addresses, {from = 0, to = 0xffffffff} = {}) {
-    if (typeof addresses === 'string') {
+    if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
     let [{count, list}] = await Transaction.aggregate([
@@ -86,7 +86,7 @@ class AddressService extends BaseService {
   }
 
   getAddressTransactionCount(addresses) {
-    if (typeof addresses === 'string') {
+    if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
     return Transaction.count({
@@ -106,7 +106,7 @@ class AddressService extends BaseService {
   }
 
   async getAddressSummary(addresses, options = {}) {
-    if (typeof addresses === 'string') {
+    if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
     let totalCount = await this.getAddressTransactionCount(addresses)
