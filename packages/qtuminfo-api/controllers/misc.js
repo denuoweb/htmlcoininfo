@@ -33,11 +33,8 @@ class MiscController {
       }
     } else if ([34, 42, 62].includes(id.length)) {
       try {
-        let address = this._toHexAddress(id)
-        let count = await this.node.getAddressTransactionCount(address)
-        if (count > 0) {
-          ctx.body = {type: 'address'}
-        }
+        this._toHexAddress(id)
+        ctx.body = {type: 'address'}
         return
       } catch (err) {}
     } else if (id.length === 40) {
