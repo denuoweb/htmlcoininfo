@@ -125,7 +125,7 @@ class MempoolService extends BaseService {
       id: tx.id,
       hash: tx.hash,
       version: tx.version,
-      dummy: tx.dummy,
+      marker: tx.marker,
       flags: tx.flags,
       inputs,
       outputs,

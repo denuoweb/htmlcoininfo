@@ -36,7 +36,7 @@ class Transaction {
     this.witnessStack = []
     this._inputAmount = undefined
     this._outputAmount = undefined
-    this.dummy = undefined
+    this.marker = undefined
     this.flags = undefined
 
     if (serialized) {
@@ -206,7 +206,7 @@ class Transaction {
 
   toBufferWriter(writer) {
     writer.writeInt32LE(this.version)
-    if (this.dummy != undefined) {
+    if (this.marker != undefined) {
       writer.writeUInt8(0)
     }
     if (this.flags != undefined) {
@@ -256,7 +256,7 @@ class Transaction {
     this.version = reader.readInt32LE()
     let sizeTxIns = reader.readVarintNum()
     if (!sizeTxIns) {
-      this.dummy = sizeTxIns
+      this.marker = sizeTxIns
       this.flags = reader.readUInt8()
       sizeTxIns = reader.readVarintNum()
     }
@@ -351,7 +351,7 @@ class Transaction {
     }
     this.nLockTime = transaction.nLockTime
     this.version = transaction.version
-    this.dummy = transaction.dummy
+    this.marker = transaction.marker
     this.flags = transaction.flags
     this.witnessStack = transaction.witnessStack
     this._checkConsistency(arg)

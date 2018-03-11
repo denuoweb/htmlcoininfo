@@ -151,7 +151,7 @@ async function toRawBlock(block) {
         _id: '$_id',
         id: {$first: '$id'},
         version: {$first: '$version'},
-        dummy: {$first: '$dummy'},
+        marker: {$first: '$marker'},
         flags: {$first: '$flags'},
         inputs: {
           $push: {
@@ -180,7 +180,7 @@ async function toRawBlock(block) {
         _id: '$_id',
         id: {$first: '$id'},
         version: {$first: '$version'},
-        dummy: {$first: '$dummy'},
+        marker: {$first: '$marker'},
         flags: {$first: '$flags'},
         inputs: {$first: '$inputs'},
         outputs: {
@@ -218,7 +218,7 @@ exports.toRawBlock = toRawBlock
 function toRawTransaction(transaction, raw) {
   return new qtuminfo.Transaction({
     version: transaction.version,
-    dummy: transaction.dummy,
+    marker: transaction.marker,
     flags: transaction.flags,
     inputs: transaction.inputs.map(input => ({
       prevTxId: input.prevTxId,

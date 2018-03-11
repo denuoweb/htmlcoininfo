@@ -4,7 +4,8 @@ const {Schema} = mongoose
 
 const blockSchema = new Schema({
   hash: {type: String, default: '0'.repeat(64)},
-  height: {type: Number, default: 0xffffffff, index: true}
+  height: {type: Number, default: 0xffffffff, index: true},
+  timestamp: {type: Number, index: true}
 }, {_id: false})
 
 const receiptLogSchema = new Schema({
@@ -24,7 +25,7 @@ const transactionSchema = new Schema({
   id: {type: String, index: true, unique: true},
   hash: {type: String, index: true, unique: true},
   version: Number,
-  dummy: Number,
+  marker: Number,
   flags: Number,
   inputs: [Schema.Types.ObjectId],
   outputs: [Schema.Types.ObjectId],

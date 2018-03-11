@@ -72,7 +72,7 @@ class TransactionService extends BaseService {
           id: {$first: '$id'},
           hash: {$first: '$hash'},
           version: {$first: '$version'},
-          dummy: {$first: '$dummy'},
+          marker: {$first: '$marker'},
           flags: {$first: '$flags'},
           inputs: {
             $push: {
@@ -111,7 +111,7 @@ class TransactionService extends BaseService {
           id: {$first: '$id'},
           hash: {$first: '$hash'},
           version: {$first: '$version'},
-          dummy: {$first: '$dummy'},
+          marker: {$first: '$marker'},
           flags: {$first: '$flags'},
           inputs: {$first: '$inputs'},
           outputs: {
@@ -246,13 +246,15 @@ class TransactionService extends BaseService {
     if (transaction) {
       transaction.block.hash = block.hash
       transaction.block.height = block.height
+      transaction.block.timestamp = block.header.timestamp
       transaction.index = indexInBlock
     } else {
+      console.log(block.header.timestamp);
       transaction = new Transaction({
         id: tx.id,
         hash: tx.hash,
         version: tx.version,
-        dummy: tx.dummy,
+        marker: tx.marker,
         flags: tx.flags,
         inputs,
         outputs,
@@ -261,6 +263,7 @@ class TransactionService extends BaseService {
         block: {
           hash: block.hash,
           height: block.height,
+          timestamp: block.header.timestamp
         },
         index: indexInBlock,
         inputAddresses: [...inputAddresses].map(getAddress),
