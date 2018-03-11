@@ -183,7 +183,6 @@ class AddressService extends BaseService {
     if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
-    addresses = addresses.map(address => address.hex)
     let utxoList = await TransactionOutput.find({
       ...AddressService._constructAddressQuery(addresses),
       'output.height': {$gt: 0},
@@ -193,7 +192,7 @@ class AddressService extends BaseService {
       address: utxo.address,
       txid: utxo.output.transactionId,
       vout: utxo.output.index,
-      scriptPubKey: toRawScript(utxo.output.script).toBuffer().toString('hex'),
+      scriptPubKey: utxo.output.script.toString('hex'),
       satoshis: utxo.satoshis,
       isStake: utxo.isStake,
       height: utxo.output.height,

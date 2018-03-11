@@ -78,7 +78,7 @@ class TransactionController {
 
     if (transaction.isCoinbase) {
       transformed.vin = [{
-        coinbase: toRawScript(transaction.inputs[0].script).toBuffer().toString('hex'),
+        coinbase: transaction.inputs[0].script.buffer.toString('hex'),
         sequence: transaction.inputs[0].sequence,
         n: 0
       }]

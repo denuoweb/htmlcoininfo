@@ -1,7 +1,7 @@
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const TransactionOutput = require('../models/transaction-output')
-const {toRawTransaction, toRawScript} = require('../utils')
+const {toRawTransaction} = require('../utils')
 
 class MempoolService extends BaseService {
   constructor(options) {
@@ -83,7 +83,7 @@ class MempoolService extends BaseService {
         height: 0xffffffff,
         transactionId: tx.id,
         index: index,
-        script: TransactionOutput.transformScript(input.script),
+        script: input.script.toBuffer(),
         sequence: input.sequenceNumber
       }
       await txo.save()
@@ -103,7 +103,7 @@ class MempoolService extends BaseService {
           height: 0xffffffff,
           transactionId: tx.id,
           index,
-          script: TransactionOutput.transformScript(output.script)
+          script: output.script.toBuffer()
         },
         address: TransactionOutput.getAddress(tx, index),
         isStake: tx.outputs[0].script.chunks.length === 0

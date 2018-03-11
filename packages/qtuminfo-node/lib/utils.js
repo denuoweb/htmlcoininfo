@@ -157,16 +157,7 @@ async function toRawBlock(block) {
           $push: {
             prevTxId: {$arrayElemAt: ['$input.output.transactionId', 0]},
             outputIndex: {$arrayElemAt: ['$input.output.index', 0]},
-            script: {
-              $map: {
-                input: {$arrayElemAt: ['$input.input.script', 0]},
-                as: 'chunk',
-                in: {
-                  opcode: '$$chunk.opcode',
-                  buffer: '$$chunk.buffer'
-                }
-              }
-            },
+            script: {$arrayElemAt: ['$input.input.script', 0]},
             sequence: {$arrayElemAt: ['$input.input.sequence', 0]}
           }
         },
@@ -195,16 +186,7 @@ async function toRawBlock(block) {
         outputs: {
           $push: {
             satoshis: {$arrayElemAt: ['$output.satoshis', 0]},
-            script: {
-              $map: {
-                input: {$arrayElemAt: ['$output.output.script', 0]},
-                as: 'chunk',
-                in: {
-                  opcode: '$$chunk.opcode',
-                  buffer: '$$chunk.buffer'
-                }
-              }
-            }
+            script: {$arrayElemAt: ['$output.output.script', 0]}
           }
         },
         witnessStack: {$first: '$witnessStack'},
@@ -256,12 +238,7 @@ function toRawTransaction(transaction, raw) {
 }
 exports.toRawTransaction = toRawTransaction
 
-function toRawScript(script) {
-  return new qtuminfo.Script({
-    chunks: script.map(chunk => ({
-      opcodenum: chunk.opcode,
-      buf: chunk.buffer && (Buffer.isBuffer(chunk.buffer) ? chunk.buffer : Buffer.from(chunk.buffer.buffer))
-    }))
-  })
+function toRawScript(buffer) {
+  return new qtuminfo.Script(Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer.buffer))
 }
 exports.toRawScript = toRawScript

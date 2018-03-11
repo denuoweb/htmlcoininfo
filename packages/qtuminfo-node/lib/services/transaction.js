@@ -186,7 +186,7 @@ class TransactionService extends BaseService {
             height: block.height,
             transactionId: tx.id,
             index,
-            script: TransactionOutput.transformScript(input.script),
+            script: input.script.toBuffer(),
             sequence: input.sequenceNumber
           },
           isStake: tx.outputs[0].script.chunks.length === 0
@@ -200,7 +200,7 @@ class TransactionService extends BaseService {
           height: block.height,
           transactionId: tx.id,
           index: index,
-          script: TransactionOutput.transformScript(input.script),
+          script: input.script.toBuffer(),
           sequence: input.sequenceNumber
         }
       }
@@ -224,7 +224,7 @@ class TransactionService extends BaseService {
             height: block.height,
             transactionId: tx.id,
             index,
-            script: TransactionOutput.transformScript(output.script)
+            script: output.script.toBuffer()
           },
           address: TransactionOutput.getAddress(tx, index),
           isStake: tx.outputs[0].script.chunks.length === 0
