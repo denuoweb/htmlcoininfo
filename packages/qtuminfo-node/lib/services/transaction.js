@@ -249,7 +249,6 @@ class TransactionService extends BaseService {
       transaction.block.timestamp = block.header.timestamp
       transaction.index = indexInBlock
     } else {
-      console.log(block.header.timestamp);
       transaction = new Transaction({
         id: tx.id,
         hash: tx.hash,
