@@ -131,7 +131,7 @@ class AddressService extends BaseService {
         totalSent.iadd(value)
       } else {
         balance.iadd(value)
-        if (txo.confirmations === 0) {
+        if (confirmations === 0) {
           unconfirmedBalance.iadd(value)
         }
       }
