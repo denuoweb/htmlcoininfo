@@ -1,4 +1,5 @@
 const assert = require('assert')
+const {BN} = require('qtuminfo-lib').crypto
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const TransactionOutput = require('../models/transaction-output')
@@ -36,9 +37,9 @@ class TransactionService extends BaseService {
   }
 
   async setTxMetaInfo(tx) {
-    tx.outputSatoshis = 0
+    let outputSatoshis = new BN(0)
     for (let output of tx.outputs) {
-      tx.outputSatoshis += output.satoshis
+      outputSatoshis.iadd(new BN(output.satoshis.toString()))
     }
     if (tx.inputs.length === 1) {
       let txo = await TransactionOutput.findById(tx.inputs[0]._id)
@@ -47,11 +48,14 @@ class TransactionService extends BaseService {
         return
       }
     }
-    tx.inputSatoshis = 0
+    let inputSatoshis = new BN(0)
     for (let input of tx.inputs) {
-      tx.inputSatoshis += input.satoshis
+      inputSatoshis.iadd(new BN(input.satoshis.toString()))
     }
-    tx.feeSatoshis = tx.inputSatoshis - tx.outputSatoshis
+    let feeSatoshis = inputSatoshis.sub(outputSatoshis)
+    tx.outputSatoshis = outputSatoshis.toString()
+    tx.inputSatoshis = inputSatoshis.toString()
+    tx.feeSatoshis = feeSatoshis.toString()
   }
 
   async _getTransaction(txid) {
@@ -219,7 +223,7 @@ class TransactionService extends BaseService {
         txo.output.height = block.height
       } else {
         txo = new TransactionOutput({
-          satoshis: output.satoshis,
+          satoshis: output.satoshis.toString(),
           output: {
             height: block.height,
             transactionId: tx.id,

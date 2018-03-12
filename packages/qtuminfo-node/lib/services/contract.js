@@ -100,7 +100,7 @@ class ContractService extends BaseService {
     ).cursor()
     let txo
     while (txo = await cursor.next()) {
-      let value = new BN(txo.satoshis)
+      let value = new BN(txo.satoshis.toString())
       totalReceived.iadd(value)
       if (txo.input) {
         totalSent.iadd(value)

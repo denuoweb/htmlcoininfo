@@ -227,7 +227,7 @@ function toRawTransaction(transaction, raw) {
       script: toRawScript(input.script)
     })),
     outputs: transaction.outputs.map(output => ({
-      satoshis: output.satoshis,
+      satoshis: new BN(output.satoshis.toString()),
       script: toRawScript(output.script)
     })),
     witnessStack: transaction.witnessStack.map(

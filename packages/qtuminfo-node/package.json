@@ -36,6 +36,7 @@
     "lru-cache": "^4.1.2",
     "mkdirp": "^0.5.1",
     "mongoose": "^5.0.9",
+    "mongoose-long": "^0.2.0",
     "qtuminfo-lib": "^0.0.1",
     "qtuminfo-p2p": "^0.0.1",
     "qtuminfo-rpc": "^0.0.1",

@@ -3,8 +3,7 @@ const qtuminfo = require('qtuminfo-lib')
 const addressSchema = require('./address')
 const {Schema} = mongoose
 const {sha256ripemd160} = qtuminfo.crypto.Hash
-
-const scriptSchema = new Schema({opcode: Number, buffer: Buffer}, {_id: false})
+require('mongoose-long')(mongoose)
 
 const outputSchema = new Schema({
   height: {type: Number, default: 0xffffffff, index: true},
@@ -22,7 +21,7 @@ const inputSchema = new Schema({
 }, {_id: false})
 
 const transactionOutputSchema = new Schema({
-  satoshis: {type: Number, default: 0},
+  satoshis: {type: Schema.Types.Long, default: 0},
   output: outputSchema,
   input: inputSchema,
   address: addressSchema,

@@ -1,3 +1,4 @@
+const {BN} = require('qtuminfo-lib').crypto
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const TransactionOutput = require('../models/transaction-output')
@@ -98,7 +99,7 @@ class MempoolService extends BaseService {
     for (let index = 0; index < tx.outputs.length; ++index) {
       let output = tx.outputs[index]
       let txo = new TransactionOutput({
-        satoshis: output.satoshis,
+        satoshis: output.satoshis.toString(),
         output: {
           height: 0xffffffff,
           transactionId: tx.id,
@@ -146,15 +147,21 @@ class MempoolService extends BaseService {
 
     let txBuffer = tx.toBuffer()
     let txHashBuffer = tx.toHashBuffer()
-    let inputSatoshis = inputTxos.map(txo => txo.satoshis).reduce((x, y) => x + y)
-    let outputSatoshis = outputTxos.map(txo => txo.satoshis).reduce((x, y) => x + y)
+    let inputSatoshis = new BN(0)
+    let outputSatoshis = new BN(0)
+    for (let txo of inputTxos) {
+      inputSatoshis.iadd(new BN(txo.satoshis.toString()))
+    }
+    for (let txo of outputTxos) {
+      outputSatoshis.iadd(new BN(txo.satoshis.toString()))
+    }
     let transformed = {
       id: transaction.id,
       size: txBuffer.length,
       weight: txBuffer.length + txHashBuffer.length * 3,
-      valueIn: inputSatoshis,
-      valueOut: outputSatoshis,
-      fees: inputSatoshis - outputSatoshis
+      valueIn: inputSatoshis.toString(),
+      valueOut: outputSatoshis.toString(),
+      fees: inputSatoshis.sub(outputSatoshis)
     }
     for (let subscription of this._subscriptions.transaction) {
       subscription.emit('mempool/transaction', transformed)

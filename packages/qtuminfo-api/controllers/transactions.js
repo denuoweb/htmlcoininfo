@@ -90,7 +90,7 @@ class TransactionController {
           vout: input.outputIndex,
           sequence: input.sequence,
           n: index,
-          value: input.satoshis,
+          value: input.satoshis.toString(),
           address: input.address,
           scriptSig: {
             hex: rawScript.toBuffer().toString('hex'),
@@ -117,7 +117,7 @@ class TransactionController {
         type = 'nonstandard'
       }
       return {
-        value: output.satoshis,
+        value: output.satoshis.toString(),
         n: index,
         address: output.address,
         scriptPubKey: {

@@ -38,20 +38,13 @@ class Output {
 
   set satoshis(num) {
     if (num instanceof BN) {
-      this._satoshisBN = num
-      this._satoshis = num.toNumber()
+      this._satoshis = num
     } else if (isString(num)) {
-      this._satoshis = Number.parseInt(num)
-      this._satoshisBN = BN.fromNumber(this._satoshis)
+      this._satoshis = new BN(num)
     } else {
       assert(Number.isInteger(num) && num >= 0, 'Output satoshis is not a natural number')
-      this._satoshisBN = BN.fromNumber(num)
-      this._satoshis = num
+      this._satoshis = BN.fromNumber(num)
     }
-    assert(
-      Number.isInteger(this._satoshis) && this._satoshis >= 0,
-      'Output satoshis is not a natural number'
-    )
   }
 
   invalidSatoshis() {
@@ -134,7 +127,7 @@ class Output {
   }
 
   toBufferWriter(writer = new BufferWriter()) {
-    writer.writeUInt64LEBN(this._satoshisBN)
+    writer.writeUInt64LEBN(this._satoshis)
     let script = this._scriptBuffer
     writer.writeVarintNum(script.length)
     writer.write(script)

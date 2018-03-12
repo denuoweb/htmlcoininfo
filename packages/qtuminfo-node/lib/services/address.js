@@ -124,7 +124,7 @@ class AddressService extends BaseService {
     ).cursor()
     let txo
     while (txo = await cursor.next()) {
-      let value = new BN(txo.satoshis)
+      let value = new BN(txo.satoshis.toString())
       let confirmations = Math.max(this.node.getBlockTip().height - txo.output.height + 1, 0)
       totalReceived.iadd(value)
       if (txo.input) {
@@ -193,7 +193,7 @@ class AddressService extends BaseService {
       txid: utxo.output.transactionId,
       vout: utxo.output.index,
       scriptPubKey: utxo.output.script.toString('hex'),
-      satoshis: utxo.satoshis,
+      satoshis: utxo.satoshis.toString(),
       isStake: utxo.isStake,
       height: utxo.output.height,
       confirmations: Math.max(this.node.getBlockTip().height - utxo.output.height + 1, 0)
