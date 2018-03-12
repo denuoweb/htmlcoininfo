@@ -207,6 +207,11 @@ class QtuminfoAPI extends BaseService {
 
     let contracts = this.contractController
     router.get(
+      '/contract/tokens',
+      this.cacheShort(),
+      contracts.tokens.bind(contracts)
+    )
+    router.get(
       '/contract/:contract',
       this.cacheShort(),
       contracts.contract.bind(contracts),

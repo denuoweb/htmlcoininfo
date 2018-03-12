@@ -151,8 +151,47 @@ class ContractService extends BaseService {
     return Contract.find()
   }
 
-  listQRC20Tokens() {
-    return Contract.find({type: 'qrc20'})
+  async listQRC20Tokens({from = 0, to = 0xffffffff} = {}) {
+    let [{count, tokens}] = await Contract.aggregate([
+      {$match: {type: 'qrc20'}},
+      {$project: {address: '$address', qrc20: '$qrc20'}},
+      {
+        $lookup: {
+          from: 'balances',
+          localField: 'address',
+          foreignField: 'contract',
+          as: 'balance'
+        }
+      },
+      {$unwind: '$balance'},
+      {$match: {'balance.address': {$ne: '0'.repeat(40)}}},
+      {
+        $group: {
+          _id: '$address',
+          qrc20: {$first: '$qrc20'},
+          holders: {$sum: 1}
+        }
+      },
+      {
+        $facet: {
+          count: [{$group: {_id: null, count: {$sum: 1}}}],
+          tokens: [
+            {$sort: {holders: -1}},
+            {$skip: from},
+            {$limit: to - from},
+            {
+              $project: {
+                _id: false,
+                address: '$_id',
+                qrc20: '$qrc20',
+                holders: '$holders'
+              }
+            }
+          ]
+        }
+      }
+    ])
+    return {totalCount: count.length ? count[0].count : 0, tokens}
   }
 
   async getAllQRC20TokenBalances(addresses) {
@@ -197,15 +236,38 @@ class ContractService extends BaseService {
 
   async searchQRC20Token(name) {
     let regex = new RegExp(name, 'i')
-    let tokens = await Contract.find({$or: [{'qrc20.name': regex}, {'qrc20.symbol': regex}]})
-    let bestToken = {token: null, holders: 0}
-    for (let token of tokens) {
-      let count = await Balance.count({contract: token.address})
-      if (count > bestToken.holders) {
-        bestToken = {token, holders: count}
+    let result = await Contract.aggregate([
+      {$match: {$or: [{'qrc20.name': regex}, {'qrc20.symbol': regex}]}},
+      {$project: {address: '$address', qrc20: '$qrc20'}},
+      {
+        $lookup: {
+          from: 'balances',
+          localField: 'address',
+          foreignField: 'contract',
+          as: 'balance'
+        }
+      },
+      {$unwind: '$balance'},
+      {$match: {'balance.address': {$ne: '0'.repeat(40)}}},
+      {
+        $group: {
+          _id: '$address',
+          qrc20: {$first: '$qrc20'},
+          holders: {$sum: 1}
+        }
+      },
+      {$sort: {holders: -1}},
+      {$limit: 1},
+      {
+        $project: {
+          _id: false,
+          address: '$_id',
+          qrc20: '$qrc20',
+          holders: '$holders'
+        }
       }
-    }
-    return bestToken.token
+    ])
+    return result[0]
   }
 
   async start() {
