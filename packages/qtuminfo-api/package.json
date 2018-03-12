@@ -28,7 +28,7 @@
     "koa-cors": "^0.0.16",
     "koa-morgan": "^1.0.1",
     "koa-router": "^7.4.0",
-    "lru-cache": "^4.1.1",
+    "lru-cache": "^4.1.2",
     "qtuminfo-lib": "^0.0.1",
     "qtuminfo-node": "^0.0.1"
   }
