@@ -28,10 +28,10 @@ class TransactionService extends BaseService {
     }
   }
 
-  async getTransaction(txid, options) {
+  async getTransaction(txid) {
     let tx = await this._getTransaction(txid)
     if (tx) {
-      await this.setTxMetaInfo(tx, options)
+      await this.setTxMetaInfo(tx)
       return tx
     }
   }
@@ -41,6 +41,7 @@ class TransactionService extends BaseService {
     for (let output of tx.outputs) {
       outputSatoshis.iadd(new BN(output.satoshis.toString()))
     }
+    tx.outputSatoshis = outputSatoshis.toString()
     if (tx.inputs.length === 1) {
       let txo = await TransactionOutput.findById(tx.inputs[0]._id)
       if (txo.output.transactionId === '0'.repeat(64) && txo.output.index === 0xffffffff) {
@@ -52,10 +53,8 @@ class TransactionService extends BaseService {
     for (let input of tx.inputs) {
       inputSatoshis.iadd(new BN(input.satoshis.toString()))
     }
-    let feeSatoshis = inputSatoshis.sub(outputSatoshis)
-    tx.outputSatoshis = outputSatoshis.toString()
     tx.inputSatoshis = inputSatoshis.toString()
-    tx.feeSatoshis = feeSatoshis.toString()
+    tx.feeSatoshis = inputSatoshis.sub(outputSatoshis).toString()
   }
 
   async _getTransaction(txid) {
