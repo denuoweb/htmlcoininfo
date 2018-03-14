@@ -21,7 +21,7 @@ const inputSchema = new Schema({
 }, {_id: false})
 
 const transactionOutputSchema = new Schema({
-  satoshis: {type: Schema.Types.Long, default: 0},
+  satoshis: {type: Schema.Types.Long, default: mongoose.Types.Long(0)},
   output: outputSchema,
   input: inputSchema,
   address: addressSchema,
