@@ -56,7 +56,9 @@ class RateLimiter {
       client = this.addClient(name)
     }
 
-    if (client.type !== 'whitelist') {
+    if (client.type === 'whitelist') {
+      await next()
+    } else {
       ctx.set('X-RateLimit-Limit', this.config[client.type].totalRequests)
       ctx.set('X-RateLimit-Remaining', this.config[client.type].totalRequests - client.visits)
       ctx.rateLimit.exceeded = this.exceeded(client)
