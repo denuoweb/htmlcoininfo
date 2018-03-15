@@ -56,18 +56,18 @@ class RateLimiter {
       client = this.addClient(name)
     }
 
-    ctx.set('X-RateLimit-Limit', this.config[client.type].totalRequests)
-    ctx.set('X-RateLimit-Remaining', this.config[client.type].totalRequests - client.visits)
-
-    ctx.rateLimit.exceeded = this.exceeded(client)
-    ctx.rateLimit.client = client
-
-    if (!this.exceeded(client)) {
-      ++client.visits
-      await next()
-    } else {
-      this.node.log.warn('Rate limited:', client)
-      ctx.throw(429, 'Rate Limit Exceeded')
+    if (client.type !== 'whitelist') {
+      ctx.set('X-RateLimit-Limit', this.config[client.type].totalRequests)
+      ctx.set('X-RateLimit-Remaining', this.config[client.type].totalRequests - client.visits)
+      ctx.rateLimit.exceeded = this.exceeded(client)
+      ctx.rateLimit.client = client
+      if (!this.exceeded(client)) {
+        ++client.visits
+        await next()
+      } else {
+        this.node.log.warn('Rate limited:', client)
+        ctx.throw(429, 'Rate Limit Exceeded')
+      }
     }
   }
 
