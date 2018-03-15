@@ -2,7 +2,10 @@ const assert = require('assert')
 const {BN} = require('qtuminfo-lib').crypto
 const BaseService = require('../service')
 const Header = require('../models/header')
-const {QTUM_GENESIS_HASH, QTUM_GENESIS_NONCE} = require('../constants')
+const {
+  QTUM_GENESIS_HASH, QTUM_GENESIS_TIMESTAMP, QTUM_GENESIS_BITS, QTUM_GENESIS_MERKLE_ROOT, QTUM_GENESIS_NONCE,
+  QTUM_GENESIS_HASH_STATE_ROOT, QTUM_GENESIS_HASH_UTXO_ROOT
+} = require('../constants')
 const {fromCompact, getTarget, double256, getDifficulty, AsyncQueue} = require('../utils')
 
 const MAX_CHAINWORK = new BN(1).ushln(256)
@@ -23,7 +26,12 @@ class HeaderService extends BaseService {
       this._network = 'testnet'
     }
     this.GENESIS_HASH = QTUM_GENESIS_HASH[this._network]
+    this.GENESIS_TIMESTAMP = QTUM_GENESIS_TIMESTAMP
+    this.GENESIS_BITS = QTUM_GENESIS_BITS
+    this.GENESIS_MERKLE_ROOT = QTUM_GENESIS_MERKLE_ROOT
     this.GENESIS_NONCE = QTUM_GENESIS_NONCE[this._network]
+    this.GENESIS_HASH_STATE_ROOT = QTUM_GENESIS_HASH_STATE_ROOT
+    this.GENESIS_HASH_UTXO_ROOT = QTUM_GENESIS_HASH_UTXO_ROOT
     this._lastHeader = null
     this._initialSync = true
     this._originalHeight = 0
@@ -75,12 +83,12 @@ class HeaderService extends BaseService {
       hash: this.GENESIS_HASH,
       height: 0,
       version: 1,
-      merkleRoot: 'ed34050eb5909ee535fcb07af292ea55f3d2f291187617b44d3282231405b96d',
-      timestamp: 1504695029,
-      bits: 0x1f00ffff,
+      merkleRoot: this.GENESIS_MERKLE_ROOT,
+      timestamp: this.GENESIS_TIMESTAMP,
+      bits: this.GENESIS_BITS,
       nonce: this.GENESIS_NONCE,
-      hashStateRoot: '9514771014c9ae803d8cea2731b2063e83de44802b40dce2d06acd02d0ff65e9',
-      hashUTXORoot: '21b463e3b52f6201c0ad6c991be0485b6ef8c092e64583ffa655cc1b171fe856',
+      hashStateRoot: this.GENESIS_HASH_STATE_ROOT,
+      hashUTXORoot: this.GENESIS_HASH_UTXO_ROOT,
       prevOutStakeN: 0xffffffff,
       vchBlockSig: '',
       chainwork: STARTING_CHAINWORK,

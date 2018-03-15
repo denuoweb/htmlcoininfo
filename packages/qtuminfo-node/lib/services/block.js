@@ -12,7 +12,7 @@ const {
   AsyncQueue, IndeterminateProgressBar,
   toRawBlock
 } = utils
-const {QTUM_GENESIS_HASH, QTUM_GENESIS_BLOCK_HEX} = require('../constants')
+const {QTUM_GENESIS_BLOCK_HEX} = require('../constants')
 
 class BlockService extends BaseService {
   constructor(options) {
@@ -26,7 +26,6 @@ class BlockService extends BaseService {
     } else if (this._network === 'regtest') {
       this._network = 'testnet'
     }
-    this.GENESIS_HASH = QTUM_GENESIS_HASH[this._network]
     this.GENESIS_BLOCK_HEX = QTUM_GENESIS_BLOCK_HEX[this._network]
     this._initialSync = false
     this._processingBlock = false
