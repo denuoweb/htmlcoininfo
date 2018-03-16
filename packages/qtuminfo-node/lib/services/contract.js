@@ -37,6 +37,7 @@ class ContractService extends BaseService {
       getContractHistory: this.getContractHistory.bind(this),
       getContractSummary: this.getContractSummary.bind(this),
       getTokenTransfers: this.getTokenTransfers.bind(this),
+      getAddressTokenBalanceHistory: this.getAddressTokenBalanceHistory.bind(this),
       listContracts: this.listContracts.bind(this),
       listQRC20Tokens: this.listQRC20Tokens.bind(this),
       getAllQRC20TokenBalances: this.getAllQRC20TokenBalances.bind(this),
@@ -145,6 +146,101 @@ class ContractService extends BaseService {
       }
     }
     return list
+  }
+
+  async getAddressTokenBalanceHistory(addresses, tokens, {from = 0, to = 0xffffffff} = {}) {
+    if (!Array.isArray(addresses)) {
+      addresses = [addresses]
+    }
+    let hexAddresses = ContractService._toHexAddresses(addresses)
+    let [{count, transactions}] = await Transaction.aggregate([
+      {
+        $match: {
+          'receipts.logs': {
+            $elemMatch: {
+              ...(tokens === 'all' ? {} : {address: {$in: tokens}}),
+              'topics.0': TOKEN_EVENTS.Transfer,
+              topics: {$in: hexAddresses}
+            }
+          }
+        }
+      },
+      {
+        $facet: {
+          count: [{$group: {_id: null, count: {$sum: 1}}}],
+          transactions: [
+            {$sort: {'block.height': -1, index: -1}},
+            {$skip: from},
+            {$limit: to - from},
+            {$unwind: '$receipts'},
+            {$unwind: '$receipts.logs'},
+            {$project: {id: '$id', block: '$block', log: '$receipts.logs'}},
+            {
+              $match: {
+                ...(tokens === 'all' ? {} : {'$log.address': {$in: tokens}}),
+                'log.topics.0': TOKEN_EVENTS.Transfer,
+                'log.topics': {$in: hexAddresses}
+              }
+            },
+            {
+              $lookup: {
+                from: 'contracts',
+                localField: 'log.address',
+                foreignField: 'address',
+                as: 'token'
+              }
+            },
+            {$match: {'token.type': 'qrc20'}},
+            {$unwind: '$token'},
+            {
+              $group: {
+                _id: '$id',
+                block: {$first: '$block'},
+                logs: {
+                  $push: {
+                    token: {
+                      address: '$token.address',
+                      name: '$token.qrc20.name',
+                      symbol: '$token.qrc20.symbol',
+                      decimals: '$token.qrc20.decimals',
+                      totalSupply: '$token.qrc20.totalSupply'
+                    },
+                    topics: '$log.topics',
+                    data: '$log.data'
+                  }
+                }
+              }
+            },
+            {$project: {_id: false, id: '$_id', block: '$block', logs: '$logs'}}
+          ]
+        }
+      }
+    ])
+    return {
+      totalCount: count.length && count[0].count,
+      transactions: transactions.map(transaction => {
+        let tokens = new Map()
+        for (let {token, topics, data} of transaction.logs) {
+          let delta = new BN()
+          if (hexAddresses.includes(topics[1])) {
+            delta.isub(new BN(data, 16))
+          }
+          if (hexAddresses.includes(topics[2])) {
+            delta.iadd(new BN(data, 16))
+          }
+          if (tokens.has(token.address)) {
+            tokens.get(token.address).amount.iadd(delta)
+          } else {
+            tokens.set(token.address, Object.assign({token, amount: delta}))
+          }
+        }
+        return {
+          id: transaction.id,
+          block: transaction.block,
+          data: [...tokens.values()].map(item => ({token: item.token, amount: item.amount.toString()}))
+        }
+      })
+    }
   }
 
   listContracts() {
@@ -442,6 +538,12 @@ class ContractService extends BaseService {
     } else {
       return {type: 'pubkeyhash', hex: data}
     }
+  }
+
+  static _toHexAddresses(addresses) {
+    return addresses
+      .filter(address => ['pubkey', 'pubkeyhash', 'witness_v0_keyhash', 'contract'].includes(address.type))
+      .map(address => '0'.repeat(24) + address.hex)
   }
 
   async _processReceipts(block) {

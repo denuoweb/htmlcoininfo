@@ -1,4 +1,5 @@
 const {CronJob} = require('cron')
+const mongoose = require('mongoose')
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Block = require('../models/block')
@@ -37,6 +38,7 @@ class AddressService extends BaseService {
   get APIMethods() {
     return {
       getAddressHistory: this.getAddressHistory.bind(this),
+      getAddressBalanceHistory: this.getAddressBalanceHistory.bind(this),
       getAddressSummary: this.getAddressSummary.bind(this),
       getAddressUnspentOutputs: this.getAddressUnspentOutputs.bind(this),
       getAddressTransactionCount: this.getAddressTransactionCount.bind(this),
@@ -82,6 +84,101 @@ class AddressService extends BaseService {
     return {
       totalCount: count.length && count[0].count,
       transactions: list.map(tx => tx.id)
+    }
+  }
+
+  async getAddressBalanceHistory(addresses, {from = 0, to = 0xffffffff} = {}) {
+    if (!Array.isArray(addresses)) {
+      addresses = [addresses]
+    }
+    let [{count, transactions}] = await Transaction.aggregate([
+      {
+        $match: {
+          $or: [
+            {inputAddresses: {$elemMatch: AddressService._constructAddressElementQuery(addresses)}},
+            {outputAddresses: {$elemMatch: AddressService._constructAddressElementQuery(addresses)}}
+          ],
+          'block.height': {$gt: 0}
+        }
+      },
+      {
+        $facet: {
+          count: [{$group: {_id: null, count: {$sum: 1}}}],
+          transactions: [
+            {$sort: {'block.height': -1, index: -1}},
+            {$skip: from},
+            {$limit: to - from},
+            {$project: {_id: false, id: '$id', block: '$block', inputs: '$inputs', outputs: '$outputs'}},
+            {$unwind: '$inputs'},
+            {
+              $lookup: {
+                from: 'transactionoutputs',
+                localField: 'inputs',
+                foreignField: '_id',
+                as: 'input'
+              }
+            },
+            {$unwind: '$input'},
+            {
+              $group: {
+                _id: '$id',
+                block: {$first: '$block'},
+                index: {$first: '$index'},
+                inputAmount: {
+                  $sum: {
+                    $cond: {
+                      if: AddressService._constructAddressCond(addresses, 'input.address'),
+                      then: '$input.satoshis',
+                      else: mongoose.Types.Long(0)
+                    }
+                  }
+                },
+                outputs: {$first: '$outputs'}
+              }
+            },
+            {$unwind: '$outputs'},
+            {
+              $lookup: {
+                from: 'transactionoutputs',
+                localField: 'outputs',
+                foreignField: '_id',
+                as: 'output'
+              }
+            },
+            {$unwind: '$output'},
+            {
+              $group: {
+                _id: '$_id',
+                block: {$first: '$block'},
+                index: {$first: '$index'},
+                inputAmount: {$first: '$inputAmount'},
+                outputAmount: {
+                  $sum: {
+                    $cond: {
+                      if: AddressService._constructAddressCond(addresses, 'output.address'),
+                      then: '$output.satoshis',
+                      else: mongoose.Types.Long(0)
+                    }
+                  }
+                }
+              }
+            },
+            {$sort: {'block.height': -1, index: -1}},
+            {
+              $project: {
+                _id: false,
+                id: '$_id',
+                block: '$block',
+                amount: {$subtract: ['$outputAmount', '$inputAmount']}
+              }
+            }
+          ]
+        }
+      }
+    ])
+    return {
+      totalCount: count.length && count[0].count,
+      transactions
     }
   }
 
@@ -168,6 +265,24 @@ class AddressService extends BaseService {
           return {[key + '.type']: {$ne: 'contract'}, [key + '.hex']: address.hex}
         } else {
           return {[key + '.type']: address.type, [key + '.hex']: address.hex}
+        }
+      })
+    }
+  }
+
+  static _constructAddressCond(addresses, key = 'address') {
+    return {
+      $or: addresses.map(address => {
+        if (['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type)) {
+          return {$and: [
+            {$ne: [`$${key}.type`, 'contract']},
+            {$eq: [`$${key}.hex`, address.hex]}
+          ]}
+        } else {
+          return {$and: [
+            {$eq: [`$${key}.type`, address.type]},
+            {$eq: [`$${key}.hex`, address.hex]}
+          ]}
         }
       })
     }

@@ -96,11 +96,49 @@ class AddressController {
     }
   }
 
-  async multitxs(ctx) {
+  async fullTxs(ctx) {
     let from = Number.parseInt(ctx.query.from) || 0
     let to = Number.parseInt(ctx.query.to) || from + 10
     try {
       let result = await this.node.getAddressHistory(ctx.addresses, {from, to})
+      ctx.body = {
+        totalCount: result.totalCount,
+        from,
+        to: Math.min(to, result.totalCount),
+        transactions: result.transactions
+      }
+    } catch (err) {
+      this.errorResponse.handleErrors(ctx, err)
+    }
+  }
+
+  async balanceTxs(ctx) {
+    let from = Number.parseInt(ctx.query.from) || 0
+    let to = Number.parseInt(ctx.query.to) || from + 10
+    try {
+      let result = await this.node.getAddressBalanceHistory(ctx.addresses, {from, to})
+      ctx.body = {
+        totalCount: result.totalCount,
+        from,
+        to: Math.min(to, result.totalCount),
+        transactions: result.transactions
+      }
+    } catch (err) {
+      this.errorResponse.handleErrors(ctx, err)
+    }
+  }
+
+  async tokenTxs(ctx) {
+    let from = Number.parseInt(ctx.query.from) || 0
+    let to = Number.parseInt(ctx.query.to) || from + 10
+    let tokens = null
+    if (ctx.query.token) {
+      tokens = ctx.query.token.split(',')
+    } else {
+      tokens = 'all'
+    }
+    try {
+      let result = await this.node.getAddressTokenBalanceHistory(ctx.addresses, tokens, {from, to})
       ctx.body = {
         totalCount: result.totalCount,
         from,
