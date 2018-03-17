@@ -196,6 +196,7 @@ class ContractService extends BaseService {
               $group: {
                 _id: '$id',
                 block: {$first: '$block'},
+                index: {$first: '$index'},
                 logs: {
                   $push: {
                     token: {
@@ -211,6 +212,7 @@ class ContractService extends BaseService {
                 }
               }
             },
+            {$sort: {'block.height': -1, index: -1}},
             {$project: {_id: false, id: '$_id', block: '$block', logs: '$logs'}}
           ]
         }

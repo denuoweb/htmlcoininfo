@@ -317,7 +317,7 @@ class AddressService extends BaseService {
 
   snapshot({height, minBalance = 1, sort = true, hexOnly, limit} = {}) {
     if (height == null) {
-      height = this.node.getBlockTip().height + 1
+      height = this.node.getBlockTip().height
     }
     return [
       {
@@ -364,7 +364,7 @@ class AddressService extends BaseService {
   }
 
   async getRichList({from = 0, to = 100} = {}) {
-    let totalCount = await Snapshot.count({balance: {$ne: 0}})
+    let totalCount = await Snapshot.count()
     let list = await Snapshot.find({}, {_id: false}).sort({balance: -1}).skip(from).limit(to - from)
     return {totalCount, list}
   }
@@ -396,7 +396,7 @@ class AddressService extends BaseService {
                 balance: {
                   $cond: {
                     if: {$eq: ['$balance', []]},
-                    then: 0,
+                    then: mongoose.Types.Long(0),
                     else: {$arrayElemAt: ['$balance.balance', 0]}
                   }
                 }

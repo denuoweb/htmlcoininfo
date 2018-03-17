@@ -4,7 +4,7 @@ const {Schema} = mongoose
 
 const blockSchema = new Schema({
   hash: {type: String, default: '0'.repeat(64)},
-  height: {type: Number, default: 0xffffffff, index: true},
+  height: {type: Number, default: 0xffffffff},
   timestamp: {type: Number, index: true}
 }, {_id: false})
 
@@ -40,4 +40,5 @@ const transactionSchema = new Schema({
   weight: Number
 })
 
+transactionSchema.index({height: 1, index: 1})
 module.exports = mongoose.model('Transaction', transactionSchema)
