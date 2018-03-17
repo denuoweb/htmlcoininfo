@@ -279,7 +279,10 @@ class ContractService extends BaseService {
               $project: {
                 _id: false,
                 address: '$_id',
-                qrc20: '$qrc20',
+                name: '$qrc20.name',
+                symbol: '$qrc20.symbol',
+                decimals: '$qrc20.decimals',
+                totalSupply: '$qrc20.totalSupply',
                 holders: '$holders'
               }
             }
