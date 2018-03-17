@@ -40,5 +40,5 @@ const transactionSchema = new Schema({
   weight: Number
 })
 
-transactionSchema.index({height: 1, index: 1})
+transactionSchema.index({'block.height': 1, index: 1})
 module.exports = mongoose.model('Transaction', transactionSchema)
