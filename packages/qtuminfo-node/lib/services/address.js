@@ -236,13 +236,15 @@ class AddressService extends BaseService {
         stakingBalance.iadd(value)
       }
     }
+    let ranking = await Snapshot.count({balance: {$gt: balance.toNumber()}}) + 1
     return {
       totalCount,
       balance: balance.toString(),
       totalReceived: totalReceived.toString(),
       totalSent: totalSent.toString(),
       unconfirmedBalance: unconfirmedBalance.toString(),
-      stakingBalance: stakingBalance.toString()
+      stakingBalance: stakingBalance.toString(),
+      ...(addresses.length === 1 ? {ranking} : {})
     }
   }
 

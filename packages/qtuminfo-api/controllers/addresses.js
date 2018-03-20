@@ -70,6 +70,7 @@ class AddressController {
         totalSupply: token.totalSupply,
         balance: token.balance
       })),
+      ranking: summary.ranking,
       totalCount: summary.totalCount,
       transactions: summary.transactions
     }
