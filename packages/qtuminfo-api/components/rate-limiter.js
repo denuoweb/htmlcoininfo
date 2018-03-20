@@ -96,7 +96,7 @@ class RateLimiter {
   }
 
   static getClientName(ctx) {
-    return ctx.get('cf-connecting-ip') || ctx.get('x-forwarded-for') || ctx.request.ip
+    return ctx.get('x-forwarded-for') || ctx.request.ip
   }
 
   addClient(name) {
