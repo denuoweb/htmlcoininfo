@@ -60,8 +60,8 @@ class AddressController {
       balance: summary.balance,
       totalReceived: summary.totalReceived,
       totalSent: summary.totalSent,
-      unconfirmedBalance: summary.unconfirmedBalance,
-      stakingBalance: summary.stakingBalance,
+      unconfirmed: summary.unconfirmed,
+      staking: summary.staking,
       tokenBalances: tokenBalances.map(token => ({
         address: token.address,
         name: token.name,

@@ -25,7 +25,7 @@ const transactionOutputSchema = new Schema({
   output: outputSchema,
   input: inputSchema,
   address: addressSchema,
-  isStake: Boolean
+  isStake: {type: Boolean, index: true}
 })
 
 exports = module.exports = mongoose.model('TransactionOutput', transactionOutputSchema)

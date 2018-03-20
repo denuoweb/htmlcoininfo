@@ -207,44 +207,64 @@ class AddressService extends BaseService {
       addresses = [addresses]
     }
     let totalCount = await this.getAddressTransactionCount(addresses)
-    let balance = new BN(0)
-    let totalReceived = new BN(0)
-    let totalSent = new BN(0)
-    let unconfirmedBalance = new BN(0)
-    let stakingBalance = new BN(0)
-    let cursor = TransactionOutput.find(
+    let [{balance, totalReceived, totalSent, unconfirmed, staking}] = await TransactionOutput.aggregate([
       {
-        ...AddressService._constructAddressQuery(addresses),
-        'output.height': {$gt: 0}
+        $match: {
+          ...AddressService._constructAddressQuery(addresses),
+          'output.height': {$gt: 0}
+        }
       },
-      ['satoshis', 'output.height', 'input', 'isStake']
-    ).cursor()
-    let txo
-    while (txo = await cursor.next()) {
-      let value = new BN(txo.satoshis.toString())
-      let confirmations = Math.max(this.node.getBlockTip().height - txo.output.height + 1, 0)
-      totalReceived.iadd(value)
-      if (txo.input) {
-        totalSent.iadd(value)
-      } else {
-        balance.iadd(value)
-        if (confirmations === 0) {
-          unconfirmedBalance.iadd(value)
+      {
+        $facet: {
+          balance: [
+            {$match: {input: null}},
+            {$group: {_id: null, amount: {$sum: '$satoshis'}}},
+            {$project: {_id: false, amount: '$amount'}}
+          ],
+          totalReceived: [
+            {
+              $group: {
+                _id: null,
+                amount: {$sum: {$add: ['$satoshis', mongoose.Types.Decimal128.fromString('0')]}}
+              }
+            },
+            {$project: {_id: false, amount: '$amount'}}
+          ],
+          totalSent: [
+            {$match: {input: {$ne: null}}},
+            {
+              $group: {
+                _id: null,
+                amount: {$sum: {$add: ['$satoshis', mongoose.Types.Decimal128.fromString('0')]}}
+              }
+            },
+            {$project: {_id: false, amount: '$amount'}}
+          ],
+          unconfirmed: [
+            {$match: {'output.height': 0xffffffff}},
+            {$group: {_id: null, amount: {$sum: '$satoshis'}}},
+            {$project: {_id: false, amount: '$amount'}}
+          ],
+          staking: [
+            {$match: {isStake: true, 'output.height': {$gt: this.node.getBlockTip().height - 500}}},
+            {$group: {_id: null, amount: {$sum: '$satoshis'}}},
+            {$project: {_id: false, amount: '$amount'}}
+          ]
         }
       }
-      if (txo.isStake && confirmations <= 500) {
-        stakingBalance.iadd(value)
-      }
-    }
-    let ranking = await Snapshot.count({balance: {$gt: balance.toNumber()}}) + 1
+    ])
     return {
       totalCount,
-      balance: balance.toString(),
-      totalReceived: totalReceived.toString(),
-      totalSent: totalSent.toString(),
-      unconfirmedBalance: unconfirmedBalance.toString(),
-      stakingBalance: stakingBalance.toString(),
-      ...(addresses.length === 1 ? {ranking} : {})
+      balance: balance.length ? balance[0].amount.toString() : '0',
+      totalReceived: totalReceived.length ? totalReceived[0].amount.toString() : '0',
+      totalSent: totalSent.length ? totalSent[0].amount.toString() : '0',
+      unconfirmed: unconfirmed.length ? unconfirmed[0].amount.toString() : '0',
+      staking: staking.length ? staking[0].amount.toString() : '0',
+      ...(
+        addresses.length === 1 && balance.length
+          ? {ranking: (await Snapshot.count({balance: {$gt: balance[0].amount}})) + 1}
+          : {}
+      )
     }
   }
 
