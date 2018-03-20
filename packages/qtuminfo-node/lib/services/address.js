@@ -249,8 +249,8 @@ class AddressService extends BaseService {
   static _constructAddressElementQuery(addresses) {
     return {
       $or: addresses.map(address => {
-        if (['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type)) {
-          return {type: {$ne: 'contract'}, hex: address.hex}
+        if (['pubkey', 'pubkeyhash'].includes(address.type)) {
+          return {type: {$in: ['pubkey', 'pubkeyhash']}, hex: address.hex}
         } else {
           return address
         }
@@ -261,8 +261,8 @@ class AddressService extends BaseService {
   static _constructAddressQuery(addresses, key = 'address') {
     return {
       $or: addresses.map(address => {
-        if (['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type)) {
-          return {[key + '.type']: {$ne: 'contract'}, [key + '.hex']: address.hex}
+        if (['pubkey', 'pubkeyhash'].includes(address.type)) {
+          return {[key + '.type']: {$in: ['pubkey', 'pubkeyhash']}, [key + '.hex']: address.hex}
         } else {
           return {[key + '.type']: address.type, [key + '.hex']: address.hex}
         }
@@ -273,9 +273,9 @@ class AddressService extends BaseService {
   static _constructAddressCond(addresses, key = 'address') {
     return {
       $or: addresses.map(address => {
-        if (['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type)) {
+        if (['pubkey', 'pubkeyhash'].includes(address.type)) {
           return {$and: [
-            {$ne: [`$${key}.type`, 'contract']},
+            {$in: [`$${key}.type`, ['pubkey', 'pubkeyhash']]},
             {$eq: [`$${key}.hex`, address.hex]}
           ]}
         } else {
@@ -290,7 +290,7 @@ class AddressService extends BaseService {
 
   static _toHexAddresses(addresses) {
     return addresses
-      .filter(address => ['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type))
+      .filter(address => ['pubkey', 'pubkeyhash'].includes(address.type))
       .map(address => '0'.repeat(24) + address.hex)
   }
 

@@ -300,7 +300,7 @@ class ContractService extends BaseService {
       addresses = [addresses]
     }
     let hexAddresses = addresses
-      .filter(address => ['pubkey', 'pubkeyhash', 'witness_v0_keyhash'].includes(address.type))
+      .filter(address => ['pubkey', 'pubkeyhash', 'contract'].includes(address.type))
       .map(address => address.hex)
     let list = await Balance.aggregate([
       {$match: {address: {$in: hexAddresses}, balance: {$ne: '0'.repeat(64)}}},
@@ -547,7 +547,7 @@ class ContractService extends BaseService {
 
   static _toHexAddresses(addresses) {
     return addresses
-      .filter(address => ['pubkey', 'pubkeyhash', 'witness_v0_keyhash', 'contract'].includes(address.type))
+      .filter(address => ['pubkey', 'pubkeyhash', 'contract'].includes(address.type))
       .map(address => '0'.repeat(24) + address.hex)
   }
 
