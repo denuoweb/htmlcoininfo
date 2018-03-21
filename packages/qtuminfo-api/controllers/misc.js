@@ -18,9 +18,63 @@ class MiscController {
   }
 
   async info(ctx) {
-    ctx.body = {
-      height: this.node.getBlockTip().height
+    let supply
+    let height = this.node.getBlockTip().height
+    if (height <= 5000) {
+      supply = height * 20000
+    } else {
+      supply = 1e8
+      let reward = 4
+      let interval = 985500
+      height -= 5000
+      let halvings = 0
+      while (halvings < 7 && height > interval) {
+        result += interval * (reward >>> halvings++)
+        height -= interval
+      }
+      supply += height * (reward >>> halvings)
     }
+    ctx.body = {
+      height: this.node.getBlockTip().height,
+      supply,
+      circulatingSupply: supply - 12e6
+    }
+  }
+
+  supply(ctx) {
+    let height = this.node.getBlockTip().height
+    if (height <= 5000) {
+      ctx.body = height * 20000
+      return
+    }
+    let result = 1e8
+    let reward = 4
+    let interval = 985500
+    height -= 5000
+    let halvings = 0
+    while (halvings < 7 && height > interval) {
+      result += interval * (reward >>> halvings++)
+      height -= interval
+    }
+    ctx.body = result + height * (reward >>> halvings)
+  }
+
+  circulatingSupply(ctx) {
+    let height = this.node.getBlockTip().height
+    if (height <= 5000) {
+      ctx.body = height * 20000 - 12e6
+      return
+    }
+    let result = 1e8
+    let reward = 4
+    let interval = 985500
+    height -= 5000
+    let halvings = 0
+    while (halvings < 7 && height > interval) {
+      result += interval * (reward >>> halvings++)
+      height -= interval
+    }
+    ctx.body = result + height * (reward >>> halvings) - 12e6
   }
 
   async classify(ctx) {
