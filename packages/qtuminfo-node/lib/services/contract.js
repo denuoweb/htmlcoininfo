@@ -421,7 +421,10 @@ class ContractService extends BaseService {
   }
 
   async onReorg(_, block) {
+    let contracts = (await Contract.find({createHeight: block.height}, {address: true}))
+      .map(contract => contract.address)
     await Contract.deleteMany({createHeight: block.height})
+    await Balance.deleteMany({contract: {$in: contracts}})
     let balanceChanges = new Set()
     let transfers = await Transaction.aggregate([
       {$match: {'block.height': block.height, 'receipts.logs.topics.0': TOKEN_EVENTS.Transfer}},
@@ -463,6 +466,7 @@ class ContractService extends BaseService {
       }
     }
     await Contract.deleteMany({address: {$in: contractsToRemove}})
+    await Balance.deleteMany({contract: {$in: contractsToRemove}})
     for (let address of contractSet) {
       await this._createContract(address)
     }
@@ -501,6 +505,9 @@ class ContractService extends BaseService {
       try {
         contract.qrc20.version = (await versionResult).version
       } catch (err) {}
+      if (owner) {
+        await this._updateBalances([address + ' ' + owner.hex])
+      }
     } catch (err) {}
     await contract.save()
   }
