@@ -42,6 +42,7 @@ class AddressService extends BaseService {
       getAddressSummary: this.getAddressSummary.bind(this),
       getAddressUnspentOutputs: this.getAddressUnspentOutputs.bind(this),
       getAddressTransactionCount: this.getAddressTransactionCount.bind(this),
+      getBlocksMined: this.getBlocksMined.bind(this),
       getRichList: this.getRichList.bind(this),
       getMiners: this.getMiners.bind(this),
       snapshot: this.snapshot.bind(this)
@@ -207,6 +208,7 @@ class AddressService extends BaseService {
       addresses = [addresses]
     }
     let totalCount = await this.getAddressTransactionCount(addresses)
+    let blocksMined = await this.getBlocksMined(addresses)
     let [{balance, totalReceived, totalSent, unconfirmed, staking}] = await TransactionOutput.aggregate([
       {
         $match: {
@@ -254,7 +256,6 @@ class AddressService extends BaseService {
       }
     ])
     return {
-      totalCount,
       balance: balance.length ? balance[0].amount.toString() : '0',
       totalReceived: totalReceived.length ? totalReceived[0].amount.toString() : '0',
       totalSent: totalSent.length ? totalSent[0].amount.toString() : '0',
@@ -264,7 +265,9 @@ class AddressService extends BaseService {
         addresses.length === 1 && balance.length
           ? {ranking: (await Snapshot.count({balance: {$gt: balance[0].amount}})) + 1}
           : {}
-      )
+      ),
+      blocksMined,
+      totalCount
     }
   }
 
@@ -335,6 +338,16 @@ class AddressService extends BaseService {
       height: utxo.output.height,
       confirmations: Math.max(this.node.getBlockTip().height - utxo.output.height + 1, 0)
     }))
+  }
+
+  getBlocksMined(addresses) {
+    if (!Array.isArray(addresses)) {
+      addresses = [addresses]
+    }
+    let minerAddresses = addresses
+      .filter(address => ['pubkey', 'pubkeyhash'].includes(address.type))
+      .map(address => address.hex)
+    return Block.count({height: {$gt: 5000}, 'minedBy.hex': {$in: minerAddresses}})
   }
 
   snapshot({height, minBalance = 1, sort = true, hexOnly, limit} = {}) {

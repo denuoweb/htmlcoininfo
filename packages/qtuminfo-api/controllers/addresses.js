@@ -71,6 +71,7 @@ class AddressController {
         balance: token.balance
       })),
       ranking: summary.ranking,
+      blocksMined: summary.blocksMined,
       totalCount: summary.totalCount,
       transactions: summary.transactions
     }
