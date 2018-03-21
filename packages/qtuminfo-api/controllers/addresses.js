@@ -133,8 +133,8 @@ class AddressController {
     let from = Number.parseInt(ctx.query.from) || 0
     let to = Number.parseInt(ctx.query.to) || from + 10
     let tokens = null
-    if (ctx.query.token) {
-      tokens = ctx.query.token.split(',')
+    if (ctx.query.tokens) {
+      tokens = ctx.query.tokens.split(',')
     } else {
       tokens = 'all'
     }

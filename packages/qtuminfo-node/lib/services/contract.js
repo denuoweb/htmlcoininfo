@@ -177,7 +177,7 @@ class ContractService extends BaseService {
             {$project: {id: '$id', block: '$block', log: '$receipts.logs'}},
             {
               $match: {
-                ...(tokens === 'all' ? {} : {'$log.address': {$in: tokens}}),
+                ...(tokens === 'all' ? {} : {'log.address': {$in: tokens}}),
                 'log.topics.0': TOKEN_EVENTS.Transfer,
                 'log.topics': {$in: hexAddresses}
               }
