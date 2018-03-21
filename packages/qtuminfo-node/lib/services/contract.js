@@ -303,7 +303,7 @@ class ContractService extends BaseService {
       .filter(address => ['pubkey', 'pubkeyhash', 'contract'].includes(address.type))
       .map(address => address.hex)
     let list = await Balance.aggregate([
-      {$match: {address: {$in: hexAddresses}, balance: {$ne: '0'.repeat(64)}}},
+      {$match: {address: {$in: hexAddresses}}},
       {$group: {_id: '$contract', balances: {$push: '$balance'}}},
       {
         $lookup: {
