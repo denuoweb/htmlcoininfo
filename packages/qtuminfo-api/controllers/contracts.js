@@ -76,6 +76,12 @@ class ContractsController {
       this.errorResponse.handleErrors(ctx, err)
     }
   }
+
+  async richList(ctx) {
+    let from = Number.parseInt(ctx.query.from) || 0
+    let to = Number.parseInt(ctx.query.to) || from + 10
+    ctx.body = await this.node.getTokenRichList(ctx.contract.address, {from, to})
+  }
 }
 
 module.exports = ContractsController

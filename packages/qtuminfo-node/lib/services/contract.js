@@ -41,7 +41,8 @@ class ContractService extends BaseService {
       listContracts: this.listContracts.bind(this),
       listQRC20Tokens: this.listQRC20Tokens.bind(this),
       getAllQRC20TokenBalances: this.getAllQRC20TokenBalances.bind(this),
-      searchQRC20Token: this.searchQRC20Token.bind(this)
+      searchQRC20Token: this.searchQRC20Token.bind(this),
+      getTokenRichList: this.getTokenRichList.bind(this)
     }
   }
 
@@ -691,6 +692,21 @@ class ContractService extends BaseService {
       result.balance = result.balance.toString()
     }
     return results
+  }
+
+  async getTokenRichList(token, {from = 0, to = 100} = {}) {
+    let totalCount = await Balance.count({contract: token})
+    let list = await Balance.find(
+      {contract: token, balance: {$ne: '0'.repeat(64)}},
+      {_id: false, contract: false}
+    ).sort({balance: -1}).skip(from).limit(to - from)
+    return {
+      totalCount,
+      list: list.map(({address, balance}) => ({
+        address: {type: 'pubkeyhash', hex: address},
+        balance: new BN(balance, 16).toString()
+      }))
+    }
   }
 }
 

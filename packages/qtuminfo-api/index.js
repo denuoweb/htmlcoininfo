@@ -237,6 +237,12 @@ class QtuminfoAPI extends BaseService {
       contracts.contract.bind(contracts),
       contracts.txs.bind(contracts)
     )
+    router.get(
+      '/contract/:contract/rich-list',
+      this.cacheShort(),
+      contracts.contract.bind(contracts),
+      contracts.richList.bind(contracts)
+    )
 
     let searches = this.searchController
     router.get('/search/:string', searches.search.bind(searches))
