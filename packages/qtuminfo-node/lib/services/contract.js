@@ -274,12 +274,19 @@ class ContractService extends BaseService {
         }
       },
       {$unwind: '$balance'},
-      {$match: {'balance.address': {$ne: '0'.repeat(40)}}},
       {
         $group: {
           _id: '$address',
           qrc20: {$first: '$qrc20'},
-          holders: {$sum: 1}
+          holders: {
+            $sum: {
+              $cond: {
+                if: {$eq: ['$balance.address', '0'.repeat(40)]},
+                then: 0,
+                else: 1
+              }
+            }
+          }
         }
       },
       {
@@ -327,7 +334,6 @@ class ContractService extends BaseService {
       },
       {$match: {'contract.type': 'qrc20'}},
       {$unwind: '$contract'},
-      {$unwind: '$contract.qrc20'},
       {$project: {_id: false, contract: '$contract', balances: '$balances'}}
     ])
     return list.map(({contract, balances}) => {
@@ -361,12 +367,19 @@ class ContractService extends BaseService {
         }
       },
       {$unwind: '$balance'},
-      {$match: {'balance.address': {$ne: '0'.repeat(40)}}},
       {
         $group: {
           _id: '$address',
           qrc20: {$first: '$qrc20'},
-          holders: {$sum: 1}
+          holders: {
+            $sum: {
+              $cond: {
+                if: {$eq: ['$balance.address', '0'.repeat(40)]},
+                then: 0,
+                else: 1
+              }
+            }
+          }
         }
       },
       {$sort: {holders: -1}},
