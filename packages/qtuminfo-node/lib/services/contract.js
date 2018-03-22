@@ -651,24 +651,28 @@ class ContractService extends BaseService {
     }
     let addressResults = await Balance.find({contract: address})
     let previousTransfers = await Transaction.aggregate([
-      {$match: {'receipts.logs.address': address}},
-      {$project: {_id: false, height: '$block.height', receipts: '$receipts'}},
+      {
+        $match: {
+          'block.height': {$gt: height},
+          'receipts.logs': {$elemMatch: {address, 'topics.0': TOKEN_EVENTS.Transfer}}
+        }
+      },
+      {$project: {_id: false, receipts: '$receipts'}},
       {$unwind: '$receipts'},
       {$unwind: '$receipts.logs'},
       {
         $project: {
-          height: '$height',
           address: '$receipts.logs.address',
           topics: '$receipts.logs.topics',
           data: '$receipts.logs.data'
         }
       },
-      {$match: {height: {$gt: height}, address, 'topics.0': TOKEN_EVENTS.Transfer}},
+      {$match: {address, 'topics.0': TOKEN_EVENTS.Transfer}},
       {$project: {topics: '$topics', data: '$data'}}
     ])
     let mapping = new Map()
     for (let {address, balance} of addressResults) {
-      mapping.set(address, new BN(balance))
+      mapping.set(address, new BN(balance, 16))
     }
     for (let {topics, data} of previousTransfers) {
       let from = topics[1].slice(24)
