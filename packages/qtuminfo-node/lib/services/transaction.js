@@ -24,7 +24,8 @@ class TransactionService extends BaseService {
   get APIMethods() {
     return {
       getTransaction: this.getTransaction.bind(this),
-      setTxMetaInfo: this.setTxMetaInfo.bind(this)
+      setTxMetaInfo: this.setTxMetaInfo.bind(this),
+      searchLogs: this.searchLogs.bind(this)
     }
   }
 
@@ -282,6 +283,95 @@ class TransactionService extends BaseService {
       transaction.weight = transactionBuffer.length + transactionHashBuffer.length * 3
       await transaction.save()
     }
+  }
+
+  searchLogs({
+    fromBlock, toBlock, contractAddresses, addresses, topics,
+    from = 0, to = 0xffffffffffff
+  } = {}) {
+    let elemMatch = {}
+    let match = {}
+    if (fromBlock != null && toBlock != null) {
+      elemMatch['block.height'] = {}
+      if (fromBlock != null) {
+        elemMatch['block.height'].$gte = fromBlock
+      }
+      if (toBlock != null) {
+        elemMatch['block.height'].$lte = toBlock
+      }
+    }
+    if (contractAddresses || addresses || topics) {
+      elemMatch.receipts = {$elemMatch: {excepted: 'None'}}
+      if (Array.isArray(contractAddresses)) {
+        elemMatch.receipts.$elemMatch.contractAddress = {$in: contractAddresses}
+        match['receipts.contractAddress'] = {$in: contractAddresses}
+      } else if (contractAddresses) {
+        elemMatch.receipts.$elemMatch.contractAddress = contractAddresses
+        match['receipts.contractAddress'] = contractAddresses
+      }
+      if (addresses || topics) {
+        elemMatch.receipts.$elemMatch.logs = {$elemMatch: {}}
+        if (Array.isArray(addresses)) {
+          elemMatch.receipts.$elemMatch.logs.$elemMatch.address = {$in: addresses}
+          match['receipts.logs.address'] = {$in: addresses}
+        } else if (addresses) {
+          elemMatch.receipts.$elemMatch.logs.$elemMatch.address = addresses
+          match['receipts.logs.address'] = addresses
+        }
+        if (Array.isArray(topics)) {
+          elemMatch.receipts.$elemMatch.logs.$elemMatch.topics = {$in: topics}
+          match['receipts.logs.topics'] = {$in: topics}
+        } else if (topics) {
+          elemMatch.receipts.$elemMatch.logs.$elemMatch.topics = topics
+          match['receipts.logs.topics'] = topics
+        }
+      } else {
+        elemMatch.receipts.$elemMatch.logs = {$ne: []}
+      }
+    } else {
+      elemMatch.receipts = {$elemMatch: {excepted: 'None', logs: {$ne: []}}}
+    }
+    return Transaction.aggregate([
+      {$match: elemMatch},
+      {
+        $project: {
+          _id: false,
+          id: '$id',
+          block: {
+            height: '$block.height',
+            hash: '$block.hash'
+          },
+          index: '$index',
+          receipts: '$receipts'
+        }
+      },
+      {$unwind: {path: '$receipts', includeArrayIndex: 'receiptIndex'}},
+      {$match: match},
+      {$sort: {'block.height': 1, index: 1, receiptIndex: 1}},
+      {$skip: from},
+      {$limit: to - from},
+      {$unwind: '$receipts.logs'},
+      {$match: match},
+      {
+        $group: {
+          _id: {height: '$block.height', index: '$index', receiptIndex: '$receiptIndex'},
+          id: {$first: '$id'},
+          block: {$first: '$block'},
+          contractAddress: {$first: '$receipts.contractAddress'},
+          logs: {$push: '$receipts.logs'}
+        }
+      },
+      {$sort: {'_id.height': 1, '_id.index': 1, '_id.receiptIndex': 1}},
+      {
+        $project: {
+          _id: false,
+          id: '$id',
+          block: '$block',
+          contractAddress: '$contractAddress',
+          logs: '$logs'
+        }
+      }
+    ])
   }
 }
 

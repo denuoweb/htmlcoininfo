@@ -209,6 +209,26 @@ class TransactionController {
       this.errorResponse.handleErrors(ctx, err)
     }
   }
+
+  async searchLogs(ctx) {
+    const toArray = s => s && s.split(',')
+    let from = Number.parseInt(ctx.query.from) || null
+    let to = Number.parseInt(ctx.query.to) || null
+    let fromBlock = Number.parseInt(ctx.query.fromBlock) || null
+    let toBlock = Number.parseInt(ctx.query.toBlock) || null
+    let contractAddresses = toArray(ctx.query.contractAddresses)
+    let addresses = toArray(ctx.query.addresses)
+    let topics = toArray(ctx.query.topics)
+    try {
+      let results = await this.node.searchLogs(
+        {fromBlock, toBlock, contractAddresses, addresses, topics},
+        {from, to}
+      )
+      ctx.body = results
+    } catch (err) {
+      this.errorResponse.handleErrors(ctx, err)
+    }
+  }
 }
 
 module.exports = TransactionController

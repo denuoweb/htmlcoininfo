@@ -162,6 +162,7 @@ class QtuminfoAPI extends BaseService {
       transactions.rawTransaction.bind(transactions),
       transactions.showRaw.bind(transactions)
     )
+    router.get('/search-logs', this.cacheShort(), transactions.searchLogs.bind(transactions))
 
     let addresses = this.addressController
     router.get(
