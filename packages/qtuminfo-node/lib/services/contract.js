@@ -1,3 +1,4 @@
+const mongoose = require('mongoose')
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
@@ -93,29 +94,39 @@ class ContractService extends BaseService {
 
   async getContractSummary(address, options = {}) {
     let totalCount = await this.getContractTransactionCount(address)
-    let balance = new BN(0)
-    let totalReceived = new BN(0)
-    let totalSent = new BN(0)
-    let cursor = TransactionOutput.find(
-      {'address.type': 'contract', 'address.hex': address},
-      ['satoshis', 'input']
-    ).cursor()
-    let txo
-    while (txo = await cursor.next()) {
-      let value = new BN(txo.satoshis.toString())
-      totalReceived.iadd(value)
-      if (txo.input) {
-        totalSent.iadd(value)
-      } else {
-        balance.iadd(value)
+    if (totalCount === 0) {
+      return {
+        balance: '0',
+        totalReceived: '0',
+        totalSent: '0',
+        totalCount: 0
       }
     }
+    let [result] = await TransactionOutput.aggregate([
+      {$match: {'address.type': 'contract', 'address.hex': address}},
+      {
+        $group: {
+          _id: null,
+          totalReceived: {$sum: {$add: ['$satoshis', mongoose.Types.Decimal128.fromString('0')]}},
+          totalSent: {
+            $sum: {
+              $cond: {
+                if: {$eq: [{$ifNull: ['$input', null]}, null]},
+                then: mongoose.Types.Decimal128.fromString('0'),
+                else: {$add: ['$satoshis', mongoose.Types.Decimal128.fromString('0')]}
+              }
+            }
+          }
+        }
+      }
+    ])
+    let totalReceived = result.totalReceived.toString()
+    let totalSent = result.totalSent.toString()
     return {
-      address,
-      totalCount,
-      balance: balance.toString(),
-      totalReceived: totalReceived.toString(),
-      totalSent: totalSent.toString()
+      balance: (new BN(totalReceived)).sub(new BN(totalSent)).toString(),
+      totalReceived,
+      totalSent,
+      totalCount
     }
   }
 

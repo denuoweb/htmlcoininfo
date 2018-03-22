@@ -208,8 +208,19 @@ class AddressService extends BaseService {
       addresses = [addresses]
     }
     let totalCount = await this.getAddressTransactionCount(addresses)
+    if (totalCount === 0) {
+      return {
+        balance: '0',
+        totalReceived: '0',
+        totalSent: '0',
+        unconfirmed: '0',
+        staking: '0',
+        blocksMined: 0,
+        totalCount: 0
+      }
+    }
     let blocksMined = await this.getBlocksMined(addresses)
-    let [{balance, totalReceived, totalSent, unconfirmed, staking}] = await TransactionOutput.aggregate([
+    let [result] = await TransactionOutput.aggregate([
       {
         $match: {
           ...AddressService._constructAddressQuery(addresses),
@@ -217,53 +228,58 @@ class AddressService extends BaseService {
         }
       },
       {
-        $facet: {
-          balance: [
-            {$match: {input: null}},
-            {$group: {_id: null, amount: {$sum: '$satoshis'}}},
-            {$project: {_id: false, amount: '$amount'}}
-          ],
-          totalReceived: [
-            {
-              $group: {
-                _id: null,
-                amount: {$sum: {$add: ['$satoshis', mongoose.Types.Decimal128.fromString('0')]}}
+        $group: {
+          _id: null,
+          totalReceived: {$sum: {$add: ['$satoshis', mongoose.Types.Decimal128.fromString('0')]}},
+          totalSent: {
+            $sum: {
+              $cond: {
+                if: {$eq: [{$ifNull: ['$input', null]}, null]},
+                then: mongoose.Types.Decimal128.fromString('0'),
+                else: {$add: ['$satoshis', mongoose.Types.Decimal128.fromString('0')]}
               }
-            },
-            {$project: {_id: false, amount: '$amount'}}
-          ],
-          totalSent: [
-            {$match: {input: {$ne: null}}},
-            {
-              $group: {
-                _id: null,
-                amount: {$sum: {$add: ['$satoshis', mongoose.Types.Decimal128.fromString('0')]}}
+            }
+          },
+          unconfirmed: {
+            $sum: {
+              $cond: {
+                if: {$eq: ['$output.height', 0xffffffff]},
+                then: '$satoshis',
+                else: mongoose.Types.Long(0)
               }
-            },
-            {$project: {_id: false, amount: '$amount'}}
-          ],
-          unconfirmed: [
-            {$match: {'output.height': 0xffffffff}},
-            {$group: {_id: null, amount: {$sum: '$satoshis'}}},
-            {$project: {_id: false, amount: '$amount'}}
-          ],
-          staking: [
-            {$match: {isStake: true, 'output.height': {$gt: this.node.getBlockTip().height - 500}}},
-            {$group: {_id: null, amount: {$sum: '$satoshis'}}},
-            {$project: {_id: false, amount: '$amount'}}
-          ]
+            }
+          },
+          staking: {
+            $sum: {
+              $cond: {
+                if: {
+                  $and: [
+                    {$eq: ['$isStake', true]},
+                    {$gt: ['$output.height', this.node.getBlockTip().height - 500]}
+                  ]
+                },
+                then: '$satoshis',
+                else: mongoose.Types.Long(0)
+              }
+            }
+          }
         }
       }
     ])
+    let totalReceived = result.totalReceived.toString()
+    let totalSent = result.totalSent.toString()
+    let unconfirmed = result.unconfirmed.toString()
+    let staking = result.staking.toString()
+    let balance = (new BN(totalReceived)).sub(new BN(totalSent)).toString()
     return {
-      balance: balance.length ? balance[0].amount.toString() : '0',
-      totalReceived: totalReceived.length ? totalReceived[0].amount.toString() : '0',
-      totalSent: totalSent.length ? totalSent[0].amount.toString() : '0',
-      unconfirmed: unconfirmed.length ? unconfirmed[0].amount.toString() : '0',
-      staking: staking.length ? staking[0].amount.toString() : '0',
+      balance,
+      totalReceived,
+      totalSent,
+      unconfirmed,
+      staking,
       ...(
-        addresses.length === 1 && balance.length
-          ? {ranking: (await Snapshot.count({balance: {$gt: balance[0].amount}})) + 1}
+        addresses.length === 1 && balance !== '0'
+          ? {ranking: (await Snapshot.count({balance: {$gt: mongoose.Types.Long.fromString(balance)}})) + 1}
           : {}
       ),
       blocksMined,
