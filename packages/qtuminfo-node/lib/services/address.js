@@ -215,6 +215,7 @@ class AddressService extends BaseService {
         totalSent: '0',
         unconfirmed: '0',
         staking: '0',
+        mature: '0',
         blocksMined: 0,
         totalCount: 0
       }
@@ -262,6 +263,21 @@ class AddressService extends BaseService {
                 else: mongoose.Types.Long(0)
               }
             }
+          },
+          mature: {
+            $sum: {
+              $cond: {
+                if: {
+                  $and: [
+                    {$in: ['$address.type', ['pubkey', 'pubkeyhash']]},
+                    {$eq: [{$ifNull: ['$input', null]}, null]},
+                    {$lte: ['$output.height', this.node.getBlockTip().height - 500]}
+                  ]
+                },
+                then: '$satoshis',
+                else: mongoose.Types.Long(0)
+              }
+            }
           }
         }
       }
@@ -270,6 +286,7 @@ class AddressService extends BaseService {
     let totalSent = result.totalSent.toString()
     let unconfirmed = result.unconfirmed.toString()
     let staking = result.staking.toString()
+    let mature = result.mature.toString()
     let balance = (new BN(totalReceived)).sub(new BN(totalSent)).toString()
     return {
       balance,
@@ -277,6 +294,7 @@ class AddressService extends BaseService {
       totalSent,
       unconfirmed,
       staking,
+      mature,
       ...(
         addresses.length === 1 && balance !== '0'
           ? {ranking: (await Snapshot.count({balance: {$gt: mongoose.Types.Long.fromString(balance)}})) + 1}

@@ -8,6 +8,7 @@ const {Base58Check, SegwitAddress} = qtuminfo.encoding
 class MiscController {
   constructor(node) {
     this.node = node
+    this._client = this.node.getRpcClient()
     this.errorResponse = new ErrorResponse({log: this.node.log})
     this._network = this.node.network
     if (this.node.network === 'livenet') {
@@ -34,10 +35,15 @@ class MiscController {
       }
       supply += height * (reward >>> halvings)
     }
+    let netStakeWeight
+    try {
+      netStakeWeight = (await this._client.getStakingInfo()).netstakeweight
+    } catch (err) {}
     ctx.body = {
       height: this.node.getBlockTip().height,
       supply,
-      circulatingSupply: supply - 12e6
+      circulatingSupply: supply - 12e6,
+      netStakeWeight
     }
   }
 

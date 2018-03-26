@@ -44,6 +44,14 @@ class AddressController {
     await addressSummarySubQuery(ctx, 'unconfirmedBalance')
   }
 
+  async stakingBalance(ctx) {
+    await addressSummarySubQuery(ctx, 'stakingBalance')
+  }
+
+  async matureBalance(ctx) {
+    await addressSummarySubQuery(ctx, 'matureBalance')
+  }
+
   async addressSummarySubQuery(ctx, param) {
     try {
       let data = await this.getAddressSummary(ctx.addresses)
@@ -62,6 +70,7 @@ class AddressController {
       totalSent: summary.totalSent,
       unconfirmed: summary.unconfirmed,
       staking: summary.staking,
+      mature: summary.mature,
       tokenBalances: tokenBalances.map(token => ({
         address: token.address,
         name: token.name,

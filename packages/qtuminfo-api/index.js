@@ -219,6 +219,18 @@ class QtuminfoAPI extends BaseService {
       addresses.checkAddresses.bind(addresses),
       addresses.unconfirmedBalance.bind(addresses)
     )
+    router.get(
+      '/address/:address/staking-balance',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.stakingBalance.bind(addresses)
+    )
+    router.get(
+      '/address/:address/mature-balance',
+      this.cacheShort(),
+      addresses.checkAddresses.bind(addresses),
+      addresses.matureBalance.bind(addresses)
+    )
 
     let contracts = this.contractController
     router.get(
