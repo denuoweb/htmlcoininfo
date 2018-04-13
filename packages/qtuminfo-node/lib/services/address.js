@@ -208,19 +208,6 @@ class AddressService extends BaseService {
       addresses = [addresses]
     }
     let totalCount = await this.getAddressTransactionCount(addresses)
-    if (totalCount === 0) {
-      return {
-        balance: '0',
-        totalReceived: '0',
-        totalSent: '0',
-        unconfirmed: '0',
-        staking: '0',
-        mature: '0',
-        blocksMined: 0,
-        totalCount: 0
-      }
-    }
-    let blocksMined = await this.getBlocksMined(addresses)
     let [result] = await TransactionOutput.aggregate([
       {
         $match: {
@@ -282,6 +269,19 @@ class AddressService extends BaseService {
         }
       }
     ])
+    if (!result) {
+      return {
+        balance: '0',
+        totalReceived: '0',
+        totalSent: '0',
+        unconfirmed: '0',
+        staking: '0',
+        mature: '0',
+        blocksMined: 0,
+        totalCount
+      }
+    }
+    let blocksMined = await this.getBlocksMined(addresses)
     let totalReceived = result.totalReceived.toString()
     let totalSent = result.totalSent.toString()
     let unconfirmed = result.unconfirmed.toString()
