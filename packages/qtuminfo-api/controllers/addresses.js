@@ -29,27 +29,27 @@ class AddressController {
   }
 
   async balance(ctx) {
-    await addressSummarySubQuery(ctx, 'balance')
+    await this.addressSummarySubQuery(ctx, 'balance')
   }
 
   async totalReceived(ctx) {
-    await addressSummarySubQuery(ctx, 'totalReceived')
+    await this.addressSummarySubQuery(ctx, 'totalReceived')
   }
 
   async totalSent(ctx) {
-    await addressSummarySubQuery(ctx, 'totalSent')
+    await this.addressSummarySubQuery(ctx, 'totalSent')
   }
 
   async unconfirmedBalance(ctx) {
-    await addressSummarySubQuery(ctx, 'unconfirmedBalance')
+    await this.addressSummarySubQuery(ctx, 'unconfirmedBalance')
   }
 
   async stakingBalance(ctx) {
-    await addressSummarySubQuery(ctx, 'stakingBalance')
+    await this.addressSummarySubQuery(ctx, 'stakingBalance')
   }
 
   async matureBalance(ctx) {
-    await addressSummarySubQuery(ctx, 'matureBalance')
+    await this.addressSummarySubQuery(ctx, 'matureBalance')
   }
 
   async addressSummarySubQuery(ctx, param) {
