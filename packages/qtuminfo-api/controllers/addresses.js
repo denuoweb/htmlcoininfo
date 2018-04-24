@@ -55,7 +55,7 @@ class AddressController {
   async addressSummarySubQuery(ctx, param) {
     try {
       let data = await this.getAddressSummary(ctx.addresses)
-      ctx.body = data[param]
+      ctx.body = {[param]: data[param]}
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
