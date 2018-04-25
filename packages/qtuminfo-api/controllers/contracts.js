@@ -24,7 +24,7 @@ class ContractsController {
   async show(ctx) {
     try {
       let summary = await this.node.getContractSummary(ctx.contract.address)
-      let tokenBalances = await this.node.getAllQRC20TokenBalances(ctx.contract.address)
+      let tokenBalances = await this.node.getAllQRC20TokenBalances({type: 'contract', hex: ctx.contract.address})
       summary.owner = ctx.contract.owner
       summary.txid = ctx.contract.createTransactionId
       summary.type = ctx.contract.type

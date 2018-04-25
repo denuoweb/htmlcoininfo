@@ -59,7 +59,15 @@ class ContractService extends BaseService {
             {inputAddresses: {$elemMatch: {type: 'contract', hex: address}}},
             {outputAddresses: {$elemMatch: {type: 'contract', hex: address}}},
             {'receipts.contractAddress': address},
-            {'receipts.logs.address': address}
+            {'receipts.logs.address': address},
+            {
+              'receipts.logs': {
+                $elemMatch: {
+                  'topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]},
+                  topics: '0'.repeat(24) + address
+                }
+              }
+            }
           ]
         }
       },
@@ -87,7 +95,15 @@ class ContractService extends BaseService {
         {inputAddresses: {$elemMatch: {type: 'contract', hex: address}}},
         {outputAddresses: {$elemMatch: {type: 'contract', hex: address}}},
         {'receipts.contractAddress': address},
-        {'receipts.logs.address': address}
+        {'receipts.logs.address': address},
+        {
+          'receipts.logs': {
+            $elemMatch: {
+              'topics.0': {$in: [TOKEN_EVENTS.Transfer, TOKEN_EVENTS.Mint, TOKEN_EVENTS.Burn]},
+              topics: '0'.repeat(24) + address
+            }
+          }
+        }
       ]
     })
   }
