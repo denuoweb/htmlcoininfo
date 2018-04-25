@@ -24,7 +24,7 @@
   "homepage": "https://github.com/qtumproject/qtuminfo-api#readme",
   "dependencies": {
     "koa-bodyparser": "^4.2.0",
-    "koa-compress": "^2.0.0",
+    "koa-compress": "^3.0.0",
     "koa-cors": "^0.0.16",
     "koa-morgan": "^1.0.1",
     "koa-router": "^7.4.0",

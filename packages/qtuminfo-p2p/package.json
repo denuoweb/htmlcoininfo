@@ -13,6 +13,6 @@
   "dependencies": {
     "bloom-filter": "^0.2.0",
     "qtuminfo-lib": "^0.0.1",
-    "socks5-client": "^1.2.5"
+    "socks5-client": "^1.2.6"
   }
 }
