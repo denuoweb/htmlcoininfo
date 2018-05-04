@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 const addressSchema = require('./address')
+require('mongoose-long')(mongoose)
 const {Schema} = mongoose
 
 const blockSchema = new Schema({
@@ -20,7 +21,9 @@ const blockSchema = new Schema({
   vchBlockSig: String,
   chainwork: String,
   transactions: [String],
-  minedBy: addressSchema
+  transactionCount: Number,
+  minedBy: addressSchema,
+  coinStakeSatoshis: {type: Schema.Types.Long}
 })
 
 module.exports = mongoose.model('Block', blockSchema)

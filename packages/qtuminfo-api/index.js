@@ -265,6 +265,11 @@ class QtuminfoAPI extends BaseService {
       this.cacheLong(),
       stats.dailyTransactions.bind(stats)
     )
+    router.get(
+      '/stats/coin-stake',
+      this.cacheShort(),
+      stats.coinStake.bind(stats)
+    )
 
     let searches = this.searchController
     router.get('/search/:string', searches.search.bind(searches))

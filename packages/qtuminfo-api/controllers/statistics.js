@@ -21,7 +21,7 @@ class StatsController {
             _id: {
               $floor: {$divide: ['$timestamp', 86400]}
             },
-            count: {$sum: {$size: '$transactions'}}
+            count: {$sum: '$transactionCount'}
           }
         },
         {$project: {_id: false, timestamp: '$_id', count: '$count'}},
@@ -41,6 +41,56 @@ class StatsController {
         }
         result.push({date: `${year}-${month}-${date}`, time, transactions: count})
       }
+      ctx.body = result
+    } catch (err) {
+      this.errorResponse.handleErrors(ctx, err)
+    }
+  }
+
+  async coinStake(ctx) {
+    let splitPoints = []
+    for (let i = 0; i <= 35; ++i) {
+      splitPoints.push(10 ** (i / 5 - 1))
+    }
+    let facets = {}
+    for (let i = 0; i < splitPoints.length; ++i) {
+      facets[i] = [
+        {
+          $group: {
+            _id: null,
+            count: {
+              $sum: {
+                $cond: {
+                  if: {$lt: ['$coinStakeSatoshis', splitPoints[i] * 1e8]},
+                  then: 1,
+                  else: 0
+                }
+              }
+            }
+          }
+        },
+        {$project: {_id: false, count: '$count'}}
+      ]
+    }
+    try {
+      let [queryResult] = await Block.aggregate([
+        {$match: {height: {$gt: 5000}}},
+        {$facet: facets}
+      ])
+      let list = [{maximum: 0, count: 0}]
+      for (let i = 0; i < splitPoints.length; ++i) {
+        list.push({maximum: splitPoints[i], count: queryResult[i][0].count})
+      }
+      list.push({maximum: Infinity, count: this.node.getBlockTip().height - 5000})
+      let result = []
+      for (let i = 1; i < list.length; ++i) {
+        result[i] = {
+          minimum: list[i - 1].maximum,
+          maximum: list[i].maximum,
+          count: list[i].count - list[i - 1].count
+        }
+      }
+      result.shift()
       ctx.body = result
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)

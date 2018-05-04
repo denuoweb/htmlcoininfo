@@ -537,12 +537,14 @@ class BlockService extends BaseService {
       prevOutStakeN: header.prevOutStakeN,
       vchBlockSig: header.vchBlockSig,
       chainwork: header.chainwork,
-      transactions: block.transactions.map(tx => tx.id)
+      transactions: block.transactions.map(tx => tx.id),
+      transactionCount: block.transactions.length
     })
     if (header.prevOutStakeHash !== '0'.repeat(64) && header.prevOutStakeN !== 0xffffffff) {
       let transaction = await Transaction.findOne({id: block.transactions[1]})
-      let utxo = await TransactionOutput.findById(transaction.outputs[1])
+      let utxo = await TransactionOutput.findById(transaction.inputs[0])
       blockObj.minedBy = utxo.address
+      blockObj.coinStakeSatoshis = utxo.satoshis
     } else {
       let transaction = await Transaction.findOne({id: block.transactions[0]})
       let utxo = await TransactionOutput.findById(transaction.outputs[0])
