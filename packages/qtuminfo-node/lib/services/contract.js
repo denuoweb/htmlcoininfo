@@ -1,10 +1,13 @@
 const mongoose = require('mongoose')
+const {abiEncode} = require('@parity/api/lib/util/encode')
+const {abiDecode} = require('@parity/api/lib/util/decode')
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
 const TransactionOutput = require('../models/transaction-output')
 const Contract = require('../models/contract')
 const Balance = require('../models/balance')
+const {MethodAbi, EventAbi} = require('../models/contract-abi')
 const {BN} = qtuminfo.crypto
 
 const tokenAbi = new qtuminfo.contract.Contract(qtuminfo.contract.tokenABI)
@@ -43,7 +46,9 @@ class ContractService extends BaseService {
       listQRC20Tokens: this.listQRC20Tokens.bind(this),
       getAllQRC20TokenBalances: this.getAllQRC20TokenBalances.bind(this),
       searchQRC20Token: this.searchQRC20Token.bind(this),
-      getTokenRichList: this.getTokenRichList.bind(this)
+      getTokenRichList: this.getTokenRichList.bind(this),
+      parseContractMethod: this.parseContractMethod.bind(this),
+      parseContractEvent: this.parseContractEvent.bind(this)
     }
   }
 
@@ -410,6 +415,55 @@ class ContractService extends BaseService {
       }
     ])
     return result[0]
+  }
+
+  async parseContractMethod(callData) {
+    let signature = callData.slice(0, 8)
+    let data = callData.slice(8)
+    let abiList = await MethodAbi.find({id: signature, type: 'function'}, {_id: false, id: false})
+    let result = []
+    for (let abi of abiList) {
+      let types = abi.inputs.map(input => input.type)
+      let params = abiDecode(types, data)
+        .map(x => x.toString().toLowerCase())
+        .map(s => s.slice(0, 2) === '0x' ? s.slice(2) : s)
+      if (callData === abiEncode(abi.name, types, params).slice(2)) {
+        result.push({abi, params})
+      }
+    }
+    return result
+  }
+
+  async parseContractEvent({topics, data}) {
+    let result = []
+    let abiList = await EventAbi.find({id: topics[0]})
+    for (let abi of abiList) {
+      let indexedInputs = abi.inputs.filter(input => input.indexed)
+      let unindexedInputs = abi.inputs.filter(input => !input.indexed)
+      let match = true
+      for (let index = 1; index < topics.length; ++index) {
+        let input = indexedInputs[index - 1]
+        let params = abiDecode([input.type], topics[index])[0].toString().toLowerCase()
+        if (params.slice(0, 2) === '0x') {
+          params = params.slice(2)
+        }
+        if (topics[index] !== abiEncode(abi.name, [input.type], [params]).slice(10)) {
+          match = false
+          break
+        }
+      }
+      if (!match) {
+        continue
+      }
+      let types = unindexedInputs.map(input => input.type)
+      let params = abiDecode(types, data)
+        .map(x => x.toString().toLowerCase())
+        .map(s => s.slice(0, 2) === '0x' ? s.slice(2) : s)
+      if (data === abiEncode(abi.name, types, params).slice(10)) {
+        result.push({abi, params})
+      }
+    }
+    return result
   }
 
   async start() {

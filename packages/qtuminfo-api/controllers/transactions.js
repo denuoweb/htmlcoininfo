@@ -101,33 +101,43 @@ class TransactionController {
       transformed.valueIn = transaction.inputSatoshis
       transformed.fees = transaction.feeSatoshis
     }
-    transformed.vout = transaction.outputs.map((output, index) => {
-      let rawScript = toRawScript(output.script)
-      let address = rawScript.toAddress(this._network)
-      let type
-      if (address) {
-        type = address.type
-      } else if (rawScript.isDataOut()) {
-        type = 'nulldata'
-      } else if (rawScript.isContractCreate()) {
-        type = 'create'
-      } else if (rawScript.isContractCall()) {
-        type = 'call'
-      } else if (rawScript.chunks.length === 0) {
-        type = 'nonstandard'
-      }
-      return {
-        value: output.satoshis.toString(),
-        n: index,
-        address: output.address,
-        scriptPubKey: {
-          type,
-          hex: rawScript.toBuffer().toString('hex'),
-          asm: rawScript.toString()
+    transformed.vout = await Promise.all(
+      transaction.outputs.map(async (output, index) => {
+        let rawScript = toRawScript(output.script)
+        let address = rawScript.toAddress(this._network)
+        let type
+        let abiList
+        if (address) {
+          type = address.type
+        } else if (rawScript.isDataOut()) {
+          type = 'nulldata'
+        } else if (rawScript.isContractCreate()) {
+          type = 'create'
+        } else if (rawScript.isContractCall()) {
+          type = 'call'
+          abiList = await this.node.parseContractMethod(rawScript.chunks[3].buf.toString('hex'))
+        } else if (rawScript.chunks.length === 0) {
+          type = 'nonstandard'
         }
-      }
-    })
+        return {
+          value: output.satoshis.toString(),
+          n: index,
+          address: output.address,
+          scriptPubKey: {
+            type,
+            hex: rawScript.toBuffer().toString('hex'),
+            asm: rawScript.toString()
+          },
+          ...(type === 'call' ? {abiList} : {})
+        }
+      })
+    )
     transformed.tokenTransfers = await this.node.getTokenTransfers(transaction)
+    for (let receipt of transaction.receipts) {
+      for (let log of receipt.logs) {
+        log.abiList = await this.node.parseContractEvent(log)
+      }
+    }
     return transformed
   }
 
