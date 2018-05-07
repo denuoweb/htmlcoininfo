@@ -441,13 +441,16 @@ class ContractService extends BaseService {
       let indexedInputs = abi.inputs.filter(input => input.indexed)
       let unindexedInputs = abi.inputs.filter(input => !input.indexed)
       let match = true
+      let indexedParams = []
       for (let index = 1; index < topics.length; ++index) {
         let input = indexedInputs[index - 1]
-        let params = abiDecode([input.type], topics[index])[0].toString().toLowerCase()
-        if (params.slice(0, 2) === '0x') {
-          params = params.slice(2)
+        let param = abiDecode([input.type], topics[index])[0].toString().toLowerCase()
+        if (param.slice(0, 2) === '0x') {
+          param = param.slice(2)
         }
-        if (topics[index] !== abiEncode(abi.name, [input.type], [params]).slice(10)) {
+        if (topics[index] == abiEncode(abi.name, [input.type], [param]).slice(10)) {
+          indexedParams.push(param)
+        } else {
           match = false
           break
         }
@@ -456,10 +459,20 @@ class ContractService extends BaseService {
         continue
       }
       let types = unindexedInputs.map(input => input.type)
-      let params = abiDecode(types, data)
+      let unindexedParams = abiDecode(types, data)
         .map(x => x.toString().toLowerCase())
         .map(s => s.slice(0, 2) === '0x' ? s.slice(2) : s)
-      if (data === abiEncode(abi.name, types, params).slice(10)) {
+      if (data === abiEncode(abi.name, types, unindexedParams).slice(10)) {
+        let params = []
+        let i = 0
+        let j = 0
+        for (let input of abi.inputs) {
+          if (input.indexed) {
+            params.push(indexedParams[i++])
+          } else {
+            params.push(unindexedParams[j++])
+          }
+        }
         result.push({abi, params})
       }
     }
