@@ -9,7 +9,7 @@ function decode(types, data) {
 }
 
 function methodID(name, types) {
-  return ABI.methodID(me, types)
+  return ABI.methodID(name, types)
 }
 
 function eventID(name, types) {
