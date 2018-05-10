@@ -1,6 +1,4 @@
 const mongoose = require('mongoose')
-const {abiEncode} = require('@parity/api/lib/util/encode')
-const {abiDecode} = require('@parity/api/lib/util/decode')
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
 const Transaction = require('../models/transaction')
@@ -18,6 +16,7 @@ const TOKEN_EVENTS = {
   Burn: tokenAbi.eventSignature('Burn').slice(2)
 }
 const TOKEN_EVENT_HASHES = Object.values(TOKEN_EVENTS)
+const abiEncoding = qtuminfo.contract.encoding
 
 class ContractService extends BaseService {
   constructor(options) {
@@ -423,13 +422,14 @@ class ContractService extends BaseService {
     let abiList = await MethodAbi.find({id: signature, type: 'function'}, {_id: false, id: false})
     let result = []
     for (let abi of abiList) {
-      let types = abi.inputs.map(input => input.type)
-      let params = abiDecode(types, data)
-        .map(x => x.toString().toLowerCase())
-        .map(s => s.slice(0, 2) === '0x' ? s.slice(2) : s)
-      if (callData === abiEncode(abi.name, types, params).slice(2)) {
-        result.push({abi, params})
-      }
+      try {
+        let params = abiEncoding.decode(abiEncoding.getAbiInputTypes(abi), Buffer.from(data, 'hex'))
+        let parsedParams = []
+        for (let index = 0; index < abi.inputs.length; ++index) {
+          parsedParams.push(this.parseContractParam(abi.inputs[index], params[index]))
+        }
+        result.push({abi, params: parsedParams})
+      } catch (err) {}
     }
     return result
   }
@@ -438,43 +438,33 @@ class ContractService extends BaseService {
     let result = []
     let abiList = await EventAbi.find({id: topics[0]})
     for (let abi of abiList) {
-      let indexedInputs = abi.inputs.filter(input => input.indexed)
-      let unindexedInputs = abi.inputs.filter(input => !input.indexed)
-      let match = true
-      let indexedParams = []
-      for (let index = 1; index < topics.length; ++index) {
-        let input = indexedInputs[index - 1]
-        let param = abiDecode([input.type], topics[index])[0].toString().toLowerCase()
-        if (param.slice(0, 2) === '0x') {
-          param = param.slice(2)
-        }
-        if (topics[index] == abiEncode(abi.name, [input.type], [param]).slice(10)) {
+      try {
+        let indexedInputs = abi.inputs.filter(input => input.indexed)
+        let unindexedInputs = abi.inputs.filter(input => !input.indexed)
+        let indexedParams = []
+        for (let index = 1; index < topics.length; ++index) {
+          let input = indexedInputs[index - 1]
+          let [param] = abiEncoding.decode(
+            abiEncoding.getAbiInputTypes({inputs: [input]}),
+            Buffer.from(topics[index], 'hex')
+          )
           indexedParams.push(param)
-        } else {
-          match = false
-          break
         }
-      }
-      if (!match) {
-        continue
-      }
-      let types = unindexedInputs.map(input => input.type)
-      let unindexedParams = abiDecode(types, data)
-        .map(x => x.toString().toLowerCase())
-        .map(s => s.slice(0, 2) === '0x' ? s.slice(2) : s)
-      if (data === abiEncode(abi.name, types, unindexedParams).slice(10)) {
+        let unindexedParams = abiEncoding.decode(
+          abiEncoding.getAbiInputTypes({inputs: unindexedInputs}),
+          Buffer.from(data, 'hex')
+        )
         let params = []
-        let i = 0
-        let j = 0
-        for (let input of abi.inputs) {
+        for (let index = 0, i = 0, j = 0; index < abi.inputs.length; ++index) {
+          let input = abi.inputs[index]
           if (input.indexed) {
-            params.push(indexedParams[i++])
+            params.push(this.parseContractParam(input, indexedParams[i++]))
           } else {
-            params.push(unindexedParams[j++])
+            params.push(this.parseContractParam(input, unindexedParams[j++]))
           }
         }
         result.push({abi, params})
-      }
+      } catch (err) {}
     }
     return result
   }
@@ -817,6 +807,29 @@ class ContractService extends BaseService {
         address: {type: 'pubkeyhash', hex: address},
         balance: new BN(balance, 16).toString()
       }))
+    }
+  }
+
+  parseContractParam(input, data) {
+    if (input.type.includes('[')) {
+      let itemType = input.type.slice(0, input.type.indexOf('['))
+      return data.map(item => this.parseContractParam({type: itemType}, item))
+    } else if (input.type.startsWith('uint') || input.type.startsWith('int')) {
+      return data.toString()
+    } else if (input.type.startsWith('ufixed') || input.type.startsWith('fixed')) {
+      return data.toString()
+    } else if (input.type === 'address') {
+      return data
+    } else if (input.type.startsWith('bytes') || input.type === 'function') {
+      return data.toString('hex')
+    } else if (input.type === 'string') {
+      return data
+    } else if (input.type === 'bool') {
+      return data
+    } else if (input.type === 'tuple') {
+      return data
+    } else {
+      return data
     }
   }
 }

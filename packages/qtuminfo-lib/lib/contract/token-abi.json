@@ -1,5 +1,6 @@
 [
   {
+    "id": "06fdde03",
     "type": "function",
     "name": "name",
     "constant": true,
@@ -11,6 +12,7 @@
     ]
   },
   {
+    "id": "95d89b41",
     "type": "function",
     "name": "symbol",
     "constant": true,
@@ -22,6 +24,7 @@
     ]
   },
   {
+    "id": "313ce567",
     "type": "function",
     "name": "decimals",
     "constant": true,
@@ -33,6 +36,7 @@
     ]
   },
   {
+    "id": "18160ddd",
     "type": "function",
     "name": "totalSupply",
     "constant": true,
@@ -44,6 +48,7 @@
     ]
   },
   {
+    "id": "54fd4d50",
     "type": "function",
     "name": "version",
     "constant": true,
@@ -55,6 +60,7 @@
     ]
   },
   {
+    "id": "70a08231",
     "type": "function",
     "name": "balanceOf",
     "constant": true,
@@ -68,6 +74,7 @@
     ]
   },
   {
+    "id": "a9059cbb",
     "type": "function",
     "name": "transfer",
     "constant": false,
@@ -82,6 +89,7 @@
     ]
   },
   {
+    "id": "23b872dd",
     "type": "function",
     "name": "transferFrom",
     "constant": false,
@@ -97,6 +105,7 @@
     ]
   },
   {
+    "id": "095ea7b3",
     "type": "function",
     "name": "approve",
     "constant": false,
@@ -111,6 +120,7 @@
     ]
   },
   {
+    "id": "dd62ed3e",
     "type": "function",
     "name": "allowance",
     "constant": true,
@@ -125,6 +135,7 @@
     ]
   },
   {
+    "id": "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
     "type": "event",
     "name": "Transfer",
     "anonymous": false,
@@ -135,6 +146,7 @@
     ]
   },
   {
+    "id": "8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
     "type": "event",
     "name": "Approval",
     "anonymous": false,
@@ -145,6 +157,7 @@
     ]
   },
   {
+    "id": "0f6798a560793a54c3bcfe86a93cde1e73087d944c0ea20544137d4121396885",
     "type": "event",
     "name": "Mint",
     "anonymous": false,
@@ -154,6 +167,7 @@
     ]
   },
   {
+    "id": "cc16f5dbb4873280815c1ee09dbd06736cffcc184412cf7a71a0fdb75d397ca5",
     "type": "event",
     "name": "Burn",
     "anonymous": false,
