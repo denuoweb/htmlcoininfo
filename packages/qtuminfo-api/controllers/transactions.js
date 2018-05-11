@@ -24,11 +24,12 @@ class TransactionController {
 
   async transaction(ctx, next) {
     let txid = ctx.params.txid
+    let brief = 'brief' in ctx.query
     try {
       let tx = await Transaction.findOne({$or: [{id: txid}, {hash: txid}]})
-      let transaction = await this.node.getTransaction(tx.id)
-      if (transaction) {
-        ctx.transaction = await this.transformTransaction(transaction)
+      if (tx) {
+        let transaction = await this.node.getTransaction(tx.id)
+        ctx.transaction = await this.transformTransaction(transaction, {brief})
         await next()
       } else {
         ctx.throw(404)
@@ -40,6 +41,7 @@ class TransactionController {
 
   async transactions(ctx, next) {
     let txids = ctx.params.txids.split(',')
+    let brief = 'brief' in ctx.query
     let list = []
     try {
       for (let txid of txids) {
@@ -50,52 +52,64 @@ class TransactionController {
           ctx.throw(404)
         }
       }
-      ctx.transactions = await Promise.all(list.map(this.transformTransaction.bind(this)))
+      ctx.transactions = await Promise.all(list.map(
+        transaction => this.transformTransaction(transaction, {brief})
+      ))
       await next()
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
     }
   }
 
-  async transformTransaction(transaction, options = {}) {
+  async transformTransaction(transaction, {brief = false} = {}) {
     let confirmations = 'block' in transaction ? this.node.getBlockTip().height - transaction.block.height + 1 : 0
     let transformed = {
       id: transaction.id,
-      hash: transaction.hash,
-      version: transaction.version,
-      lockTime: transaction.nLockTime,
-      blockHash: transaction.block && transaction.block.hash,
+      ...(brief ? {} : {
+        hash: transaction.hash,
+        version: transaction.version,
+        lockTime: transaction.nLockTime,
+        blockHash: transaction.block && transaction.block.hash,
+      }),
       blockHeight: transaction.block && transaction.block.height,
       confirmations,
       timestamp: transaction.block && transaction.block.timestamp,
       isCoinbase: transaction.isCoinbase,
       valueOut: transaction.outputSatoshis,
-      size: transaction.size,
-      weight: transaction.weight,
-      receipts: transaction.receipts,
+      ...(brief ? {} : {
+        size: transaction.size,
+        weight: transaction.weight,
+        receipts: transaction.receipts
+      }),
       tokenTransfers: []
     }
 
     if (transaction.isCoinbase) {
       transformed.vin = [{
         coinbase: transaction.inputs[0].script.buffer.toString('hex'),
-        sequence: transaction.inputs[0].sequence,
-        n: 0
+        ...(brief ? {} : {
+          sequence: transaction.inputs[0].sequence,
+          n: 0
+        })
       }]
     } else {
       transformed.vin = transaction.inputs.map((input, index) => {
         let rawScript = toRawScript(input.script)
         return {
-          txid: input.prevTxId,
-          vout: input.outputIndex,
-          sequence: input.sequence,
-          n: index,
+          ...(brief ? {} : {
+            txid: input.prevTxId,
+            vout: input.outputIndex,
+            sequence: input.sequence,
+            n: index,
+          }),
           value: input.satoshis.toString(),
           address: input.address,
-          scriptSig: {
-            hex: rawScript.toBuffer().toString('hex'),
-            asm: rawScript.toString()
-          }
+          ...(brief ? {} : {
+            scriptSig: {
+              hex: rawScript.toBuffer().toString('hex'),
+              asm: rawScript.toString()
+            }
+          })
         }
       })
       transformed.valueIn = transaction.inputSatoshis
@@ -115,7 +129,9 @@ class TransactionController {
           type = 'create'
         } else if (rawScript.isContractCall()) {
           type = 'call'
-          abiList = await this.node.parseContractMethod(rawScript.chunks[3].buf.toString('hex'))
+          if (!brief) {
+            abiList = await this.node.parseContractMethod(rawScript.chunks[3].buf.toString('hex'))
+          }
         } else if (rawScript.chunks.length === 0) {
           type = 'nonstandard'
         }
@@ -125,17 +141,21 @@ class TransactionController {
           address: output.address,
           scriptPubKey: {
             type,
-            hex: rawScript.toBuffer().toString('hex'),
-            asm: rawScript.toString()
+            ...(brief ? {} : {
+              hex: rawScript.toBuffer().toString('hex'),
+              asm: rawScript.toString()
+            })
           },
-          ...(type === 'call' ? {abiList} : {})
+          ...(!brief && type === 'call' ? {abiList} : {})
         }
       })
     )
     transformed.tokenTransfers = await this.node.getTokenTransfers(transaction)
-    for (let receipt of transaction.receipts) {
-      for (let log of receipt.logs) {
-        log.abiList = await this.node.parseContractEvent(log)
+    if (!brief) {
+      for (let receipt of transaction.receipts) {
+        for (let log of receipt.logs) {
+          log.abiList = await this.node.parseContractEvent(log)
+        }
       }
     }
     return transformed
