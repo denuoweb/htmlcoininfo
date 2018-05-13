@@ -574,8 +574,10 @@ class ContractService extends BaseService {
     if (await Contract.findOne({address})) {
       return
     }
+    let code = await this._client.getContractCode(address)
     let contract = new Contract({
       address,
+      code: Buffer.from(code, 'hex'),
       ...(owner ? {owner, createTransactionId: transaction.id, createHeight: block.height} : {})
     })
     try {

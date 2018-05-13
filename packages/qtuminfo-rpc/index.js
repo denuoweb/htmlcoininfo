@@ -120,6 +120,7 @@ const callspec = {
   getAccount: '',
   getAccountInfo: '',
   getConnectionCount: '',
+  getContractCode: '',
   getDifficulty: '',
   getInfo: '',
   getMiningInfo: '',
