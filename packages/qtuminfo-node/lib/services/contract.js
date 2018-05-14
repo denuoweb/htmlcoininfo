@@ -1,3 +1,6 @@
+const {promisify} = require('util')
+const path = require('path')
+const fs = require('fs')
 const mongoose = require('mongoose')
 const qtuminfo = require('qtuminfo-lib')
 const BaseService = require('../service')
@@ -28,6 +31,7 @@ class ContractService extends BaseService {
     } else if (this._network === 'regtest') {
       this._network = 'testnet'
     }
+    this._contractCodeDirectory = path.resolve(this.node.datadir, 'contract-code')
   }
 
   static get dependencies() {
@@ -476,6 +480,11 @@ class ContractService extends BaseService {
       this._tip = blockTip
       await this.node.updateServiceTip(this.name, this._tip)
     }
+    try {
+      await promisify(fs.access)(this._contractCodeDirectory)
+    } catch (err) {
+      await promisify(fs.mkdir)(this._contractCodeDirectory)
+    }
     for (let x of ['80', '81', '82', '83', '84']) {
       let dgpAddress = '0'.repeat(38) + x
       await Contract.findOneAndUpdate(
@@ -577,9 +586,12 @@ class ContractService extends BaseService {
     let code = await this._client.getContractCode(address)
     let contract = new Contract({
       address,
-      code: Buffer.from(code, 'hex'),
       ...(owner ? {owner, createTransactionId: transaction.id, createHeight: block.height} : {})
     })
+    await promisify(fs.writeFile)(
+      path.resolve(this._contractCodeDirectory, address + '.code'),
+      Buffer.from(code, 'hex')
+    )
     try {
       let [{totalSupply}, {balance}] = await Promise.all(await this._batchCallMethods([
         {address, abi: tokenAbi, method: 'totalSupply'},

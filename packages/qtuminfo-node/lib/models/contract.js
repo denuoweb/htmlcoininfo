@@ -4,7 +4,6 @@ const {Schema} = mongoose
 
 const contractSchema = new Schema({
   address: {type: String, index: true, unique: true},
-  code: Buffer,
   owner: addressSchema,
   createTransactionId: String,
   createHeight: {type: Number, index: true},

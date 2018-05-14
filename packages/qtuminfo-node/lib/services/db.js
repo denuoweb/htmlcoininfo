@@ -1,4 +1,6 @@
 const assert = require('assert')
+const {promisify} = require('util')
+const fs = require('fs')
 const mongoose = require('mongoose')
 const QtuminfoRPC = require('qtuminfo-rpc')
 const BaseService = require('../service')
@@ -67,6 +69,11 @@ class DB extends BaseService {
         poolSize: 20
       }
     )
+    try {
+      await promisify(fs.access)(this.node.datadir)
+    } catch (err) {
+      await promisify(fs.mkdir)(this.node.datadir)
+    }
   }
 
   async stop() {
