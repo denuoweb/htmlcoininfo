@@ -79,7 +79,7 @@ Network.add({
   scripthash: 0x32,
   xpubkey: 0x0488b21e,
   xprivkey: 0x0488ade4,
-  witness_v0_keyhash: 'bc',
+  witness_v0_keyhash: 'qc',
   networkMagic: 0xf1cfa6d3,
   port: 3888,
   dnsSeeds: []
@@ -92,7 +92,7 @@ Network.add({
   pubkeyhash: 0x78,
   privatekey: 0xef,
   scripthash: 0x6e,
-  witness_v0_keyhash: 'tb',
+  witness_v0_keyhash: 'tq',
   xpubkey: 0x043587cf,
   xprivkey: 0x04358394
 })
