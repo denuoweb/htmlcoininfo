@@ -249,11 +249,15 @@ class BlockService extends BaseService {
   }
 
   async _onReorg(commonAncestorHash, block) {
-    for (let service of this.node.getServicesByOrder().reverse()) {
-      if (service.onReorg) {
-        this.node.log.info('Block Service: Reorging', service.name, 'service.')
-        await service.onReorg(commonAncestorHash, block)
+    try {
+      for (let service of this.node.getServicesByOrder().reverse()) {
+        if (service.onReorg) {
+          this.node.log.info('Block Service: Reorging', service.name, 'service.')
+          await service.onReorg(commonAncestorHash, block)
+        }
       }
+    } catch (err) {
+      this._handleError(err)
     }
   }
 
