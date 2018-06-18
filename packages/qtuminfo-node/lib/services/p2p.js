@@ -248,7 +248,7 @@ class P2P extends BaseService {
   _onPeerReady(peer, addr) {
     if (this._retryInterval) {
       clearInterval(this._retryInterval)
-      this.retryInterval = null
+      this._retryInterval = null
     }
 
     let network = this._matchNetwork(peer.network)
