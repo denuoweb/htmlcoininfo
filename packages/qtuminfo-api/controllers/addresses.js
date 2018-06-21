@@ -132,7 +132,7 @@ class AddressController {
         totalCount: result.totalCount,
         from,
         to: Math.min(to, result.totalCount),
-        transactions: result.transactions
+        transactions: result.transactions.map(tx => Object.assign(tx, {amount: tx.amount.toString()}))
       }
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)

@@ -45,7 +45,7 @@ class BlocksController {
   async rawBlock(ctx, next) {
     let hash = ctx.params.blockHash
     if (/^[0-9A-Fa-f]{64}$/.test(hash)) {
-      block = await Block.findOne({hash})
+      let block = await Block.findOne({hash})
       if (block) {
         let blockBuffer = (await toRawBlock(block)).toBuffer()
         ctx.rawBlock = blockBuffer.toString('hex')
@@ -85,7 +85,7 @@ class BlocksController {
   }
 
   async showRaw(ctx) {
-    ctx.body = {rawBlock: ctx.rawBlock}
+    ctx.body = ctx.rawBlock
   }
 
   async _getBlockSummary(block) {
@@ -139,7 +139,7 @@ class BlocksController {
       let prevBlockHeader = await this.node.getBlockHeader(prevHash)
       duration = block.timestamp - prevBlockHeader.timestamp
     }
-    return {reward, duration}
+    return {reward: reward.toString(), duration}
   }
 
   _getTargetDifficulty(bits) {

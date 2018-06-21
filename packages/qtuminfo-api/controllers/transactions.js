@@ -169,7 +169,7 @@ class TransactionController {
       if (!transaction) {
         ctx.throw(404)
       }
-      ctx.rawTransaction = {rawtx: toRawTransaction(transaction).toBuffer().toString('hex')}
+      ctx.rawTransaction = toRawTransaction(transaction).toBuffer().toString('hex')
       await next()
     } catch (err) {
       this.errorResponse.handleErrors(ctx, err)
