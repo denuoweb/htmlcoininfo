@@ -5,15 +5,15 @@ import Contract from '../models/contract'
 import Transaction from '../models/transaction'
 import TransactionOutput from '../models/transaction-output'
 import HtmlcoinBalanceChanges from '../models/htmlcoin-balance-changes'
-import QRC20TokenBalance from '../models/qrc20-token-balance'
+import HRC20TokenBalance from '../models/hrc20-token-balance'
 import Service from './base'
 import {toBigInt} from '../utils'
 
-const totalSupplyABI = Solidity.qrc20ABIs.find(abi => abi.name === 'totalSupply')
-const balanceOfABI = Solidity.qrc20ABIs.find(abi => abi.name === 'balanceOf')
-const ownerOfABI = Solidity.qrc721ABIs.find(abi => abi.name === 'ownerOf')
-const transferABI = Solidity.qrc20ABIs.find(abi => abi.name === 'transfer')
-const TransferABI = Solidity.qrc20ABIs.find(abi => abi.name === 'Transfer')
+const totalSupplyABI = Solidity.hrc20ABIs.find(abi => abi.name === 'totalSupply')
+const balanceOfABI = Solidity.hrc20ABIs.find(abi => abi.name === 'balanceOf')
+const ownerOfABI = Solidity.hrc721ABIs.find(abi => abi.name === 'ownerOf')
+const transferABI = Solidity.hrc20ABIs.find(abi => abi.name === 'transfer')
+const TransferABI = Solidity.hrc20ABIs.find(abi => abi.name === 'Transfer')
 
 export default class ContractService extends Service {
   constructor(options) {
@@ -31,14 +31,14 @@ export default class ContractService extends Service {
       getContract: this.getContract.bind(this),
       getContractHistory: this.getContractHistory.bind(this),
       getContractSummary: this.getContractSummary.bind(this),
-      getQRC20TokenTransfers: this.getQRC20TokenTransfers.bind(this),
-      getQRC721TokenTransfers: this.getQRC721TokenTransfers.bind(this),
-      getAddressQRC20TokenBalanceHistory: this.getAddressQRC20TokenBalanceHistory.bind(this),
-      listQRC20Tokens: this.listQRC20Tokens.bind(this),
-      getAllQRC20TokenBalances: this.getAllQRC20TokenBalances.bind(this),
-      searchQRC20Token: this.searchQRC20Token.bind(this),
-      getQRC20TokenHolders: this.getQRC20TokenHolders.bind(this),
-      getQRC20TokenRichList: this.getQRC20TokenRichList.bind(this)
+      getHRC20TokenTransfers: this.getHRC20TokenTransfers.bind(this),
+      getHRC721TokenTransfers: this.getHRC721TokenTransfers.bind(this),
+      getAddressHRC20TokenBalanceHistory: this.getAddressHRC20TokenBalanceHistory.bind(this),
+      listHRC20Tokens: this.listHRC20Tokens.bind(this),
+      getAllHRC20TokenBalances: this.getAllHRC20TokenBalances.bind(this),
+      searchHRC20Token: this.searchHRC20Token.bind(this),
+      getHRC20TokenHolders: this.getHRC20TokenHolders.bind(this),
+      getHRC20TokenRichList: this.getHRC20TokenRichList.bind(this)
     }
   }
 
@@ -54,11 +54,11 @@ export default class ContractService extends Service {
       createTransactionId: contract.createTransactionId,
       createHeight: contract.createHeight,
       type: contract.type,
-      ...contract.qrc20
-        ? {qrc20: parseQRC20(contract.qrc20)}
+      ...contract.hrc20
+        ? {hrc20: parseHRC20(contract.hrc20)}
         : {},
-      ...contract.qrc721
-        ? {qrc721: parseQRC721(contract.qrc721)}
+      ...contract.hrc721
+        ? {hrc721: parseHRC721(contract.hrc721)}
         : {}
     }
   }
@@ -209,7 +209,7 @@ export default class ContractService extends Service {
     }
   }
 
-  async getQRC20TokenTransfers(transaction) {
+  async getHRC20TokenTransfers(transaction) {
     let list = []
     let tokenCache = {}
     let addressCache = {}
@@ -223,11 +223,11 @@ export default class ContractService extends Service {
         if (addressString in tokenCache) {
           token = tokenCache[addressString]
         } else {
-          let contract = await Contract.findOne({address, type: 'qrc20'})
+          let contract = await Contract.findOne({address, type: 'hrc20'})
           if (!contract) {
             continue
           }
-          tokenCache[addressString] = token = {address, ...parseQRC20(contract.qrc20)}
+          tokenCache[addressString] = token = {address, ...parseHRC20(contract.hrc20)}
         }
         let fromString = topics[1].slice(12).toString('hex')
         let toString = topics[2].slice(12).toString('hex')
@@ -257,7 +257,7 @@ export default class ContractService extends Service {
     return list
   }
 
-  async getQRC721TokenTransfers(transaction) {
+  async getHRC721TokenTransfers(transaction) {
     let list = []
     let tokenCache = {}
     let addressCache = {}
@@ -271,11 +271,11 @@ export default class ContractService extends Service {
         if (addressString in tokenCache) {
           token = tokenCache[addressString]
         } else {
-          let contract = await Contract.findOne({address, type: 'qrc721'})
+          let contract = await Contract.findOne({address, type: 'hrc721'})
           if (!contract) {
             continue
           }
-          tokenCache[addressString] = token = {address, ...parseQRC721(contract.qrc721)}
+          tokenCache[addressString] = token = {address, ...parseHRC721(contract.hrc721)}
         }
         let fromString = topics[1].slice(12).toString('hex')
         let toString = topics[2].slice(12).toString('hex')
@@ -305,7 +305,7 @@ export default class ContractService extends Service {
     return list
   }
 
-  async getAddressQRC20TokenBalanceHistory(addresses, tokens, {pageIndex = 0, pageSize = 100, reversed = true} = {}) {
+  async getAddressHRC20TokenBalanceHistory(addresses, tokens, {pageIndex = 0, pageSize = 100, reversed = true} = {}) {
     if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
@@ -383,7 +383,7 @@ export default class ContractService extends Service {
                 as: 'token'
               }
             },
-            {$match: {'token.type': 'qrc20'}},
+            {$match: {'token.type': 'hrc20'}},
             {$unwind: '$token'},
             {
               $group: {
@@ -394,11 +394,11 @@ export default class ContractService extends Service {
                   $push: {
                     token: {
                       address: '$token.address',
-                      name: '$token.qrc20.name',
-                      symbol: '$token.qrc20.symbol',
-                      decimals: '$token.qrc20.decimals',
-                      totalSupply: '$token.qrc20.totalSupply',
-                      version: '$token.qrc20.version'
+                      name: '$token.hrc20.name',
+                      symbol: '$token.hrc20.symbol',
+                      decimals: '$token.hrc20.decimals',
+                      totalSupply: '$token.hrc20.totalSupply',
+                      version: '$token.hrc20.version'
                     },
                     topics: '$log.topics',
                     data: '$log.data'
@@ -455,7 +455,7 @@ export default class ContractService extends Service {
         data: [...Object.values(tokens)].map(({token, amount}) => ({
           token: {
             address: Buffer.from(token.address, 'hex'),
-            ...parseQRC20(token)
+            ...parseHRC20(token)
           },
           amount
         }))
@@ -466,7 +466,7 @@ export default class ContractService extends Service {
       transactions.reverse()
     }
     let tokenBalances = {}
-    for (let {contract, balance} of await QRC20TokenBalance.find({address: {$in: hexAddresses.map(address => address.slice(24))}})) {
+    for (let {contract, balance} of await HRC20TokenBalance.find({address: {$in: hexAddresses.map(address => address.slice(24))}})) {
       let contractString = contract.toString('hex')
       tokenBalances[contractString] = (tokenBalances[contractString] || 0n) + balance
     }
@@ -558,8 +558,8 @@ export default class ContractService extends Service {
     }
   }
 
-  async listQRC20Tokens({pageIndex = 0, pageSize = 100}) {
-    let [{count, list}] = await QRC20TokenBalance.aggregate([
+  async listHRC20Tokens({pageIndex = 0, pageSize = 100}) {
+    let [{count, list}] = await HRC20TokenBalance.aggregate([
       {
         $match: {
           address: {$ne: '0'.repeat(40)},
@@ -595,12 +595,12 @@ export default class ContractService extends Service {
                 as: 'contract'
               }
             },
-            {$match: {'contract.type': 'qrc20'}},
+            {$match: {'contract.type': 'hrc20'}},
             {$unwind: '$contract'},
             {
               $project: {
                 address: '$contract.address',
-                qrc20: '$contract.qrc20',
+                hrc20: '$contract.hrc20',
                 holders: '$holders'
               }
             }
@@ -610,22 +610,22 @@ export default class ContractService extends Service {
     ])
     return {
       totalCount: count.length && count[0].count,
-      tokens: list.map(({address, qrc20, holders}) => ({
+      tokens: list.map(({address, hrc20, holders}) => ({
         address: Buffer.from(address, 'hex'),
-        ...parseQRC20(qrc20),
+        ...parseHRC20(hrc20),
         holders
       }))
     }
   }
 
-  async getAllQRC20TokenBalances(addresses) {
+  async getAllHRC20TokenBalances(addresses) {
     if (!Array.isArray(addresses)) {
       addresses = [addresses]
     }
     let hexAddresses = addresses
       .filter(address => [Address.PAY_TO_PUBLIC_KEY_HASH, Address.CONTRACT].includes(address.type))
       .map(address => address.data.toString('hex'))
-    let list = await QRC20TokenBalance.aggregate([
+    let list = await HRC20TokenBalance.aggregate([
       {$match: {address: {$in: hexAddresses}}},
       {
         $group: {
@@ -648,49 +648,49 @@ export default class ContractService extends Service {
           as: 'contract'
         }
       },
-      {$match: {'contract.type': 'qrc20'}},
+      {$match: {'contract.type': 'hrc20'}},
       {$unwind: '$contract'},
       {
         $project: {
           address: '$contract.address',
-          qrc20: '$contract.qrc20',
+          hrc20: '$contract.hrc20',
           balances: '$balances'
         }
       }
     ])
-    return list.map(({address, qrc20, balances}) => {
+    return list.map(({address, hrc20, balances}) => {
       let sum = 0n
       for (let balance of balances) {
         sum += BigInt(`0x${balance}`)
       }
       return {
         address: Buffer.from(address, 'hex'),
-        ...parseQRC20(qrc20),
+        ...parseHRC20(hrc20),
         balance: sum
       }
     })
   }
 
-  async searchQRC20Token(name, {limit = 1} = {}) {
+  async searchHRC20Token(name, {limit = 1} = {}) {
     let regex = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
     let result = await Contract.aggregate([
       {
         $match: {
           $or: [
-            {'qrc20.name': regex},
-            {'qrc20.symbol': regex}
+            {'hrc20.name': regex},
+            {'hrc20.symbol': regex}
           ]
         }
       },
       {
         $project: {
           address: '$address',
-          qrc20: '$qrc20'
+          hrc20: '$hrc20'
         }
       },
       {
         $lookup: {
-          from: 'qrc20tokenbalances',
+          from: 'hrc20tokenbalances',
           localField: 'address',
           foreignField: 'contract',
           as: 'balance'
@@ -706,7 +706,7 @@ export default class ContractService extends Service {
       {
         $group: {
           _id: '$address',
-          qrc20: {$first: '$qrc20'},
+          hrc20: {$first: '$hrc20'},
           holders: {$sum: 1}
         }
       },
@@ -716,31 +716,31 @@ export default class ContractService extends Service {
         $project: {
           _id: false,
           address: '$_id',
-          qrc20: '$qrc20',
+          hrc20: '$hrc20',
           holders: '$holders'
         }
       }
     ])
-    return result.map(({address, qrc20, holders}) => ({
+    return result.map(({address, hrc20, holders}) => ({
       address: Buffer.from(address, 'hex'),
-      ...parseQRC20(qrc20),
+      ...parseHRC20(hrc20),
       holders
     }))
   }
 
-  async getQRC20TokenHolders(token) {
-    return await QRC20TokenBalance.countDocuments({
+  async getHRC20TokenHolders(token) {
+    return await HRC20TokenBalance.countDocuments({
       contract: token,
       balance: {$ne: 0n}
     })
   }
 
-  async getQRC20TokenRichList(token, {pageIndex = 0, pageSize = 100} = {}) {
-    let totalCount = await QRC20TokenBalance.countDocuments({
+  async getHRC20TokenRichList(token, {pageIndex = 0, pageSize = 100} = {}) {
+    let totalCount = await HRC20TokenBalance.countDocuments({
       contract: token,
       balance: {$ne: 0n}
     })
-    let list = await QRC20TokenBalance.collection
+    let list = await HRC20TokenBalance.collection
       .find(
         {contract: token, balance: {$ne: '0'.repeat(64)}},
         {
@@ -822,7 +822,7 @@ export default class ContractService extends Service {
               owner,
               code: Buffer.from(code, 'hex')
             }
-          )).qrc20) {
+          )).hrc20) {
             this._updateBalances(new Set([`${address.toString('hex')}:${owner.data.toString('hex')}`]))
           }
         }
@@ -846,7 +846,7 @@ export default class ContractService extends Service {
       .map(document => document.address)
       .toArray()
     await Contract.deleteMany({createHeight: {$gt: height}})
-    await QRC20TokenBalance.deleteMany({contract: {$in: contracts}})
+    await HRC20TokenBalance.deleteMany({contract: {$in: contracts}})
     let balanceChanges = new Set()
     let transfers = await Transaction.aggregate([
       {
@@ -896,7 +896,7 @@ export default class ContractService extends Service {
       }
     }
     await Contract.deleteMany({address: {$in: contractsToRemove}})
-    await QRC20TokenBalance.deleteMany({contract: {$in: contractsToRemove}})
+    await HRC20TokenBalance.deleteMany({contract: {$in: contractsToRemove}})
     for (let address of contractsToCreate) {
       await this._createContract(Buffer.from(address, 'hex'))
     }
@@ -926,53 +926,53 @@ export default class ContractService extends Service {
       path.resolve(this._contractCodeDirectory, `${addressString}.code`),
       code
     )
-    if (isQRC721(code)) {
-      let qrc721Params = {}
+    if (isHRC721(code)) {
+      let hrc721Params = {}
       let [nameResult, symbolResult, totalSupplyResult] = await this._batchCallMethods([
-        {address, abi: Solidity.qrc721ABIs.find(abi => abi.name === 'name')},
-        {address, abi: Solidity.qrc721ABIs.find(abi => abi.name === 'symbol')},
-        {address, abi: Solidity.qrc721ABIs.find(abi => abi.name === 'totalSupply')}
+        {address, abi: Solidity.hrc721ABIs.find(abi => abi.name === 'name')},
+        {address, abi: Solidity.hrc721ABIs.find(abi => abi.name === 'symbol')},
+        {address, abi: Solidity.hrc721ABIs.find(abi => abi.name === 'totalSupply')}
       ])
       try {
-        qrc721Params.name = (await nameResult)[0]
+        hrc721Params.name = (await nameResult)[0]
       } catch (err) {}
       try {
-        qrc721Params.symbol = (await symbolResult)[0]
+        hrc721Params.symbol = (await symbolResult)[0]
       } catch (err) {}
       try {
-        qrc721Params.totalSupply = BigInt((await totalSupplyResult)[0].toString())
-        contract.type = 'qrc721'
-        contract.tags = ['qrc721']
-        contract.qrc721 = qrc721Params
+        hrc721Params.totalSupply = BigInt((await totalSupplyResult)[0].toString())
+        contract.type = 'hrc721'
+        contract.tags = ['hrc721']
+        contract.hrc721 = hrc721Params
       } catch (err) {}
-    } else if (isQRC20(code)) {
-      let qrc20Params = {}
+    } else if (isHRC20(code)) {
+      let hrc20Params = {}
       let [
         nameResult, symbolResult, decimalsResult, totalSupplyResult, versionResult
       ] = await this._batchCallMethods([
-        {address, abi: Solidity.qrc20ABIs.find(abi => abi.name === 'name')},
-        {address, abi: Solidity.qrc20ABIs.find(abi => abi.name === 'symbol')},
-        {address, abi: Solidity.qrc20ABIs.find(abi => abi.name === 'decimals')},
-        {address, abi: Solidity.qrc20ABIs.find(abi => abi.name === 'totalSupply')},
-        {address, abi: Solidity.qrc20ABIs.find(abi => abi.name === 'version')}
+        {address, abi: Solidity.hrc20ABIs.find(abi => abi.name === 'name')},
+        {address, abi: Solidity.hrc20ABIs.find(abi => abi.name === 'symbol')},
+        {address, abi: Solidity.hrc20ABIs.find(abi => abi.name === 'decimals')},
+        {address, abi: Solidity.hrc20ABIs.find(abi => abi.name === 'totalSupply')},
+        {address, abi: Solidity.hrc20ABIs.find(abi => abi.name === 'version')}
       ])
       try {
-        qrc20Params.name = (await nameResult)[0]
+        hrc20Params.name = (await nameResult)[0]
       } catch (err) {}
       try {
-        qrc20Params.symbol = (await symbolResult)[0]
+        hrc20Params.symbol = (await symbolResult)[0]
       } catch (err) {}
       try {
-        qrc20Params.decimals = (await decimalsResult)[0].toNumber()
+        hrc20Params.decimals = (await decimalsResult)[0].toNumber()
       } catch (err) {}
       try {
-        qrc20Params.version = (await versionResult)[0]
+        hrc20Params.version = (await versionResult)[0]
       } catch (err) {}
       try {
-        qrc20Params.totalSupply = BigInt((await totalSupplyResult)[0].toString())
-        contract.type = 'qrc20'
-        contract.tags = ['qrc20']
-        contract.qrc20 = qrc20Params
+        hrc20Params.totalSupply = BigInt((await totalSupplyResult)[0].toString())
+        contract.type = 'hrc20'
+        contract.tags = ['hrc20']
+        contract.hrc20 = hrc20Params
       } catch (err) {}
     }
     return await contract.save()
@@ -1117,14 +1117,14 @@ export default class ContractService extends Service {
       await this._updateBalances(balanceChanges)
     }
     for (let address of totalSupplyChanges) {
-      let contract = await Contract.findOne({address, type: {$in: ['qrc20', 'qrc721']}})
+      let contract = await Contract.findOne({address, type: {$in: ['hrc20', 'hrc721']}})
       if (contract) {
         try {
           let [totalSupply] = await this._callMethod(Buffer.from(address, 'hex'), totalSupplyABI)
-          if (contract.type === 'qrc20') {
-            contract.qrc20.totalSupply = BigInt(totalSupply.toString())
+          if (contract.type === 'hrc20') {
+            contract.hrc20.totalSupply = BigInt(totalSupply.toString())
           } else {
-            contract.qrc721.totalSupply = BigInt(totalSupply.toString())
+            contract.hrc721.totalSupply = BigInt(totalSupply.toString())
           }
         } catch (err) {
           continue
@@ -1161,7 +1161,7 @@ export default class ContractService extends Service {
     )
     operations = operations.filter(Boolean)
     if (operations.length) {
-      await QRC20TokenBalance.collection.bulkWrite(operations)
+      await HRC20TokenBalance.collection.bulkWrite(operations)
     }
   }
 
@@ -1183,19 +1183,19 @@ export default class ContractService extends Service {
   }
 }
 
-function isQRC20(code) {
+function isHRC20(code) {
   return code.includes(balanceOfABI.id)
     && code.includes(transferABI.id)
     && code.includes(TransferABI.id)
 }
 
-function isQRC721(code) {
+function isHRC721(code) {
   return code.includes(balanceOfABI.id)
     && code.includes(ownerOfABI.id)
     && code.includes(TransferABI.id)
 }
 
-function parseQRC20(token) {
+function parseHRC20(token) {
   let totalSupply
   if (typeof token.totalSupply === 'string') {
     totalSupply = BigInt(`0x${token.totalSupply}`)
@@ -1211,7 +1211,7 @@ function parseQRC20(token) {
   }
 }
 
-function parseQRC721(token) {
+function parseHRC721(token) {
   let totalSupply
   if (typeof token.totalSupply === 'string') {
     totalSupply = BigInt(`0x${token.totalSupply}`)

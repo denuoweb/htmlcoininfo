@@ -22,7 +22,7 @@ export default class AddressesController {
 
   async summary(ctx) {
     let summary = await this.node.getAddressSummary(ctx.state.addresses)
-    let qrc20TokenBalances = await this.node.getAllQRC20TokenBalances(ctx.state.addresses)
+    let hrc20TokenBalances = await this.node.getAllHRC20TokenBalances(ctx.state.addresses)
     let balanceRanking
     if (ctx.state.addresses.length === 1) {
       balanceRanking = await this.node.getBalanceRanking(ctx.state.addresses[0])
@@ -34,7 +34,7 @@ export default class AddressesController {
       unconfirmed: summary.unconfirmed.toString(),
       staking: summary.staking.toString(),
       mature: summary.mature.toString(),
-      qrc20TokenBalances: qrc20TokenBalances.map(token => ({
+      hrc20TokenBalances: hrc20TokenBalances.map(token => ({
         address: token.address.toString('hex'),
         name: token.name,
         symbol: token.symbol,
@@ -94,7 +94,7 @@ export default class AddressesController {
     }
   }
 
-  async qrc20BalanceHistory(ctx) {
+  async hrc20BalanceHistory(ctx) {
     let tokens = 'all'
     if ('tokens' in ctx.query) {
       tokens = []
@@ -107,7 +107,7 @@ export default class AddressesController {
         }
       }
     }
-    let result = await this.node.getAddressQRC20TokenBalanceHistory(
+    let result = await this.node.getAddressHRC20TokenBalanceHistory(
       ctx.state.addresses,
       tokens,
       ctx.state.pagination

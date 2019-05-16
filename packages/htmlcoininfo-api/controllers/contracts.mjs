@@ -21,11 +21,11 @@ export default class ContractsController {
 
   async show(ctx) {
     let contract = ctx.state.contract
-    if (contract.qrc20) {
-      contract.qrc20.holders = await this.node.getQRC20TokenHolders(contract.address)
+    if (contract.hrc20) {
+      contract.hrc20.holders = await this.node.getHRC20TokenHolders(contract.address)
     }
     let summary = await this.node.getContractSummary(contract.address)
-    let qrc20TokenBalances = await this.node.getAllQRC20TokenBalances(
+    let hrc20TokenBalances = await this.node.getAllHRC20TokenBalances(
       new Address({type: Address.CONTRACT, data: contract.address, chain: this.node.chain, vm: 'evm'})
     )
     ctx.body = {
@@ -34,31 +34,31 @@ export default class ContractsController {
       createTransactionId: contract.createTransactionId && contract.createTransactionId.toString('hex'),
       createHeight: contract.createHeight,
       type: contract.type,
-      ...contract.qrc20
+      ...contract.hrc20
         ? {
-          qrc20: {
-            name: contract.qrc20.name,
-            symbol: contract.qrc20.symbol,
-            decimals: contract.qrc20.decimals,
-            totalSupply: contract.qrc20.totalSupply == null ? null : contract.qrc20.totalSupply.toString(),
-            version: contract.qrc20.version,
-            holders: contract.qrc20.holders
+          hrc20: {
+            name: contract.hrc20.name,
+            symbol: contract.hrc20.symbol,
+            decimals: contract.hrc20.decimals,
+            totalSupply: contract.hrc20.totalSupply == null ? null : contract.hrc20.totalSupply.toString(),
+            version: contract.hrc20.version,
+            holders: contract.hrc20.holders
           }
         }
         : {},
-      ...contract.qrc721
+      ...contract.hrc721
         ? {
-          qrc721: {
-            name: contract.qrc721.name,
-            symbol: contract.qrc721.symbol,
-            totalSupply: contract.qrc721.totalSupply == null ? null : contract.qrc721.totalSupply.toString()
+          hrc721: {
+            name: contract.hrc721.name,
+            symbol: contract.hrc721.symbol,
+            totalSupply: contract.hrc721.totalSupply == null ? null : contract.hrc721.totalSupply.toString()
           }
         }
         : {},
       balance: summary.balance.toString(),
       totalReceived: summary.totalReceived.toString(),
       totalSent: summary.totalSent.toString(),
-      qrc20TokenBalances: qrc20TokenBalances.map(token => ({
+      hrc20TokenBalances: hrc20TokenBalances.map(token => ({
         address: token.address.toString('hex'),
         name: token.name,
         symbol: token.symbol,
@@ -78,8 +78,8 @@ export default class ContractsController {
     }
   }
 
-  async qrc20Tokens(ctx) {
-    let result = await this.node.listQRC20Tokens(ctx.state.pagination)
+  async hrc20Tokens(ctx) {
+    let result = await this.node.listHRC20Tokens(ctx.state.pagination)
     ctx.body = {
       totalCount: result.totalCount,
       tokens: result.tokens.map(token => ({
@@ -94,7 +94,7 @@ export default class ContractsController {
   }
 
   async richList(ctx) {
-    let result = await this.node.getQRC20TokenRichList(ctx.state.contract.address, ctx.state.pagination)
+    let result = await this.node.getHRC20TokenRichList(ctx.state.contract.address, ctx.state.pagination)
     ctx.body = {
       totalCount: result.totalCount,
       list: result.list.map(({address, balance}) => ({

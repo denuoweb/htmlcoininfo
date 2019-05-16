@@ -18,9 +18,9 @@ API endpoint of [htmlcoin.info](https://htmlcoin.info) is https://htmlcoin.info/
     - [Address UTXO information](#address-utxo-information)
     - [Address transactions](#address-transactions)
     - [Address balance history](#address-balance-history)
-    - [Address qrc20 token balance history](#address-qrc20-token-balance-history)
+    - [Address hrc20 token balance history](#address-hrc20-token-balance-history)
   - [Contracts](#contracts)
-    - [QRC20 token list](#qrc20-token-list)
+    - [HRC20 token list](#hrc20-token-list)
     - [Contract information](#contract-information)
     - [Contract transactions](#contract-transactions)
 
@@ -195,7 +195,7 @@ GET /tx/c4f906c845f7e4a9bc6cfbb1c581ac12325841d7ccac0c63067c84b3aaed38f7
       ]
     }
   ],
-  "qrc20TokenTransfers": [
+  "hrc20TokenTransfers": [
     {
       "token": {
         "address": "49665919e437a4bedb92faa45ed33ebb5a33ee63",
@@ -210,7 +210,7 @@ GET /tx/c4f906c845f7e4a9bc6cfbb1c581ac12325841d7ccac0c63067c84b3aaed38f7
       "amount": "10136000000"
     }
   ],
-  "qrc721TokenTransfers": []
+  "hrc721TokenTransfers": []
 }
 ```
 
@@ -251,7 +251,7 @@ GET /address/QQr3S2Q8gLoatsmN3hQ1a2v2uM9YpU9Myk
   "unconfirmed": "0",
   "staking": "0",
   "mature": "400571483",
-  "qrc20TokenBalances": [
+  "hrc20TokenBalances": [
     {
       "address": "f397f39ce992b0f5bdc7ec1109d676d07f7af2f9",
       "name": "Ocash",
@@ -561,9 +561,9 @@ GET /address/QXDZB2c4TBRSWqYY1ifQQHMu9MuiDW3oYi/balance-history
 }
 ```
 
-### Address qrc20 token balance history
+### Address hrc20 token balance history
 ```
-GET /address/:address/qrc20-balance-history
+GET /address/:address/hrc20-balance-history
 ```
 ```
 Request Params
@@ -571,7 +571,7 @@ tokens = all / { token address }
 pageSize, pageIndex, reversed = { pagination }
 ```
 ```
-GET /address/QXDZB2c4TBRSWqYY1ifQQHMu9MuiDW3oYi/qrc20-balance-history
+GET /address/QXDZB2c4TBRSWqYY1ifQQHMu9MuiDW3oYi/hrc20-balance-history
 ```
 ```json
 {
@@ -640,16 +640,16 @@ GET /address/QXDZB2c4TBRSWqYY1ifQQHMu9MuiDW3oYi/qrc20-balance-history
 
 ## Contracts
 
-### QRC20 token list
+### HRC20 token list
 ```
-GET /contract/qrc20-tokens
+GET /contract/hrc20-tokens
 ```
 ```
 Request Params
 pageSize, pageIndex = { pagination }
 ```
 ```
-GET /contract/qrc20-tokens?pageSize=10
+GET /contract/hrc20-tokens?pageSize=10
 ```
 ```json
 {
@@ -752,8 +752,8 @@ GET /contract/6b8bf98ff497c064e8f0bde13e0c4f5ed5bf8ce7
   "owner": "QgRUhP8sLMCNKrzwtW4xU5DF8CCTeiA3sF",
   "createTransactionId": "ab35b9f424ef46b601ecf6909b36c9d524bb9321b24f18667bd9b38bd481bfb3",
   "createHeight": 37251,
-  "type": "qrc20",
-  "qrc20": {
+  "type": "hrc20",
+  "hrc20": {
     "name": "Bodhi Token",
     "symbol": "BOT",
     "decimals": 8,
@@ -763,7 +763,7 @@ GET /contract/6b8bf98ff497c064e8f0bde13e0c4f5ed5bf8ce7
   "balance": "0",
   "totalReceived": "1086500002",
   "totalSent": "1086500002",
-  "qrc20TokenBalances": [],
+  "hrc20TokenBalances": [],
   "totalCount": 19164
 }
 ```
@@ -829,7 +829,7 @@ GET /contract/6b8bf98ff497c064e8f0bde13e0c4f5ed5bf8ce7/rich-list?pageSize=10
       "balance": "726006244651616"
     },
     {
-      "address": "QRCRpr3KieQT7BxgMY3JiaSdsW9zMbLJuw",
+      "address": "HRCRpr3KieQT7BxgMY3JiaSdsW9zMbLJuw",
       "balance": "396434700917978"
     },
     {
@@ -921,7 +921,7 @@ GET /misc/rich-list?pageSize=10
       "balance": "300000000000000"
     },
     {
-      "address": "QRCFKkQWhrb7TEaiiXs1NVP2NUQSR7ubUJ",
+      "address": "HRCFKkQWhrb7TEaiiXs1NVP2NUQSR7ubUJ",
       "balance": "183837999638400"
     },
     {

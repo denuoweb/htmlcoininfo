@@ -5,8 +5,8 @@
 * mongodb v4.0+
 
 ## Deploy htmlcoin core
-1. `git clone --recursive https://github.com/xuanyan0x7c7/htmlcoin.git` <b>Caution! This is not the official htmlcoin repo!</b>
-2. Follow the instructions [https://github.com/denuoweb/htmlcoin#building-htmlcoin-core]() to build htmlcoin
+1. `git clone --recursive https://github.com/HTMLCOIN/htmlcoin.git` 
+2. Follow the instructions [https://github.com/HTMLCOIN/htmlcoin#building-htmlcoin-core]() to build htmlcoin
 3. Run `htmlcoind` with `-logevents=1` enabled
 
 ## Deploy htmlcoininfo

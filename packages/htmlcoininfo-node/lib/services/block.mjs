@@ -8,7 +8,7 @@ import TransactionOutput from '../models/transaction-output'
 import Service from './base'
 import {AsyncQueue, toBigInt} from '../utils'
 
-const TransferABI = Solidity.qrc20ABIs.find(abi => abi.name === 'Transfer')
+const TransferABI = Solidity.hrc20ABIs.find(abi => abi.name === 'Transfer')
 
 export default class BlockService extends Service {
   constructor(options) {

@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 import addressSchema from './address'
 
-const qrc20Schema = new mongoose.Schema({
+const hrc20Schema = new mongoose.Schema({
   name: {type: String, index: true},
   symbol: {type: String, index: true},
   decimals: Number,
@@ -13,7 +13,7 @@ const qrc20Schema = new mongoose.Schema({
   version: String
 }, {_id: false})
 
-const qrc721Schema = new mongoose.Schema({
+const hrc721Schema = new mongoose.Schema({
   name: {type: String, index: true},
   symbol: {type: String, index: true},
   totalSupply: {
@@ -41,8 +41,8 @@ const contractSchema = new mongoose.Schema({
   createHeight: {type: Number, index: true},
   type: {type: String, index: true},
   tags: [{type: String, index: true}],
-  qrc20: qrc20Schema,
-  qrc721: qrc721Schema
+  hrc20: hrc20Schema,
+  hrc721: hrc721Schema
 })
 
 export default mongoose.model('Contract', contractSchema)

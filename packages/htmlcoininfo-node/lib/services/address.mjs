@@ -6,7 +6,7 @@ import HtmlcoinBalanceChanges from '../models/htmlcoin-balance-changes'
 import Service from './base'
 import {toBigInt} from '../utils'
 
-const TransferABI = Solidity.qrc20ABIs.find(abi => abi.name === 'Transfer')
+const TransferABI = Solidity.hrc20ABIs.find(abi => abi.name === 'Transfer')
 
 export default class AddressService extends Service {
   static get dependencies() {

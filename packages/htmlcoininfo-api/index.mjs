@@ -129,9 +129,9 @@ export default class HtmlcoininfoAPIService extends Service {
       this.addresses.balanceHistory.bind(this.addresses)
     )
     router.get(
-      '/address/:address/qrc20-balance-history',
+      '/address/:address/hrc20-balance-history',
       this.addresses.checkAddresses.bind(this.addresses),
-      this.addresses.qrc20BalanceHistory.bind(this.addresses)
+      this.addresses.hrc20BalanceHistory.bind(this.addresses)
     )
 
     router.get('/blocks', this.blocks.list.bind(this.blocks))
@@ -139,7 +139,7 @@ export default class HtmlcoininfoAPIService extends Service {
     router.get('/raw-block/:hash', this.blocks.rawBlock.bind(this.blocks))
     router.get('/recent-blocks', this.blocks.recentBlocks.bind(this.blocks))
 
-    router.get('/contract/qrc20-tokens', this.contracts.qrc20Tokens.bind(this.contracts))
+    router.get('/contract/hrc20-tokens', this.contracts.hrc20Tokens.bind(this.contracts))
     router.get(
       '/contract/:contract',
       this.contracts.contract.bind(this.contracts),

@@ -1,6 +1,6 @@
 import ethjsABI from 'ethereumjs-abi'
-import qrc20List from './qrc20-abi.json'
-import qrc721List from './qrc721-abi.json'
+import hrc20List from './hrc20-abi.json'
+import hrc721List from './hrc721-abi.json'
 
 function getTypes(abi, category) {
   let result = []
@@ -104,7 +104,7 @@ export class EventABI {
   }
 }
 
-export const qrc20ABIs = qrc20List.map(abi => {
+export const hrc20ABIs = hrc20List.map(abi => {
   if (abi.type === 'function') {
     return new MethodABI(abi)
   } else if (abi.type === 'event') {
@@ -112,7 +112,7 @@ export const qrc20ABIs = qrc20List.map(abi => {
   }
 })
 
-export const qrc721ABIs = qrc721List.map(abi => {
+export const hrc721ABIs = hrc721List.map(abi => {
   if (abi.type === 'function') {
     return new MethodABI(abi)
   } else if (abi.type === 'event') {

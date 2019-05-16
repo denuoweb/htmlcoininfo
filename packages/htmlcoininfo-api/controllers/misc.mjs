@@ -112,7 +112,7 @@ export default class MiscController {
       ctx.body = {type: 'address'}
       return
     }
-    let [token] = await this.node.searchQRC20Token(id)
+    let [token] = await this.node.searchHRC20Token(id)
     if (token) {
       ctx.body = {type: 'contract', id: token.address.toString('hex')}
       return

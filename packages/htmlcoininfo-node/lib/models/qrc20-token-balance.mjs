@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 
-const qrc20TokenBalanceSchema = new mongoose.Schema({
+const hrc20TokenBalanceSchema = new mongoose.Schema({
   contract: {
     type: String,
     get: s => Buffer.from(s, 'hex'),
@@ -19,6 +19,6 @@ const qrc20TokenBalanceSchema = new mongoose.Schema({
   }
 })
 
-qrc20TokenBalanceSchema.index({contract: 1, balance: -1})
+hrc20TokenBalanceSchema.index({contract: 1, balance: -1})
 
-export default mongoose.model('QRC20TokenBalance', qrc20TokenBalanceSchema)
+export default mongoose.model('HRC20TokenBalance', hrc20TokenBalanceSchema)

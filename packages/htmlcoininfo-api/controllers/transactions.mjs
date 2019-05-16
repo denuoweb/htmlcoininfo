@@ -206,8 +206,8 @@ export default class TransactionsController {
       transformed.outputs.push(transformedOutput)
     }
 
-    let qrc20TokenTransfers = await this.node.getQRC20TokenTransfers(transaction)
-    transformed.qrc20TokenTransfers = qrc20TokenTransfers.map(({token, from, to, amount}) => ({
+    let hrc20TokenTransfers = await this.node.getHRC20TokenTransfers(transaction)
+    transformed.hrc20TokenTransfers = hrc20TokenTransfers.map(({token, from, to, amount}) => ({
       token: {
         address: token.address.toString('hex'),
         name: token.name,
@@ -220,8 +220,8 @@ export default class TransactionsController {
       to: to && to.toString(),
       amount: amount.toString()
     }))
-    let qrc721TokenTransfers = await this.node.getQRC721TokenTransfers(transaction)
-    transformed.qrc721TokenTransfers = qrc721TokenTransfers.map(({token, from, to, tokenId}) => ({
+    let hrc721TokenTransfers = await this.node.getHRC721TokenTransfers(transaction)
+    transformed.hrc721TokenTransfers = hrc721TokenTransfers.map(({token, from, to, tokenId}) => ({
       token: {
         address: token.address.toString('hex'),
         name: token.name,
