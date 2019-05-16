@@ -1,42 +1,42 @@
-# How to deploy qtuminfo and qtuminfo-ui
+# How to deploy htmlcoininfo and htmlcoininfo-ui
 
 ## Prerequisites
 * node.js v10.5+
 * mongodb v4.0+
 
-## Deploy qtum core
-1. `git clone --recursive https://github.com/xuanyan0x7c7/qtum.git` <b>Caution! This is not the official qtum repo!</b>
-2. Follow the instructions [https://github.com/qtumproject/qtum#building-qtum-core]() to build qtum
-3. Run `qtumd` with `-logevents=1` enabled
+## Deploy htmlcoin core
+1. `git clone --recursive https://github.com/xuanyan0x7c7/htmlcoin.git` <b>Caution! This is not the official htmlcoin repo!</b>
+2. Follow the instructions [https://github.com/denuoweb/htmlcoin#building-htmlcoin-core]() to build htmlcoin
+3. Run `htmlcoind` with `-logevents=1` enabled
 
-## Deploy qtuminfo
-1. `git clone https://github.com/qtumproject/qtuminfo.git && cd qtuminfo`
+## Deploy htmlcoininfo
+1. `git clone https://github.com/denuoweb/htmlcoininfo.git && cd htmlcoininfo`
 2. `npm install`
-3. `mkdir packages/explorer` (you may change the directory name) and write files `package.json` and `qtuminfo-node.json` to it
+3. `mkdir packages/explorer` (you may change the directory name) and write files `package.json` and `htmlcoininfo-node.json` to it
     ```json
     // package.json
     {
         "name": "explorer-mainnet",
         "private": true,
         "scripts": {
-            "start": "qtuminfo-node start"
+            "start": "htmlcoininfo-node start"
         },
         "dependencies": {
-            "qtuminfo-api": "^0.0.1",
-            "qtuminfo-node": "^0.0.1",
-            "qtuminfo-ws": "^0.0.1"
+            "htmlcoininfo-api": "^0.0.1",
+            "htmlcoininfo-node": "^0.0.1",
+            "htmlcoininfo-ws": "^0.0.1"
         }
     }
     ```
     ```json
-    // qtuminfo-node.json
+    // htmlcoininfo-node.json
     {
         "chain": "mainnet",
         "port": 3001,
-        "datadir": "/absolute/path/to/qtuminfo/packages/explorer/data",
+        "datadir": "/absolute/path/to/htmlcoininfo/packages/explorer/data",
         "services": [
-            "qtuminfo-api",
-            "qtuminfo-ws",
+            "htmlcoininfo-api",
+            "htmlcoininfo-ws",
             "address",
             "balance",
             "block",
@@ -52,7 +52,7 @@
             "db": {
             "mongodb": {
                 "url": "mongodb://localhost:27017/",
-                "database": "qtuminfo-mainnet"
+                "database": "htmlcoininfo-mainnet"
             },
             "rpc": {
                 "protocol": "http",
@@ -72,7 +72,7 @@
                 }
             ]
             },
-            "qtuminfo-ws": {
+            "htmlcoininfo-ws": {
                 "port": 3002
             }
         }
@@ -81,11 +81,11 @@
 4. `npm run lerna bootstrap`
 5. run `npm start` in `packages/explorer` directory
 
-## Deploy qtuminfo-ui
-1. `git clone https://github.com/qtumproject/qtuminfo.git && cd qtuminfo`
+## Deploy htmlcoininfo-ui
+1. `git clone https://github.com/denuoweb/htmlcoininfo.git && cd htmlcoininfo`
 2. `npm install` \
     You may modify `package.json` as follows:
-    * rewrite `script.build` to `"build": "QTUMINFO_API_BASE_CLIENT=/api/ QTUMINFO_API_BASE_SERVER=http://localhost:3001/qtuminfo-api/ QTUMINFO_API_BASE_WS=//example.com/ws/ nuxt build"` in `package.json` to set the api URL base
+    * rewrite `script.build` to `"build": "HTMLCOININFO_API_BASE_CLIENT=/api/ HTMLCOININFO_API_BASE_SERVER=http://localhost:3001/htmlcoininfo-api/ HTMLCOININFO_API_BASE_WS=//example.com/ws/ nuxt build"` in `package.json` to set the api URL base
     * rewrite `script.start` to `"start": "PORT=12345 nuxt start"` to frontend on port 12345
 3. `npm run build`
 4. `npm start`

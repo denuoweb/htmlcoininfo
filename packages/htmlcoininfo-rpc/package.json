@@ -1,0 +1,13 @@
+{
+  "name": "htmlcoininfo-rpc",
+  "version": "0.0.1",
+  "description": "Htmlcoin Client Library to connect to Htmlcoin Core via RPC",
+  "main": "index.mjs",
+  "keywords": [
+    "htmlcoin",
+    "htmlcoininfo"
+  ],
+  "repository": "https://github.com/denuoweb/htmlcoininfo/tree/master/packages/htmlcoininfo-rpc.git",
+  "author": "HTMLCOIN <jrosenau@htmlcoin.com>",
+  "license": "MIT"
+}

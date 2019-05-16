@@ -1,0 +1,18 @@
+{
+  "name": "htmlcoininfo-ws",
+  "version": "0.0.1",
+  "description": "A HTMLCOIN blockchain REST and websocket API service for Htmlcoininfo Node",
+  "main": "index.js",
+  "repository": "https://github.com/denuoweb/htmlcoininfo/tree/master/packages/htmlcoininfo-rpc.git",
+  "keywords": [
+    "htmlcoin",
+    "htmlcoininfo"
+  ],
+  "author": "HTMLCOIN <jrosenau@htmlcoin.com>",
+  "license": "MIT",
+  "dependencies": {
+    "htmlcoininfo-lib": "^0.0.1",
+    "htmlcoininfo-node": "^0.0.1",
+    "ws": "^6.0.0"
+  }
+}

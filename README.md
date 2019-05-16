@@ -1,3 +1,3 @@
-# qtuminfo
+# htmlcoininfo
 
-[API documentation](https://github.com/qtumproject/qtuminfo/blob/master/packages/qtuminfo-api/README.md)
+[API documentation](https://github.com/denuoweb/htmlcoininfo/blob/master/packages/htmlcoininfo-api/README.md)

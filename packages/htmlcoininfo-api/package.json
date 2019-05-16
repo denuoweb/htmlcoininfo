@@ -1,0 +1,22 @@
+{
+  "name": "htmlcoininfo-api",
+  "version": "0.0.1",
+  "description": "A HTMLCOIN blockchain REST and websocket API service for Htmlcoininfo Node",
+  "main": "index.js",
+  "repository": "https://github.com/denuoweb/htmlcoininfo/tree/master/htmlcoininfo-api",
+  "keywords": [
+    "htmlcoin",
+    "htmlcoininfo"
+  ],
+  "author": "HTMLCOIN <jrosenau@htmlcoin.com>",
+  "license": "MIT",
+  "dependencies": {
+    "koa-bodyparser": "^4.2.1",
+    "koa-compress": "^3.0.0",
+    "koa-cors": "^0.0.16",
+    "koa-morgan": "^1.0.1",
+    "koa-router": "^7.4.0",
+    "htmlcoininfo-lib": "^0.0.1",
+    "htmlcoininfo-node": "^0.0.1"
+  }
+}

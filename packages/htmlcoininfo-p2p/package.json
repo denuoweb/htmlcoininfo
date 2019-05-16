@@ -1,0 +1,16 @@
+{
+  "name": "htmlcoininfo-p2p",
+  "version": "0.0.1",
+  "description": "Interface to the htmlcoin P2P network for htmlcoininfo",
+  "main": "lib/index.mjs",
+  "keywords": [
+    "htmlcoin",
+    "htmlcoininfo"
+  ],
+  "repository": "https://github.com/denuoweb/htmlcoininfo/tree/master/packages/htmlcoininfo-p2p.git",
+  "author": "HTMLCOIN <jrosenau@htmlcoin.com>",
+  "license": "MIT",
+  "dependencies": {
+    "htmlcoininfo-lib": "^0.0.1"
+  }
+}

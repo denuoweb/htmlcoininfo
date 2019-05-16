@@ -1,5 +1,5 @@
 {
-  "name": "qtuminfo",
+  "name": "htmlcoininfo",
   "private": true,
   "version": "0.0.1",
   "description": "",
@@ -9,19 +9,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qtumproject/qtuminfo.git"
+    "url": "git+https://github.com/denuoweb/htmlcoininfo.git"
   },
   "keywords": [
-    "qtum",
-    "qtuminfo",
-    "qtum explorer"
+    "htmlcoin",
+    "htmlcoininfo",
+    "htmlcoin explorer"
   ],
-  "author": "QTUM <foundation@qtum.org>",
+  "author": "HTMLCOIN <jrosenau@htmlcoin.team>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/qtumproject/qtuminfo/issues"
+    "url": "https://github.com/denuoweb/htmlcoininfo/issues"
   },
-  "homepage": "https://github.com/qtumproject/qtuminfo#readme",
+  "homepage": "https://github.com/denuoweb/htmlcoininfo#readme",
   "devDependencies": {
     "babel-eslint": "^8.2.6",
     "eslint": "^4.19.1",
