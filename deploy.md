@@ -6,7 +6,7 @@
 
 ## Deploy htmlcoin core
 1. `git clone --recursive https://github.com/HTMLCOIN/htmlcoin.git` 
-2. Follow the instructions [https://github.com/HTMLCOIN/htmlcoin#building-htmlcoin-core]() to build htmlcoin
+2. Follow the instructions [https://github.com/HTMLCOIN/HTMLCOIN]() to build htmlcoin
 3. Run `htmlcoind` with `-logevents=1` enabled
 
 ## Deploy htmlcoininfo
